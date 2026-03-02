@@ -446,12 +446,15 @@ dependencies = [
  "grey-services",
  "grey-state",
  "grey-types",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "grey-codec"
 version = "0.1.0"
 dependencies = [
+ "grey-crypto",
  "grey-types",
  "hex",
  "serde",
@@ -499,6 +502,7 @@ dependencies = [
 name = "grey-merkle"
 version = "0.1.0"
 dependencies = [
+ "grey-codec",
  "grey-crypto",
  "grey-types",
  "hex",

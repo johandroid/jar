@@ -131,8 +131,8 @@ pub struct PendingReport {
 pub struct PrivilegedServices {
     /// χM: Manager (blessed) service.
     pub manager: ServiceId,
-    /// χA: Assigner service.
-    pub assigner: ServiceId,
+    /// χA: Assigner services (one per core).
+    pub assigner: Vec<ServiceId>,
     /// χV: Designator (validator set) service.
     pub designator: ServiceId,
     /// χR: Registrar service.
@@ -221,22 +221,50 @@ pub struct ValidatorRecord {
     pub assurances_made: u32,
 }
 
-/// Per-core statistics for a single block.
+/// Per-core statistics for a single block (GP π_C, eq 13.1).
+/// Fields ordered per GP type definition: d, p, i, x, z, e, l, u.
 #[derive(Clone, Debug, Default)]
 pub struct CoreStatistics {
-    pub digests_count: u32,
-    pub packages_count: u32,
-    pub imports_count: u32,
-    pub extrinsics_count: u32,
-    pub extrinsics_size: u64,
-    pub exports_count: u32,
-    pub gas_used: Gas,
+    /// d: DA load (total bytes written to DA layer).
+    pub da_load: u64,
+    /// p: Popularity (number of validators assuring this core).
+    pub popularity: u64,
+    /// i: Segments imported from DA.
+    pub imports: u64,
+    /// x: Total extrinsic count.
+    pub extrinsic_count: u64,
+    /// z: Total extrinsic size in bytes.
+    pub extrinsic_size: u64,
+    /// e: Segments exported to DA.
+    pub exports: u64,
+    /// l: Work bundle size in bytes.
     pub bundle_size: u64,
+    /// u: Gas consumed.
+    pub gas_used: Gas,
 }
 
-/// Per-service statistics for a single block.
+/// Per-service statistics for a single block (GP π_S, eq 13.1).
+/// Fields ordered per GP type definition: p, r, i, x, z, e, a.
 #[derive(Clone, Debug, Default)]
 pub struct ServiceStatistics {
-    pub gas_used: Gas,
-    pub items_accumulated: u32,
+    /// p.0: Preimages provided — count.
+    pub provided_count: u64,
+    /// p.1: Preimages provided — total size.
+    pub provided_size: u64,
+    /// r.0: Work items refined — count.
+    pub refinement_count: u64,
+    /// r.1: Work items refined — gas used.
+    pub refinement_gas_used: Gas,
+    /// i: Segments imported.
+    pub imports: u64,
+    /// x: Extrinsic count.
+    pub extrinsic_count: u64,
+    /// z: Extrinsic size in bytes.
+    pub extrinsic_size: u64,
+    /// e: Segments exported.
+    pub exports: u64,
+    /// a.0: Items accumulated — count.
+    pub accumulate_count: u64,
+    /// a.1: Items accumulated — gas used.
+    pub accumulate_gas_used: Gas,
 }

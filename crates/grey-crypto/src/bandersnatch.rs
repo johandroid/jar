@@ -119,6 +119,24 @@ pub fn ring_vrf_verify(
     Some(result)
 }
 
+/// Extract the VRF output hash Y(s) from a Bandersnatch VRF signature.
+///
+/// The signature's first 32 bytes encode a compressed curve point (the VRF output).
+/// Y(s) is the hash of that output point, used for entropy derivation (eq 6.22).
+///
+/// Returns the 32-byte hash, or None if the first 32 bytes are not a valid point.
+pub fn vrf_output_hash(signature: &[u8]) -> Option<[u8; 32]> {
+    if signature.len() < 32 {
+        return None;
+    }
+    let output_point = AffinePoint::deserialize_compressed(&mut &signature[..32]).ok()?;
+    let output = ark_vrf::Output::<Suite>::from_affine(output_point);
+    let hash = output.hash();
+    let mut result = [0u8; 32];
+    result.copy_from_slice(&hash[..32]);
+    Some(result)
+}
+
 /// Ticket VRF context string (Appendix I.4.5: X_T = $jam_ticket_seal).
 pub const TICKET_SEAL_CONTEXT: &[u8] = b"jam_ticket_seal";
 

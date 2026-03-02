@@ -9,9 +9,24 @@
 //! - Merkle Mountain Ranges and Belts
 
 pub mod mmr;
+pub mod state_serial;
 pub mod trie;
 
+use grey_types::config::Config;
+use grey_types::state::State;
 use grey_types::Hash;
+
+/// Compute the state Merklization Mσ(σ) — compose T(σ) with merkle_root.
+pub fn compute_state_root(state: &State, config: &Config) -> Hash {
+    let kvs = state_serial::serialize_state(state, config);
+    compute_state_root_from_kvs(&kvs)
+}
+
+/// Compute the state root from pre-serialized KV pairs.
+pub fn compute_state_root_from_kvs(kvs: &[([u8; 31], Vec<u8>)]) -> Hash {
+    let refs: Vec<(&[u8], &[u8])> = kvs.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect();
+    trie::merkle_root(&refs)
+}
 
 /// Compute the well-balanced binary Merkle tree root MB (eq E.1).
 ///

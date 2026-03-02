@@ -1,19 +1,15 @@
 //! Block state transition implementation (eq 4.1, 4.5-4.20).
 
 use crate::TransitionError;
+use grey_codec::header_codec::compute_header_hash;
 use grey_types::config::Config;
+#[cfg(test)]
 use grey_types::constants::*;
 use grey_types::header::Block;
-use grey_types::state::{PendingReport, RecentBlockInfo, State};
+use grey_types::state::{PendingReport, State};
 use grey_types::Hash;
 
-// Derived constants
-#[cfg(test)]
-const TOTAL_VALIDATORS_USIZE: usize = TOTAL_VALIDATORS as usize;
-const _TOTAL_CORES_USIZE: usize = TOTAL_CORES as usize;
-const REPORT_TIMEOUT: u32 = AVAILABILITY_TIMEOUT;
 const MINIMUM_GUARANTORS: usize = 2; // Minimum credential count for guarantees
-const AUTH_POOL_SIZE: usize = MAX_AUTH_POOL_ITEMS;
 
 /// Apply a block to produce the posterior state.
 ///
@@ -36,7 +32,7 @@ pub fn apply_with_config(state: &State, block: &Block, config: &Config) -> Resul
     let extrinsic = &block.extrinsic;
 
     // Basic validation
-    validate_header(state, header)?;
+    validate_header(state, header, config)?;
 
     // Clone state for mutation
     let mut new_state = state.clone();
@@ -45,21 +41,44 @@ pub fn apply_with_config(state: &State, block: &Block, config: &Config) -> Resul
     new_state.timeslot = header.timeslot;
 
     // Step 2: Process judgments/disputes (Section 10)
-    apply_judgments(&mut new_state, &extrinsic.disputes);
+    apply_judgments(&mut new_state, &extrinsic.disputes, config);
 
     // Step 3: Clear disputed pending reports (eq 10.15)
-    clear_disputed_reports(&mut new_state, &extrinsic.disputes);
+    clear_disputed_reports(&mut new_state, &extrinsic.disputes, config);
 
-    // Step 4: Process availability assurances (Section 11.2)
-    let _available_reports = process_assurances(&mut new_state, &extrinsic.assurances, header.timeslot);
+    // Step 4: Safrole sub-transition (Section 6)
+    apply_safrole(&mut new_state, header, config);
 
-    // Step 5: Process work report guarantees (Section 11.4)
+    // Step 5: Process availability assurances (Section 11.2)
+    let available_reports = process_assurances(&mut new_state, &extrinsic.assurances, header.timeslot, config);
+
+    // Step 6: Process work report guarantees (Section 11.4)
+    // Collect incoming reports (I) before processing guarantees
+    let incoming_reports: Vec<&grey_types::work::WorkReport> = extrinsic.guarantees.iter().map(|g| &g.report).collect();
     process_guarantees(&mut new_state, &extrinsic.guarantees, header.timeslot)?;
 
-    // Step 6: Update recent block history (Section 7)
-    update_recent_history(&mut new_state, header, &extrinsic.guarantees);
+    // Step 7: Update recent block history β' (Section 7)
+    // Uses history::update_history which handles:
+    //   - β† correction (fixing last entry's state_root to H_R)
+    //   - MMR append for accumulation belt β_B
+    //   - Computing accumulation_root from MMR super-peak
+    //   - Creating new entry with correct fields
+    {
+        let header_hash = compute_header_hash(header);
+        let work_packages: Vec<(Hash, Hash)> = extrinsic.guarantees.iter().map(|g| {
+            (g.report.package_spec.package_hash, g.report.package_spec.exports_root)
+        }).collect();
+        // No accumulation for now: θ' = [], so M_B([], H_K) = ℍ₀
+        let input = crate::history::HistoryInput {
+            header_hash,
+            parent_state_root: header.state_root,
+            accumulate_root: Hash::ZERO,
+            work_packages,
+        };
+        crate::history::update_history(&mut new_state.recent_blocks, &input);
+    }
 
-    // Step 7: Update validator statistics (Section 13)
+    // Step 8: Update validator statistics (Section 13)
     crate::statistics::update_statistics(
         config,
         &mut new_state.statistics,
@@ -67,13 +86,16 @@ pub fn apply_with_config(state: &State, block: &Block, config: &Config) -> Resul
         header.timeslot,
         header.author_index,
         extrinsic,
+        &incoming_reports,
+        &available_reports,
     );
 
-    // Step 8: Process preimages (Section 12.4)
+    // Step 9: Process preimages (Section 12.4)
     process_preimages(&mut new_state, &extrinsic.preimages, header.timeslot);
 
-    // Step 9: Authorization pool rotation (Section 8)
-    rotate_auth_pool(&mut new_state, &extrinsic.guarantees);
+    // Step 10: Authorization pool rotation (Section 8)
+    // α' depends on φ' (which comes from accumulation — here φ' = φ since no accumulation)
+    rotate_auth_pool(&mut new_state, &extrinsic.guarantees, config);
 
     Ok(new_state)
 }
@@ -82,6 +104,7 @@ pub fn apply_with_config(state: &State, block: &Block, config: &Config) -> Resul
 fn validate_header(
     state: &State,
     header: &grey_types::header::Header,
+    config: &Config,
 ) -> Result<(), TransitionError> {
     // Timeslot must advance (eq 6.1: τ' > τ)
     if header.timeslot <= state.timeslot {
@@ -92,7 +115,7 @@ fn validate_header(
     }
 
     // Author index must be valid
-    if header.author_index as usize >= state.current_validators.len() {
+    if header.author_index as usize >= config.validators_count as usize {
         return Err(TransitionError::InvalidAuthorIndex(header.author_index));
     }
 
@@ -103,9 +126,10 @@ fn validate_header(
 fn apply_judgments(
     state: &mut State,
     disputes: &grey_types::header::DisputesExtrinsic,
+    config: &Config,
 ) {
-    let supermajority = (TOTAL_VALIDATORS * 2 / 3) + 1;
-    let one_third = TOTAL_VALIDATORS / 3;
+    let supermajority = config.super_majority() as usize;
+    let one_third = (config.validators_count / 3) as usize;
 
     // Process verdicts (eq 10.12-10.19)
     for verdict in &disputes.verdicts {
@@ -115,14 +139,11 @@ fn apply_judgments(
             .filter(|j| j.is_valid)
             .count();
 
-        if positive_count >= supermajority as usize {
-            // Good: supermajority says valid
+        if positive_count >= supermajority {
             state.judgments.good.insert(verdict.report_hash);
         } else if positive_count == 0 {
-            // Bad: all say invalid
             state.judgments.bad.insert(verdict.report_hash);
-        } else if positive_count <= one_third as usize {
-            // Wonky: about one-third say valid
+        } else if positive_count <= one_third {
             state.judgments.wonky.insert(verdict.report_hash);
         }
     }
@@ -142,8 +163,9 @@ fn apply_judgments(
 fn clear_disputed_reports(
     state: &mut State,
     disputes: &grey_types::header::DisputesExtrinsic,
+    config: &Config,
 ) {
-    let supermajority = (TOTAL_VALIDATORS * 2 / 3) + 1;
+    let supermajority = config.super_majority() as usize;
 
     for verdict in &disputes.verdicts {
         let positive_count: usize = verdict
@@ -153,11 +175,13 @@ fn clear_disputed_reports(
             .count();
 
         // If not supermajority good, clear from pending
-        if positive_count < supermajority as usize {
+        if positive_count < supermajority {
             for slot in state.pending_reports.iter_mut() {
-                if let Some(_pending) = slot {
-                    if grey_crypto::blake2b_256(&[]) == verdict.report_hash {
-                        // Simplified: in practice, hash the serialized report
+                if let Some(pending) = slot {
+                    let report_hash = grey_crypto::blake2b_256(
+                        &pending.report.package_spec.package_hash.0,
+                    );
+                    if report_hash == verdict.report_hash {
                         *slot = None;
                     }
                 }
@@ -166,18 +190,69 @@ fn clear_disputed_reports(
     }
 }
 
-/// Process availability assurances (Section 11.2, eq 11.10-11.17).
+/// Apply Safrole sub-transition (Section 6).
 ///
-/// Returns the list of work reports that became available.
+/// Updates entropy, and on epoch boundaries: key rotation, seal-key series.
+fn apply_safrole(
+    state: &mut State,
+    header: &grey_types::header::Header,
+    config: &Config,
+) {
+    // Extract VRF output Y(H_V) from the entropy source signature
+    let vrf_output = grey_crypto::bandersnatch::vrf_output_hash(&header.vrf_signature.0)
+        .map(Hash)
+        .unwrap_or(Hash::ZERO);
+
+    // Build Safrole state from the main state
+    let safrole_pre = crate::safrole::SafroleState {
+        tau: state.timeslot,
+        eta: state.entropy,
+        lambda: state.previous_validators.clone(),
+        kappa: state.current_validators.clone(),
+        gamma_k: state.safrole.pending_keys.clone(),
+        iota: state.pending_validators.clone(),
+        gamma_a: state.safrole.ticket_accumulator.clone(),
+        gamma_s: state.safrole.seal_key_series.clone(),
+        gamma_z: state.safrole.ring_root.clone(),
+        offenders: state.judgments.offenders.iter().cloned().collect(),
+    };
+
+    let input = crate::safrole::SafroleInput {
+        slot: header.timeslot,
+        entropy: vrf_output,
+        extrinsic: vec![], // Ticket processing handled separately for now
+    };
+
+    match crate::safrole::process_safrole(config, &input, &safrole_pre, None) {
+        Ok(output) => {
+            state.entropy = output.state.eta;
+            state.previous_validators = output.state.lambda;
+            state.current_validators = output.state.kappa;
+            state.safrole.pending_keys = output.state.gamma_k;
+            state.safrole.ring_root = output.state.gamma_z;
+            state.safrole.seal_key_series = output.state.gamma_s;
+            state.safrole.ticket_accumulator = output.state.gamma_a;
+        }
+        Err(_e) => {
+            // If Safrole fails, still update entropy: η₀' = H(η₀ ⌢ Y(H_V))
+            let mut data = Vec::with_capacity(64);
+            data.extend_from_slice(&state.entropy[0].0);
+            data.extend_from_slice(&vrf_output.0);
+            state.entropy[0] = grey_crypto::blake2b_256(&data);
+        }
+    }
+}
+
+/// Process availability assurances (Section 11.2, eq 11.10-11.17).
 fn process_assurances(
     state: &mut State,
     assurances: &grey_types::header::AssurancesExtrinsic,
     current_timeslot: grey_types::Timeslot,
+    config: &Config,
 ) -> Vec<grey_types::work::WorkReport> {
-    let threshold = (TOTAL_VALIDATORS * 2 / 3) + 1;
+    let threshold = config.super_majority() as u32;
     let mut available = Vec::new();
 
-    // Count assurances per core (eq 11.16)
     let num_cores = state.pending_reports.len();
     let mut assurance_counts = vec![0u32; num_cores];
 
@@ -193,20 +268,18 @@ fn process_assurances(
         }
     }
 
-    // Determine which reports become available
     for (core, count) in assurance_counts.iter().enumerate() {
-        if *count >= threshold as u32 {
+        if *count >= threshold {
             if let Some(pending) = &state.pending_reports[core] {
                 available.push(pending.report.clone());
             }
         }
     }
 
-    // Clear available and timed-out reports from pending (eq 11.17)
     for (core, slot) in state.pending_reports.iter_mut().enumerate() {
         if let Some(pending) = slot {
-            let is_available = assurance_counts.get(core).copied().unwrap_or(0) >= threshold as u32;
-            let is_timed_out = current_timeslot >= pending.timeslot + REPORT_TIMEOUT;
+            let is_available = assurance_counts.get(core).copied().unwrap_or(0) >= threshold;
+            let is_timed_out = current_timeslot >= pending.timeslot + config.availability_timeout;
 
             if is_available || is_timed_out {
                 *slot = None;
@@ -262,38 +335,6 @@ fn process_guarantees(
     Ok(())
 }
 
-/// Update recent block history (Section 7, eq 7.5-7.8).
-fn update_recent_history(
-    state: &mut State,
-    _header: &grey_types::header::Header,
-    guarantees: &grey_types::header::GuaranteesExtrinsic,
-) {
-    // Build reported packages map from guarantees (eq 7.8 `p`)
-    let mut reported_packages = std::collections::BTreeMap::new();
-    for guarantee in guarantees {
-        let report = &guarantee.report;
-        // Map: work-package hash → authorizer hash
-        reported_packages.insert(report.package_spec.package_hash, report.authorizer_hash);
-    }
-
-    // Compute header hash
-    let header_hash = grey_crypto::blake2b_256(&[]); // Simplified: should hash serialized header
-
-    // Append new block info (eq 7.8)
-    let info = RecentBlockInfo {
-        header_hash,
-        state_root: Hash::ZERO, // Will be corrected in next block (eq 7.5)
-        accumulation_root: Hash::ZERO, // Simplified: compute from β'B
-        reported_packages,
-    };
-
-    state.recent_blocks.headers.push(info);
-
-    // Keep only the last H entries
-    while state.recent_blocks.headers.len() > RECENT_HISTORY_SIZE {
-        state.recent_blocks.headers.remove(0);
-    }
-}
 
 /// Process preimage submissions (Section 12.4, eq 12.35-12.38).
 fn process_preimages(
@@ -319,35 +360,49 @@ fn process_preimages(
 }
 
 /// Rotate authorization pool from queue (Section 8, eq 8.2-8.3).
+///
+/// α'[c] = ←(F(c) ⧺ φ'[c][H_T]^↻)^O
+///
+/// F(c) = α[c] minus the used authorizer if a guarantee was submitted for core c,
+///        or α[c] unchanged otherwise.
+/// ⧺ = concatenate new auth from queue
+/// ← = take the rightmost O elements
 fn rotate_auth_pool(
     state: &mut State,
     guarantees: &grey_types::header::GuaranteesExtrinsic,
+    config: &Config,
 ) {
     let timeslot = state.timeslot;
+    let q = config.auth_queue_size;
 
-    for core in 0..state.auth_pool.len() {
-        // Check if a guarantee was submitted for this core
-        let has_guarantee = guarantees.iter().any(|g| g.report.core_index as usize == core);
-
-        if has_guarantee {
-            // Remove used authorizer from pool (simplified: remove first)
-            if !state.auth_pool[core].is_empty() {
-                state.auth_pool[core].remove(0);
+    for core in 0..state.auth_pool.len().min(config.core_count as usize) {
+        // F(c): remove used authorizer if a guarantee was submitted for this core
+        // α[c] ⊢ {(g_r)_a} — remove the specific authorizer hash by VALUE
+        if let Some(guarantee) = guarantees.iter().find(|g| g.report.core_index as usize == core) {
+            let auth_hash = &guarantee.report.authorizer_hash;
+            if let Some(pos) = state.auth_pool[core].iter().position(|h| h == auth_hash) {
+                state.auth_pool[core].remove(pos);
             }
         }
 
-        // Rotate in new authorizer from queue
-        if core < state.auth_queue.len() {
-            let queue = &state.auth_queue[core];
-            let queue_idx = timeslot as usize % queue.len().max(1);
-            if queue_idx < queue.len() {
-                let new_auth = queue[queue_idx];
-                // Add to pool if not already full
-                if state.auth_pool[core].len() < AUTH_POOL_SIZE {
-                    state.auth_pool[core].push(new_auth);
-                }
-            }
+        // Append new auth from queue: φ'[c][H_T mod Q]
+        // auth_queue is indexed [slot][core], so: auth_queue[H_T % Q][c]
+        let queue_slot_idx = timeslot as usize % q;
+        if queue_slot_idx < state.auth_queue.len() {
+            let new_auth = state.auth_queue[queue_slot_idx]
+                .get(core)
+                .copied()
+                .unwrap_or(Hash::ZERO);
+            state.auth_pool[core].push(new_auth);
         }
+
+        // Truncate to O: take rightmost O elements (← ... ^O)
+        let o = config.auth_pool_size;
+        if state.auth_pool[core].len() > o {
+            let start = state.auth_pool[core].len() - o;
+            state.auth_pool[core] = state.auth_pool[core][start..].to_vec();
+        }
+
     }
 }
 
@@ -389,7 +444,7 @@ mod tests {
             privileged_services: PrivilegedServices::default(),
             judgments: Judgments::default(),
             statistics: ValidatorStatistics {
-                current: vec![ValidatorRecord::default(); TOTAL_VALIDATORS_USIZE],
+                current: vec![ValidatorRecord::default(); TOTAL_VALIDATORS as usize],
                 last: vec![],
                 core_stats: vec![],
                 service_stats: BTreeMap::new(),

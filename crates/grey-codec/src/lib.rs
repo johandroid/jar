@@ -10,6 +10,7 @@
 pub mod decode;
 pub mod encode;
 pub mod error;
+pub mod header_codec;
 
 pub use decode::{Decode, DecodeWithConfig};
 pub use encode::Encode;
