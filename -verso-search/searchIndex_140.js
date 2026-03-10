@@ -1,0 +1,1 @@
+window.docContents[140].resolve({"/Numeric-Types/#JAR___-JAM-Axiomatic-Reference--Numeric-Types":{"contents":"Domain-specific numeric types used throughout the protocol (GP §3.4).\n\n\n\n\n\n","context":"JAR: JAM Axiomatic Reference","header":"2. Numeric Types","id":"/Numeric-Types/#JAR___-JAM-Axiomatic-Reference--Numeric-Types"}});

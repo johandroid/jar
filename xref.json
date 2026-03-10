@@ -2,115 +2,591 @@
  {"title": "Sections or chapters of the manual",
   "description": null,
   "contents":
-  {"JAR___-JAM-Axiomatic-Reference--State-and-Transitions--Timekeeping":
-   [{"id": "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--Timekeeping",
+  {"JAR___-JAM-Axiomatic-Reference--Type-Definitions--Work-Types-_LPAR____11_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Work-Types-_LPAR____11_RPAR_",
+     "data":
+     {"title": "Work Types (§11)",
+      "shortTitle": null,
+      "sectionNum": "4.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "Work Types (§11)", "shortTitle": null, "number": "3"}]},
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Validator-Types-_LPAR____6_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Validator-Types-_LPAR____6_RPAR_",
+     "data":
+     {"title": "Validator Types (§6)",
+      "shortTitle": null,
+      "sectionNum": "4.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "Validator Types (§6)", "shortTitle": null, "number": "1"}]},
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions--State-Types-_LPAR____4_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--State-Types-_LPAR____4_RPAR_",
+     "data":
+     {"title": "State Types (§4)",
+      "shortTitle": null,
+      "sectionNum": "4.6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "State Types (§4)", "shortTitle": null, "number": "6"}]},
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Service-Account-Types-_LPAR____8_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Service-Account-Types-_LPAR____8_RPAR_",
+     "data":
+     {"title": "Service Account Types (§8)",
+      "shortTitle": null,
+      "sectionNum": "4.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "Service Account Types (§8)",
+        "shortTitle": null,
+        "number": "2"}]},
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Extrinsic-Types-_LPAR____7______10_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Extrinsic-Types-_LPAR____7______10_RPAR_",
+     "data":
+     {"title": "Extrinsic Types (§7–§10)",
+      "shortTitle": null,
+      "sectionNum": "4.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "Extrinsic Types (§7–§10)",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Block-Header-Types-_LPAR____5_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Type-Definitions--Block-Header-Types-_LPAR____5_RPAR_",
+     "data":
+     {"title": "Block Header Types (§5)",
+      "shortTitle": null,
+      "sectionNum": "4.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"},
+       {"title": "Block Header Types (§5)",
+        "shortTitle": null,
+        "number": "4"}]},
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Type-Definitions":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Type-Definitions",
+     "data":
+     {"title": "Type Definitions",
+      "shortTitle": null,
+      "sectionNum": "4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Type Definitions", "shortTitle": null, "number": "4"}]},
+     "address": "/Type-Definitions/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Validator-Management-_LPAR____6_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Validator-Management-_LPAR____6_RPAR_",
+     "data":
+     {"title": "Validator Management (§6)",
+      "shortTitle": null,
+      "sectionNum": "7.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Validator Management (§6)",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address": "/State-Transition/Validator-Management-_LPAR____6_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Timekeeping":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--State-Transition--Timekeeping",
      "data":
      {"title": "Timekeeping",
       "shortTitle": null,
-      "sectionNum": "3.2.",
+      "sectionNum": "7.1.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "State and Transitions", "shortTitle": null, "number": "3"},
-       {"title": "Timekeeping", "shortTitle": null, "number": "2"}]},
-     "address": "/State-and-Transitions/Timekeeping/"}],
-   "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--State-Transition":
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Timekeeping", "shortTitle": null, "number": "1"}]},
+     "address": "/State-Transition/Timekeeping/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Statistics-_LPAR____13_RPAR_":
    [{"id":
-     "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--State-Transition",
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Statistics-_LPAR____13_RPAR_",
+     "data":
+     {"title": "Statistics (§13)",
+      "shortTitle": null,
+      "sectionNum": "7.11.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Statistics (§13)", "shortTitle": null, "number": "11"}]},
+     "address": "/State-Transition/Statistics-_LPAR____13_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--State-Transition":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--State-Transition--State-Transition",
      "data":
      {"title": "State Transition",
       "shortTitle": null,
-      "sectionNum": "3.4.",
+      "sectionNum": "7.12.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "State and Transitions", "shortTitle": null, "number": "3"},
-       {"title": "State Transition", "shortTitle": null, "number": "4"}]},
-     "address": "/State-and-Transitions/State-Transition/"}],
-   "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--State-Structure":
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "State Transition", "shortTitle": null, "number": "12"}]},
+     "address": "/State-Transition/State-Transition/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Reports-_LPAR____11_RPAR_":
    [{"id":
-     "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--State-Structure",
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Reports-_LPAR____11_RPAR_",
      "data":
-     {"title": "State Structure",
+     {"title": "Reports (§11)",
       "shortTitle": null,
-      "sectionNum": "3.1.",
+      "sectionNum": "7.7.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "State and Transitions", "shortTitle": null, "number": "3"},
-       {"title": "State Structure", "shortTitle": null, "number": "1"}]},
-     "address": "/State-and-Transitions/State-Structure/"}],
-   "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--Header-Validation-_LPAR_section-5_RPAR_":
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Reports (§11)", "shortTitle": null, "number": "7"}]},
+     "address": "/State-Transition/Reports-_LPAR____11_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Recent-History-_LPAR____4___2_RPAR_":
    [{"id":
-     "JAR___-JAM-Axiomatic-Reference--State-and-Transitions--Header-Validation-_LPAR_section-5_RPAR_",
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Recent-History-_LPAR____4___2_RPAR_",
      "data":
-     {"title": "Header Validation (section 5)",
+     {"title": "Recent History (§4.2)",
+      "shortTitle": null,
+      "sectionNum": "7.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Recent History (§4.2)", "shortTitle": null, "number": "3"}]},
+     "address": "/State-Transition/Recent-History-_LPAR____4___2_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Preimages-_LPAR____12___7_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Preimages-_LPAR____12___7_RPAR_",
+     "data":
+     {"title": "Preimages (§12.7)",
+      "shortTitle": null,
+      "sectionNum": "7.10.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Preimages (§12.7)", "shortTitle": null, "number": "10"}]},
+     "address": "/State-Transition/Preimages-_LPAR____12___7_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Judgments-_LPAR____10_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Judgments-_LPAR____10_RPAR_",
+     "data":
+     {"title": "Judgments (§10)",
+      "shortTitle": null,
+      "sectionNum": "7.6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Judgments (§10)", "shortTitle": null, "number": "6"}]},
+     "address": "/State-Transition/Judgments-_LPAR____10_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Header-Validation-_LPAR____5_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Header-Validation-_LPAR____5_RPAR_",
+     "data":
+     {"title": "Header Validation (§5)",
+      "shortTitle": null,
+      "sectionNum": "7.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Header Validation (§5)", "shortTitle": null, "number": "2"}]},
+     "address": "/State-Transition/Header-Validation-_LPAR____5_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Entropy-_LPAR____6___3_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Entropy-_LPAR____6___3_RPAR_",
+     "data":
+     {"title": "Entropy (§6.3)",
+      "shortTitle": null,
+      "sectionNum": "7.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Entropy (§6.3)", "shortTitle": null, "number": "4"}]},
+     "address": "/State-Transition/Entropy-_LPAR____6___3_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Authorization-Pool":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Authorization-Pool",
+     "data":
+     {"title": "Authorization Pool",
+      "shortTitle": null,
+      "sectionNum": "7.8.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Authorization Pool", "shortTitle": null, "number": "8"}]},
+     "address": "/State-Transition/Authorization-Pool/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition--Accumulation-_LPAR____12_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--State-Transition--Accumulation-_LPAR____12_RPAR_",
+     "data":
+     {"title": "Accumulation (§12)",
+      "shortTitle": null,
+      "sectionNum": "7.9.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"},
+       {"title": "Accumulation (§12)", "shortTitle": null, "number": "9"}]},
+     "address": "/State-Transition/Accumulation-_LPAR____12_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--State-Transition":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--State-Transition",
+     "data":
+     {"title": "State Transition",
+      "shortTitle": null,
+      "sectionNum": "7.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "State Transition", "shortTitle": null, "number": "7"}]},
+     "address": "/State-Transition/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Work-Report-Computation":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Work-Report-Computation",
+     "data":
+     {"title": "Work-Report Computation",
+      "shortTitle": null,
+      "sectionNum": "8.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "Work-Report Computation",
+        "shortTitle": null,
+        "number": "4"}]},
+     "address": "/Service-Invocations/Work-Report-Computation/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Refinement":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Refinement",
+     "data":
+     {"title": "Refinement",
+      "shortTitle": null,
+      "sectionNum": "8.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "Refinement", "shortTitle": null, "number": "3"}]},
+     "address": "/Service-Invocations/Refinement/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--On-Transfer":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations--On-Transfer",
+     "data":
+     {"title": "On-Transfer",
+      "shortTitle": null,
+      "sectionNum": "8.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "On-Transfer", "shortTitle": null, "number": "5"}]},
+     "address": "/Service-Invocations/On-Transfer/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Is-Authorized":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Is-Authorized",
+     "data":
+     {"title": "Is-Authorized",
+      "shortTitle": null,
+      "sectionNum": "8.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "Is-Authorized", "shortTitle": null, "number": "2"}]},
+     "address": "/Service-Invocations/Is-Authorized/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Balance":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Balance",
+     "data":
+     {"title": "Balance",
+      "shortTitle": null,
+      "sectionNum": "8.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "Balance", "shortTitle": null, "number": "1"}]},
+     "address": "/Service-Invocations/Balance/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Auditing":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations--Auditing",
+     "data":
+     {"title": "Auditing",
+      "shortTitle": null,
+      "sectionNum": "8.6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"},
+       {"title": "Auditing", "shortTitle": null, "number": "6"}]},
+     "address": "/Service-Invocations/Auditing/"}],
+   "JAR___-JAM-Axiomatic-Reference--Service-Invocations":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Service-Invocations",
+     "data":
+     {"title": "Service Invocations",
+      "shortTitle": null,
+      "sectionNum": "8.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Service Invocations", "shortTitle": null, "number": "8"}]},
+     "address": "/Service-Invocations/"}],
+   "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Work-Types":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Work-Types",
+     "data":
+     {"title": "Work Types",
+      "shortTitle": null,
+      "sectionNum": "11.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Serialization Codec", "shortTitle": null, "number": "11"},
+       {"title": "Work Types", "shortTitle": null, "number": "2"}]},
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Primitive-Encoders":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Primitive-Encoders",
+     "data":
+     {"title": "Primitive Encoders",
+      "shortTitle": null,
+      "sectionNum": "11.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Serialization Codec", "shortTitle": null, "number": "11"},
+       {"title": "Primitive Encoders", "shortTitle": null, "number": "1"}]},
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Extrinsic-Encoders":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Extrinsic-Encoders",
+     "data":
+     {"title": "Extrinsic Encoders",
+      "shortTitle": null,
+      "sectionNum": "11.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Serialization Codec", "shortTitle": null, "number": "11"},
+       {"title": "Extrinsic Encoders", "shortTitle": null, "number": "3"}]},
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Block-Encoding":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Serialization-Codec--Block-Encoding",
+     "data":
+     {"title": "Block Encoding",
+      "shortTitle": null,
+      "sectionNum": "11.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Serialization Codec", "shortTitle": null, "number": "11"},
+       {"title": "Block Encoding", "shortTitle": null, "number": "4"}]},
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "JAR___-JAM-Axiomatic-Reference--Serialization-Codec":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Serialization-Codec",
+     "data":
+     {"title": "Serialization Codec",
+      "shortTitle": null,
+      "sectionNum": "11.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Serialization Codec", "shortTitle": null, "number": "11"}]},
+     "address": "/Serialization-Codec/"}],
+   "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Ticket-Accumulation":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Ticket-Accumulation",
+     "data":
+     {"title": "Ticket Accumulation",
+      "shortTitle": null,
+      "sectionNum": "6.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Safrole Consensus", "shortTitle": null, "number": "6"},
+       {"title": "Ticket Accumulation", "shortTitle": null, "number": "2"}]},
+     "address": "/Safrole-Consensus/Ticket-Accumulation/"}],
+   "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--State-Update":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--State-Update",
+     "data":
+     {"title": "State Update",
+      "shortTitle": null,
+      "sectionNum": "6.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Safrole Consensus", "shortTitle": null, "number": "6"},
+       {"title": "State Update", "shortTitle": null, "number": "3"}]},
+     "address": "/Safrole-Consensus/State-Update/"}],
+   "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Chain-Selection":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Chain-Selection",
+     "data":
+     {"title": "Chain Selection",
+      "shortTitle": null,
+      "sectionNum": "6.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Safrole Consensus", "shortTitle": null, "number": "6"},
+       {"title": "Chain Selection", "shortTitle": null, "number": "4"}]},
+     "address": "/Safrole-Consensus/Chain-Selection/"}],
+   "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Block-Sealing":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus--Block-Sealing",
+     "data":
+     {"title": "Block Sealing",
+      "shortTitle": null,
+      "sectionNum": "6.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Safrole Consensus", "shortTitle": null, "number": "6"},
+       {"title": "Block Sealing", "shortTitle": null, "number": "1"}]},
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Safrole-Consensus",
+     "data":
+     {"title": "Safrole Consensus",
+      "shortTitle": null,
+      "sectionNum": "6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Safrole Consensus", "shortTitle": null, "number": "6"}]},
+     "address": "/Safrole-Consensus/"}],
+   "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Work-Packages":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Work-Packages",
+     "data":
+     {"title": "Work Packages",
       "shortTitle": null,
       "sectionNum": "3.3.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "State and Transitions", "shortTitle": null, "number": "3"},
-       {"title": "Header Validation (section 5)",
-        "shortTitle": null,
-        "number": "3"}]},
-     "address":
-     "/State-and-Transitions/Header-Validation-_LPAR_section-5_RPAR_/"}],
-   "JAR___-JAM-Axiomatic-Reference--State-and-Transitions":
-   [{"id": "JAR___-JAM-Axiomatic-Reference--State-and-Transitions",
-     "data":
-     {"title": "State and Transitions",
-      "shortTitle": null,
-      "sectionNum": "3.",
-      "context":
-      [{"title": "JAR: JAM Axiomatic Reference",
-        "shortTitle": null,
-        "number": null},
-       {"title": "State and Transitions", "shortTitle": null, "number": "3"}]},
-     "address": "/State-and-Transitions/"}],
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Work Packages", "shortTitle": null, "number": "3"}]},
+     "address": "/Protocol-Constants/Work-Packages/"}],
    "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Timing":
    [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Timing",
      "data":
      {"title": "Timing",
       "shortTitle": null,
-      "sectionNum": "2.4.",
+      "sectionNum": "3.8.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"},
-       {"title": "Timing", "shortTitle": null, "number": "4"}]},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Timing", "shortTitle": null, "number": "8"}]},
      "address": "/Protocol-Constants/Timing/"}],
+   "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Tickets":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Tickets",
+     "data":
+     {"title": "Tickets",
+      "shortTitle": null,
+      "sectionNum": "3.10.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Tickets", "shortTitle": null, "number": "10"}]},
+     "address": "/Protocol-Constants/Tickets/"}],
    "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Size-Limits":
    [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Size-Limits",
      "data":
      {"title": "Size Limits",
       "shortTitle": null,
-      "sectionNum": "2.3.",
+      "sectionNum": "3.6.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"},
-       {"title": "Size Limits", "shortTitle": null, "number": "3"}]},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Size Limits", "shortTitle": null, "number": "6"}]},
      "address": "/Protocol-Constants/Size-Limits/"}],
+   "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--PVM-Parameters":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--PVM-Parameters",
+     "data":
+     {"title": "PVM Parameters",
+      "shortTitle": null,
+      "sectionNum": "3.7.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "PVM Parameters", "shortTitle": null, "number": "7"}]},
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
    "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Gas-Allocations":
    [{"id":
      "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Gas-Allocations",
      "data":
      {"title": "Gas Allocations",
       "shortTitle": null,
-      "sectionNum": "2.2.",
+      "sectionNum": "3.4.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"},
-       {"title": "Gas Allocations", "shortTitle": null, "number": "2"}]},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Gas Allocations", "shortTitle": null, "number": "4"}]},
      "address": "/Protocol-Constants/Gas-Allocations/"}],
    "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Consensus-and-Validators":
    [{"id":
@@ -118,12 +594,12 @@
      "data":
      {"title": "Consensus and Validators",
       "shortTitle": null,
-      "sectionNum": "2.1.",
+      "sectionNum": "3.1.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
        {"title": "Consensus and Validators",
         "shortTitle": null,
         "number": "1"}]},
@@ -134,25 +610,54 @@
      "data":
      {"title": "Balance Thresholds",
       "shortTitle": null,
-      "sectionNum": "2.5.",
+      "sectionNum": "3.9.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"},
-       {"title": "Balance Thresholds", "shortTitle": null, "number": "5"}]},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Balance Thresholds", "shortTitle": null, "number": "9"}]},
      "address": "/Protocol-Constants/Balance-Thresholds/"}],
+   "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Authorization-Pool-and-Queue":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Authorization-Pool-and-Queue",
+     "data":
+     {"title": "Authorization Pool and Queue",
+      "shortTitle": null,
+      "sectionNum": "3.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Authorization Pool and Queue",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address": "/Protocol-Constants/Authorization-Pool-and-Queue/"}],
+   "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Auditing":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants--Auditing",
+     "data":
+     {"title": "Auditing",
+      "shortTitle": null,
+      "sectionNum": "3.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"},
+       {"title": "Auditing", "shortTitle": null, "number": "2"}]},
+     "address": "/Protocol-Constants/Auditing/"}],
    "JAR___-JAM-Axiomatic-Reference--Protocol-Constants":
    [{"id": "JAR___-JAM-Axiomatic-Reference--Protocol-Constants",
      "data":
      {"title": "Protocol Constants",
       "shortTitle": null,
-      "sectionNum": "2.",
+      "sectionNum": "3.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Protocol Constants", "shortTitle": null, "number": "2"}]},
+       {"title": "Protocol Constants", "shortTitle": null, "number": "3"}]},
      "address": "/Protocol-Constants/"}],
    "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Program-Representation":
    [{"id":
@@ -160,56 +665,176 @@
      "data":
      {"title": "Program Representation",
       "shortTitle": null,
-      "sectionNum": "4.2.",
+      "sectionNum": "9.2.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "4"},
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
        {"title": "Program Representation", "shortTitle": null, "number": "2"}]},
      "address": "/Polkadot-Virtual-Machine/Program-Representation/"}],
+   "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Memory-Operations-_LPAR_Appendix-A___4_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Memory-Operations-_LPAR_Appendix-A___4_RPAR_",
+     "data":
+     {"title": "Memory Operations (Appendix A.4)",
+      "shortTitle": null,
+      "sectionNum": "9.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
+       {"title": "Memory Operations (Appendix A.4)",
+        "shortTitle": null,
+        "number": "3"}]},
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
    "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Machine-Model":
    [{"id":
      "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Machine-Model",
      "data":
      {"title": "Machine Model",
       "shortTitle": null,
-      "sectionNum": "4.1.",
+      "sectionNum": "9.1.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "4"},
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
        {"title": "Machine Model", "shortTitle": null, "number": "1"}]},
      "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
-   "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Execution":
+   "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Interpreter":
    [{"id":
-     "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Execution",
+     "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Interpreter",
      "data":
-     {"title": "Execution",
+     {"title": "Interpreter",
       "shortTitle": null,
-      "sectionNum": "4.3.",
+      "sectionNum": "9.6.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
-       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "4"},
-       {"title": "Execution", "shortTitle": null, "number": "3"}]},
-     "address": "/Polkadot-Virtual-Machine/Execution/"}],
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
+       {"title": "Interpreter", "shortTitle": null, "number": "6"}]},
+     "address": "/Polkadot-Virtual-Machine/Interpreter/"}],
+   "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Instruction-Execution-_LPAR_Appendix-A___6_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Instruction-Execution-_LPAR_Appendix-A___6_RPAR_",
+     "data":
+     {"title": "Instruction Execution (Appendix A.6)",
+      "shortTitle": null,
+      "sectionNum": "9.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
+       {"title": "Instruction Execution (Appendix A.6)",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine--Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_",
+     "data":
+     {"title": "Instruction Decoding (Appendix A.5)",
+      "shortTitle": null,
+      "sectionNum": "9.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Polkadot Virtual Machine", "shortTitle": null, "number": "9"},
+       {"title": "Instruction Decoding (Appendix A.5)",
+        "shortTitle": null,
+        "number": "4"}]},
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_/"}],
    "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine":
    [{"id": "JAR___-JAM-Axiomatic-Reference--Polkadot-Virtual-Machine",
      "data":
      {"title": "Polkadot Virtual Machine",
       "shortTitle": null,
-      "sectionNum": "4.",
+      "sectionNum": "9.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
        {"title": "Polkadot Virtual Machine",
         "shortTitle": null,
-        "number": "4"}]},
+        "number": "9"}]},
      "address": "/Polkadot-Virtual-Machine/"}],
+   "JAR___-JAM-Axiomatic-Reference--Numeric-Types--Resource-Quantities":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Numeric-Types--Resource-Quantities",
+     "data":
+     {"title": "Resource Quantities",
+      "shortTitle": null,
+      "sectionNum": "2.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Numeric Types", "shortTitle": null, "number": "2"},
+       {"title": "Resource Quantities", "shortTitle": null, "number": "1"}]},
+     "address": "/Numeric-Types/Resource-Quantities/"}],
+   "JAR___-JAM-Axiomatic-Reference--Numeric-Types--Identifiers-and-Indices":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Numeric-Types--Identifiers-and-Indices",
+     "data":
+     {"title": "Identifiers and Indices",
+      "shortTitle": null,
+      "sectionNum": "2.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Numeric Types", "shortTitle": null, "number": "2"},
+       {"title": "Identifiers and Indices",
+        "shortTitle": null,
+        "number": "2"}]},
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
+   "JAR___-JAM-Axiomatic-Reference--Numeric-Types":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Numeric-Types",
+     "data":
+     {"title": "Numeric Types",
+      "shortTitle": null,
+      "sectionNum": "2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Numeric Types", "shortTitle": null, "number": "2"}]},
+     "address": "/Numeric-Types/"}],
+   "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Signature-Types":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Signature-Types",
+     "data":
+     {"title": "Signature Types",
+      "shortTitle": null,
+      "sectionNum": "1.7.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Notation and Conventions", "shortTitle": null, "number": "1"},
+       {"title": "Signature Types", "shortTitle": null, "number": "7"}]},
+     "address": "/Notation-and-Conventions/Signature-Types/"}],
+   "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Sequences":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Sequences",
+     "data":
+     {"title": "Sequences",
+      "shortTitle": null,
+      "sectionNum": "1.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Notation and Conventions", "shortTitle": null, "number": "1"},
+       {"title": "Sequences", "shortTitle": null, "number": "4"}]},
+     "address": "/Notation-and-Conventions/Sequences/"}],
    "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Optional-Substitution":
    [{"id":
      "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Optional-Substitution",
@@ -230,13 +855,13 @@
      "data":
      {"title": "Octet Sequences",
       "shortTitle": null,
-      "sectionNum": "1.4.",
+      "sectionNum": "1.5.",
       "context":
       [{"title": "JAR: JAM Axiomatic Reference",
         "shortTitle": null,
         "number": null},
        {"title": "Notation and Conventions", "shortTitle": null, "number": "1"},
-       {"title": "Octet Sequences", "shortTitle": null, "number": "4"}]},
+       {"title": "Octet Sequences", "shortTitle": null, "number": "5"}]},
      "address": "/Notation-and-Conventions/Octet-Sequences/"}],
    "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Exceptional-Values":
    [{"id":
@@ -266,6 +891,22 @@
        {"title": "Notation and Conventions", "shortTitle": null, "number": "1"},
        {"title": "Dictionaries", "shortTitle": null, "number": "3"}]},
      "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Cryptographic-Key-Types":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions--Cryptographic-Key-Types",
+     "data":
+     {"title": "Cryptographic Key Types",
+      "shortTitle": null,
+      "sectionNum": "1.6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Notation and Conventions", "shortTitle": null, "number": "1"},
+       {"title": "Cryptographic Key Types",
+        "shortTitle": null,
+        "number": "6"}]},
+     "address": "/Notation-and-Conventions/Cryptographic-Key-Types/"}],
    "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions":
    [{"id": "JAR___-JAM-Axiomatic-Reference--Notation-and-Conventions",
      "data":
@@ -280,6 +921,318 @@
         "shortTitle": null,
         "number": "1"}]},
      "address": "/Notation-and-Conventions/"}],
+   "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Trie-Nodes":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Trie-Nodes",
+     "data":
+     {"title": "Trie Nodes",
+      "shortTitle": null,
+      "sectionNum": "12.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Merkle Structures", "shortTitle": null, "number": "12"},
+       {"title": "Trie Nodes", "shortTitle": null, "number": "1"}]},
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--State-Trie":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--State-Trie",
+     "data":
+     {"title": "State Trie",
+      "shortTitle": null,
+      "sectionNum": "12.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Merkle Structures", "shortTitle": null, "number": "12"},
+       {"title": "State Trie", "shortTitle": null, "number": "2"}]},
+     "address": "/Merkle-Structures/State-Trie/"}],
+   "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Merkle-Mountain-Range":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Merkle-Mountain-Range",
+     "data":
+     {"title": "Merkle Mountain Range",
+      "shortTitle": null,
+      "sectionNum": "12.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Merkle Structures", "shortTitle": null, "number": "12"},
+       {"title": "Merkle Mountain Range", "shortTitle": null, "number": "4"}]},
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Binary-Merkle-Tree":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Merkle-Structures--Binary-Merkle-Tree",
+     "data":
+     {"title": "Binary Merkle Tree",
+      "shortTitle": null,
+      "sectionNum": "12.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Merkle Structures", "shortTitle": null, "number": "12"},
+       {"title": "Binary Merkle Tree", "shortTitle": null, "number": "3"}]},
+     "address": "/Merkle-Structures/Binary-Merkle-Tree/"}],
+   "JAR___-JAM-Axiomatic-Reference--Merkle-Structures":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Merkle-Structures",
+     "data":
+     {"title": "Merkle Structures",
+      "shortTitle": null,
+      "sectionNum": "12.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Merkle Structures", "shortTitle": null, "number": "12"}]},
+     "address": "/Merkle-Structures/"}],
+   "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Segment-Operations":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Segment-Operations",
+     "data":
+     {"title": "Segment Operations",
+      "shortTitle": null,
+      "sectionNum": "13.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Erasure Coding", "shortTitle": null, "number": "13"},
+       {"title": "Segment Operations", "shortTitle": null, "number": "3"}]},
+     "address": "/Erasure-Coding/Segment-Operations/"}],
+   "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Galois-Field-GF_LPAR_2___16_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Galois-Field-GF_LPAR_2___16_RPAR_",
+     "data":
+     {"title": "Galois Field GF(2^16)",
+      "shortTitle": null,
+      "sectionNum": "13.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Erasure Coding", "shortTitle": null, "number": "13"},
+       {"title": "Galois Field GF(2^16)", "shortTitle": null, "number": "1"}]},
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Encoding-and-Recovery":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Erasure-Coding--Encoding-and-Recovery",
+     "data":
+     {"title": "Encoding and Recovery",
+      "shortTitle": null,
+      "sectionNum": "13.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Erasure Coding", "shortTitle": null, "number": "13"},
+       {"title": "Encoding and Recovery", "shortTitle": null, "number": "2"}]},
+     "address": "/Erasure-Coding/Encoding-and-Recovery/"}],
+   "JAR___-JAM-Axiomatic-Reference--Erasure-Coding":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Erasure-Coding",
+     "data":
+     {"title": "Erasure Coding",
+      "shortTitle": null,
+      "sectionNum": "13.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Erasure Coding", "shortTitle": null, "number": "13"}]},
+     "address": "/Erasure-Coding/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Utility":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Utility",
+     "data":
+     {"title": "Utility",
+      "shortTitle": null,
+      "sectionNum": "5.7.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Utility", "shortTitle": null, "number": "7"}]},
+     "address": "/Cryptographic-Primitives/Utility/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Hash-Functions":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Hash-Functions",
+     "data":
+     {"title": "Hash Functions",
+      "shortTitle": null,
+      "sectionNum": "5.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Hash Functions", "shortTitle": null, "number": "1"}]},
+     "address": "/Cryptographic-Primitives/Hash-Functions/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Ed25519":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Ed25519",
+     "data":
+     {"title": "Ed25519",
+      "shortTitle": null,
+      "sectionNum": "5.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Ed25519", "shortTitle": null, "number": "2"}]},
+     "address": "/Cryptographic-Primitives/Ed25519/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Contexts":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Contexts",
+     "data":
+     {"title": "Contexts",
+      "shortTitle": null,
+      "sectionNum": "5.6.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Contexts", "shortTitle": null, "number": "6"}]},
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Bandersnatch-Ring-VRF":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Bandersnatch-Ring-VRF",
+     "data":
+     {"title": "Bandersnatch Ring VRF",
+      "shortTitle": null,
+      "sectionNum": "5.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Bandersnatch Ring VRF", "shortTitle": null, "number": "4"}]},
+     "address": "/Cryptographic-Primitives/Bandersnatch-Ring-VRF/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Bandersnatch":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--Bandersnatch",
+     "data":
+     {"title": "Bandersnatch",
+      "shortTitle": null,
+      "sectionNum": "5.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "Bandersnatch", "shortTitle": null, "number": "3"}]},
+     "address": "/Cryptographic-Primitives/Bandersnatch/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--BLS12-381":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives--BLS12-381",
+     "data":
+     {"title": "BLS12-381",
+      "shortTitle": null,
+      "sectionNum": "5.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives", "shortTitle": null, "number": "5"},
+       {"title": "BLS12-381", "shortTitle": null, "number": "5"}]},
+     "address": "/Cryptographic-Primitives/BLS12-381/"}],
+   "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Cryptographic-Primitives",
+     "data":
+     {"title": "Cryptographic Primitives",
+      "shortTitle": null,
+      "sectionNum": "5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Cryptographic Primitives",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address": "/Cryptographic-Primitives/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation--Single-Service-Accumulation":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Accumulation--Single-Service-Accumulation",
+     "data":
+     {"title": "Single-Service Accumulation",
+      "shortTitle": null,
+      "sectionNum": "10.3.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"},
+       {"title": "Single-Service Accumulation",
+        "shortTitle": null,
+        "number": "3"}]},
+     "address": "/Accumulation/Single-Service-Accumulation/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation--Pipeline":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Accumulation--Pipeline",
+     "data":
+     {"title": "Pipeline",
+      "shortTitle": null,
+      "sectionNum": "10.4.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"},
+       {"title": "Pipeline", "shortTitle": null, "number": "4"}]},
+     "address": "/Accumulation/Pipeline/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation--Host-Calls-_LPAR____12___4_RPAR_":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Accumulation--Host-Calls-_LPAR____12___4_RPAR_",
+     "data":
+     {"title": "Host Calls (§12.4)",
+      "shortTitle": null,
+      "sectionNum": "10.2.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"},
+       {"title": "Host Calls (§12.4)", "shortTitle": null, "number": "2"}]},
+     "address": "/Accumulation/Host-Calls-_LPAR____12___4_RPAR_/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation--Data-Types":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Accumulation--Data-Types",
+     "data":
+     {"title": "Data Types",
+      "shortTitle": null,
+      "sectionNum": "10.1.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"},
+       {"title": "Data Types", "shortTitle": null, "number": "1"}]},
+     "address": "/Accumulation/Data-Types/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation--Block-Level-Accumulation":
+   [{"id":
+     "JAR___-JAM-Axiomatic-Reference--Accumulation--Block-Level-Accumulation",
+     "data":
+     {"title": "Block-Level Accumulation",
+      "shortTitle": null,
+      "sectionNum": "10.5.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"},
+       {"title": "Block-Level Accumulation",
+        "shortTitle": null,
+        "number": "5"}]},
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "JAR___-JAM-Axiomatic-Reference--Accumulation":
+   [{"id": "JAR___-JAM-Axiomatic-Reference--Accumulation",
+     "data":
+     {"title": "Accumulation",
+      "shortTitle": null,
+      "sectionNum": "10.",
+      "context":
+      [{"title": "JAR: JAM Axiomatic Reference",
+        "shortTitle": null,
+        "number": null},
+       {"title": "Accumulation", "shortTitle": null, "number": "10"}]},
+     "address": "/Accumulation/"}],
    "JAR___-JAM-Axiomatic-Reference":
    [{"id": "JAR___-JAM-Axiomatic-Reference",
      "data":
@@ -336,169 +1289,985 @@
    "Jar.validateHeader":
    [{"id": "Jar___validateHeader",
      "data": null,
-     "address":
-     "/State-and-Transitions/Header-Validation-_LPAR_section-5_RPAR_/"}],
+     "address": "/State-Transition/Header-Validation-_LPAR____5_RPAR_/"}],
    "Jar.validateExtrinsic":
    [{"id": "Jar___validateExtrinsic",
      "data": null,
-     "address":
-     "/State-and-Transitions/Header-Validation-_LPAR_section-5_RPAR_/"}],
+     "address": "/State-Transition/Header-Validation-_LPAR____5_RPAR_/"}],
+   "Jar.updateStatistics":
+   [{"id": "Jar___updateStatistics",
+     "data": null,
+     "address": "/State-Transition/Statistics-_LPAR____13_RPAR_/"}],
+   "Jar.updateRecentHistory":
+   [{"id": "Jar___updateRecentHistory",
+     "data": null,
+     "address": "/State-Transition/Recent-History-_LPAR____4___2_RPAR_/"}],
+   "Jar.updatePreviousValidators":
+   [{"id": "Jar___updatePreviousValidators",
+     "data": null,
+     "address": "/State-Transition/Validator-Management-_LPAR____6_RPAR_/"}],
+   "Jar.updateParentStateRoot":
+   [{"id": "Jar___updateParentStateRoot",
+     "data": null,
+     "address": "/State-Transition/Recent-History-_LPAR____4___2_RPAR_/"}],
+   "Jar.updateJudgments":
+   [{"id": "Jar___updateJudgments",
+     "data": null,
+     "address": "/State-Transition/Judgments-_LPAR____10_RPAR_/"}],
+   "Jar.updateEntropy":
+   [{"id": "Jar___updateEntropy",
+     "data": null,
+     "address": "/State-Transition/Entropy-_LPAR____6___3_RPAR_/"}],
+   "Jar.updateAuthPool":
+   [{"id": "Jar___updateAuthPool",
+     "data": null,
+     "address": "/State-Transition/Authorization-Pool/"}],
+   "Jar.updateActiveValidators":
+   [{"id": "Jar___updateActiveValidators",
+     "data": null,
+     "address": "/State-Transition/Validator-Management-_LPAR____6_RPAR_/"}],
    "Jar.stateTransition":
    [{"id": "Jar___stateTransition",
      "data": null,
-     "address": "/State-and-Transitions/State-Transition/"}],
+     "address": "/State-Transition/State-Transition/"}],
+   "Jar.reportsPostJudgment":
+   [{"id": "Jar___reportsPostJudgment",
+     "data": null,
+     "address": "/State-Transition/Reports-_LPAR____11_RPAR_/"}],
+   "Jar.reportsPostGuarantees":
+   [{"id": "Jar___reportsPostGuarantees",
+     "data": null,
+     "address": "/State-Transition/Reports-_LPAR____11_RPAR_/"}],
+   "Jar.reportsPostAssurance":
+   [{"id": "Jar___reportsPostAssurance",
+     "data": null,
+     "address": "/State-Transition/Reports-_LPAR____11_RPAR_/"}],
+   "Jar.performAccumulation":
+   [{"id": "Jar___performAccumulation",
+     "data": null,
+     "address": "/State-Transition/Accumulation-_LPAR____12_RPAR_/"}],
    "Jar.newTimeslot":
    [{"id": "Jar___newTimeslot",
      "data": null,
-     "address": "/State-and-Transitions/Timekeeping/"}],
+     "address": "/State-Transition/Timekeeping/"}],
    "Jar.isEpochChange":
    [{"id": "Jar___isEpochChange",
      "data": null,
-     "address": "/State-and-Transitions/Timekeeping/"}],
+     "address": "/State-Transition/Timekeeping/"}],
+   "Jar.integratePreimages":
+   [{"id": "Jar___integratePreimages",
+     "data": null,
+     "address": "/State-Transition/Preimages-_LPAR____12___7_RPAR_/"}],
+   "Jar.filterOffenders":
+   [{"id": "Jar___filterOffenders",
+     "data": null,
+     "address": "/State-Transition/Validator-Management-_LPAR____6_RPAR_/"}],
+   "Jar.epochSlot":
+   [{"id": "Jar___epochSlot",
+     "data": null,
+     "address": "/State-Transition/Timekeeping/"}],
    "Jar.epochIndex":
    [{"id": "Jar___epochIndex",
      "data": null,
-     "address": "/State-and-Transitions/Timekeeping/"}],
+     "address": "/State-Transition/Timekeeping/"}],
+   "Jar.computeAccOutputRoot":
+   [{"id": "Jar___computeAccOutputRoot",
+     "data": null,
+     "address": "/State-Transition/Recent-History-_LPAR____4___2_RPAR_/"}],
+   "Jar.collectReportedPackages":
+   [{"id": "Jar___collectReportedPackages",
+     "data": null,
+     "address": "/State-Transition/Recent-History-_LPAR____4___2_RPAR_/"}],
    "Jar.Z_Z":
    [{"id": "Jar___Z_Z",
      "data": null,
-     "address": "/Protocol-Constants/Size-Limits/"}],
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
    "Jar.Z_P":
    [{"id": "Jar___Z_P",
+     "data": null,
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
+   "Jar.Z_I":
+   [{"id": "Jar___Z_I",
+     "data": null,
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
+   "Jar.Z_A":
+   [{"id": "Jar___Z_A",
+     "data": null,
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
+   "Jar.Y_TAIL":
+   [{"id": "Jar___Y_TAIL",
+     "data": null,
+     "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.WorkResult.ok":
+   [{"id": "Jar___WorkResult___ok",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkResult.err":
+   [{"id": "Jar___WorkResult___ok",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkResult":
+   [{"id": "Jar___WorkResult___ok",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.segmentRootLookup":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.mk":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.digests":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.coreIndex":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.context":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.availSpec":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.authorizerHash":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.authOutput":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport.authGasUsed":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkReport":
+   [{"id": "Jar___WorkReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.mk":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.items":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.context":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.authToken":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.authConfig":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.authCodeHost":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage.authCodeHash":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkPackage":
+   [{"id": "Jar___WorkPackage___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.serviceId":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.payload":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.mk":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.imports":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.gasLimit":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.extrinsics":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.exportsCount":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.codeHash":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem.accGasLimit":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkItem":
+   [{"id": "Jar___WorkItem___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.panic":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.oversize":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.outOfGas":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.bigCode":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.badExports":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError.badCode":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkError":
+   [{"id": "Jar___WorkError___outOfGas",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.serviceId":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.result":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.payloadHash":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.mk":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.importsCount":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.gasUsed":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.gasLimit":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.extrinsicsSize":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.extrinsicsCount":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.exportsCount":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest.codeHash":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.WorkDigest":
+   [{"id": "Jar___WorkDigest___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.W_X":
+   [{"id": "Jar___W_X",
      "data": null,
      "address": "/Protocol-Constants/Size-Limits/"}],
    "Jar.W_T":
    [{"id": "Jar___W_T",
      "data": null,
      "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_R":
+   [{"id": "Jar___W_R",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_P":
+   [{"id": "Jar___W_P",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_M":
+   [{"id": "Jar___W_M",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_G":
+   [{"id": "Jar___W_G",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_E":
+   [{"id": "Jar___W_E",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
    "Jar.W_C":
    [{"id": "Jar___W_C",
      "data": null,
      "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_B":
+   [{"id": "Jar___W_B",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.W_A":
+   [{"id": "Jar___W_A",
+     "data": null,
+     "address": "/Protocol-Constants/Size-Limits/"}],
+   "Jar.Verdict.reportHash":
+   [{"id": "Jar___Verdict___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Verdict.mk":
+   [{"id": "Jar___Verdict___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Verdict.judgments":
+   [{"id": "Jar___Verdict___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Verdict.age":
+   [{"id": "Jar___Verdict___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Verdict":
+   [{"id": "Jar___Verdict___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.ValidatorRecord.tickets":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.preimageSize":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.preimageCount":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.mk":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.guarantees":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.blocks":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord.assurances":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorRecord":
+   [{"id": "Jar___ValidatorRecord___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ValidatorKey.mk":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorKey.metadata":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorKey.ed25519":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorKey.bls":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorKey.bandersnatch":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorKey":
+   [{"id": "Jar___ValidatorKey___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.ValidatorIndex":
+   [{"id": "Jar___ValidatorIndex",
+     "data": null,
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
    "Jar.V":
    [{"id": "Jar___V",
      "data": null,
      "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.U_TIMEOUT":
+   [{"id": "Jar___U_TIMEOUT",
+     "data": null,
+     "address": "/Protocol-Constants/Work-Packages/"}],
+   "Jar.Timeslot":
+   [{"id": "Jar___Timeslot",
+     "data": null,
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
+   "Jar.TicketProof.proof":
+   [{"id": "Jar___TicketProof___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.TicketProof.mk":
+   [{"id": "Jar___TicketProof___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.TicketProof.attempt":
+   [{"id": "Jar___TicketProof___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.TicketProof":
+   [{"id": "Jar___TicketProof___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Ticket.mk":
+   [{"id": "Jar___Ticket___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Ticket.id":
+   [{"id": "Jar___Ticket___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Ticket.attempt":
+   [{"id": "Jar___Ticket___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Ticket":
+   [{"id": "Jar___Ticket___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.T_MAX_EXTRINSICS":
+   [{"id": "Jar___T_MAX_EXTRINSICS",
+     "data": null,
+     "address": "/Protocol-Constants/Work-Packages/"}],
    "Jar.State.timeslot":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.statistics":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.services":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.safrole":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.recent":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.privileged":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.previousValidators":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.pendingValidators":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.pendingReports":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.mk":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.judgments":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.entropy":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.currentValidators":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.authQueue":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.authPool":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.accQueue":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.accOutputs":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State.accHistory":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.State":
    [{"id": "Jar___State___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.SignedGas":
+   [{"id": "Jar___SignedGas",
+     "data": null,
+     "address": "/Numeric-Types/Resource-Quantities/"}],
+   "Jar.Services.refine":
+   [{"id": "Jar___Services___refine",
+     "data": null,
+     "address": "/Service-Invocations/Refinement/"}],
+   "Jar.Services.onTransfer":
+   [{"id": "Jar___Services___onTransfer",
+     "data": null,
+     "address": "/Service-Invocations/On-Transfer/"}],
+   "Jar.Services.minimumBalance":
+   [{"id": "Jar___Services___minimumBalance",
+     "data": null,
+     "address": "/Service-Invocations/Balance/"}],
+   "Jar.Services.isAuthorized":
+   [{"id": "Jar___Services___isAuthorized",
+     "data": null,
+     "address": "/Service-Invocations/Is-Authorized/"}],
+   "Jar.Services.computeWorkReport":
+   [{"id": "Jar___Services___computeWorkReport",
+     "data": null,
+     "address": "/Service-Invocations/Work-Report-Computation/"}],
+   "Jar.Services.auditWorkReport":
+   [{"id": "Jar___Services___auditWorkReport",
+     "data": null,
+     "address": "/Service-Invocations/Auditing/"}],
+   "Jar.ServiceStatistics.refinement":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.provided":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.mk":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.imports":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.extrinsicSize":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.extrinsicCount":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.exports":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics.accumulation":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceStatistics":
+   [{"id": "Jar___ServiceStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.ServiceId":
+   [{"id": "Jar___ServiceId",
+     "data": null,
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
+   "Jar.ServiceAccount.storage":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.preimages":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.preimageInfo":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.parent":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.mk":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.minOnTransferGas":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.minAccGas":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.lastAccumulation":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.gratis":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.created":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.codeHash":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount.balance":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.ServiceAccount":
+   [{"id": "Jar___ServiceAccount___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.SealKeySeries.tickets":
+   [{"id": "Jar___SealKeySeries___tickets",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SealKeySeries.fallback":
+   [{"id": "Jar___SealKeySeries___tickets",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SealKeySeries":
+   [{"id": "Jar___SealKeySeries___tickets",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState.ticketAccumulator":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState.sealKeys":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState.ringRoot":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState.pendingKeys":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState.mk":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.SafroleState":
+   [{"id": "Jar___SafroleState___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.S_MIN":
+   [{"id": "Jar___S_MIN",
+     "data": null,
+     "address": "/Protocol-Constants/Balance-Thresholds/"}],
+   "Jar.RegisterValue":
+   [{"id": "Jar___RegisterValue",
+     "data": null,
+     "address": "/Numeric-Types/Resource-Quantities/"}],
+   "Jar.RefinementContext.prerequisites":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.mk":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.lookupAnchorTimeslot":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.lookupAnchorHash":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.anchorStateRoot":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.anchorHash":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext.anchorBeefyRoot":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.RefinementContext":
+   [{"id": "Jar___RefinementContext___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
    "Jar.RecentHistory.mk":
    [{"id": "Jar___RecentHistory___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentHistory.blocks":
    [{"id": "Jar___RecentHistory___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentHistory.accOutputBelt":
    [{"id": "Jar___RecentHistory___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentHistory":
    [{"id": "Jar___RecentHistory___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo.stateRoot":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo.reportedPackages":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo.mk":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo.headerHash":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo.accOutputRoot":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.RecentBlockInfo":
    [{"id": "Jar___RecentBlockInfo___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.R_ROTATION":
+   [{"id": "Jar___R_ROTATION",
+     "data": null,
+     "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.Q_QUEUE":
+   [{"id": "Jar___Q_QUEUE",
+     "data": null,
+     "address": "/Protocol-Constants/Authorization-Pool-and-Queue/"}],
+   "Jar.PrivilegedServices.registrar":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices.mk":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices.manager":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices.designator":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices.assigners":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices.alwaysAccumulate":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PrivilegedServices":
+   [{"id": "Jar___PrivilegedServices___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.PendingReport.timeslot":
+   [{"id": "Jar___PendingReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.PendingReport.report":
+   [{"id": "Jar___PendingReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.PendingReport.mk":
+   [{"id": "Jar___PendingReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.PendingReport":
+   [{"id": "Jar___PendingReport___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.PVM_REGISTERS":
+   [{"id": "Jar___PVM_REGISTERS",
+     "data": null,
+     "address": "/Protocol-Constants/PVM-Parameters/"}],
+   "Jar.PVM.writeU8":
+   [{"id": "Jar___PVM___writeU8",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.writeU64":
+   [{"id": "Jar___PVM___writeU64",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.writeU32":
+   [{"id": "Jar___PVM___writeU32",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.writeU16":
+   [{"id": "Jar___PVM___writeU16",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.writeByteArray":
+   [{"id": "Jar___PVM___writeByteArray",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.toUnsigned":
+   [{"id": "Jar___PVM___toUnsigned",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_/"}],
+   "Jar.PVM.toSigned":
+   [{"id": "Jar___PVM___toSigned",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_/"}],
+   "Jar.PVM.sext":
+   [{"id": "Jar___PVM___sext",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_/"}],
+   "Jar.PVM.sbrk":
+   [{"id": "Jar___PVM___sbrk",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.runWithHostCalls":
+   [{"id": "Jar___PVM___runWithHostCalls",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Interpreter/"}],
    "Jar.PVM.run":
    [{"id": "Jar___PVM___run",
      "data": null,
-     "address": "/Polkadot-Virtual-Machine/Execution/"}],
+     "address": "/Polkadot-Virtual-Machine/Interpreter/"}],
+   "Jar.PVM.readU8":
+   [{"id": "Jar___PVM___readU8",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.readU64":
+   [{"id": "Jar___PVM___readU64",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.readU32":
+   [{"id": "Jar___PVM___readU32",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.readU16":
+   [{"id": "Jar___PVM___readU16",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.readByteArray":
+   [{"id": "Jar___PVM___readByteArray",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Memory-Operations-_LPAR_Appendix-A___4_RPAR_/"}],
+   "Jar.PVM.invokeStd":
+   [{"id": "Jar___PVM___invokeStd",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Interpreter/"}],
+   "Jar.PVM.initStandard":
+   [{"id": "Jar___PVM___initStandard",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Interpreter/"}],
+   "Jar.PVM.executeStep":
+   [{"id": "Jar___PVM___executeStep",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.djump":
+   [{"id": "Jar___PVM___djump",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Decoding-_LPAR_Appendix-A___5_RPAR_/"}],
+   "Jar.PVM.StepResult.panic":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.StepResult.hostCall":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.StepResult.halt":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.StepResult.fault":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.StepResult.continue":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.StepResult":
+   [{"id": "Jar___PVM___StepResult___continue",
+     "data": null,
+     "address":
+     "/Polkadot-Virtual-Machine/Instruction-Execution-_LPAR_Appendix-A___6_RPAR_/"}],
+   "Jar.PVM.Registers":
+   [{"id": "Jar___PVM___Registers",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.Reg":
+   [{"id": "Jar___PVM___Reg",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
    "Jar.PVM.Program.mk":
    [{"id": "Jar___PVM___Program___mk",
      "data": null,
@@ -519,6 +2288,22 @@
    [{"id": "Jar___PVM___Program___mk",
      "data": null,
      "address": "/Polkadot-Virtual-Machine/Program-Representation/"}],
+   "Jar.PVM.PageAccess.writable":
+   [{"id": "Jar___PVM___PageAccess___writable",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.PageAccess.readable":
+   [{"id": "Jar___PVM___PageAccess___writable",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.PageAccess.inaccessible":
+   [{"id": "Jar___PVM___PageAccess___writable",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.PageAccess":
+   [{"id": "Jar___PVM___PageAccess___writable",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
    "Jar.PVM.Memory.value":
    [{"id": "Jar___PVM___Memory___mk",
      "data": null,
@@ -587,6 +2372,42 @@
    [{"id": "Jar___PVM___InvocationResult___mk",
      "data": null,
      "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.twoReg":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.twoImm":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.threeReg":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.regImm64":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.regImm":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.oneImmediate":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.offset":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory.noArgs":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.PVM.InstructionCategory":
+   [{"id": "Jar___PVM___InstructionCategory___noArgs",
+     "data": null,
+     "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
    "Jar.PVM.ExitReason.panic":
    [{"id": "Jar___PVM___ExitReason___halt",
      "data": null,
@@ -611,10 +2432,218 @@
    [{"id": "Jar___PVM___ExitReason___halt",
      "data": null,
      "address": "/Polkadot-Virtual-Machine/Machine-Model/"}],
+   "Jar.P":
+   [{"id": "Jar___P",
+     "data": null,
+     "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.O_POOL":
+   [{"id": "Jar___O_POOL",
+     "data": null,
+     "address": "/Protocol-Constants/Authorization-Pool-and-Queue/"}],
+   "Jar.N_TICKETS":
+   [{"id": "Jar___N_TICKETS",
+     "data": null,
+     "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.Merkle.trieRoot":
+   [{"id": "Jar___Merkle___trieRoot",
+     "data": null,
+     "address": "/Merkle-Structures/State-Trie/"}],
+   "Jar.Merkle.stateRoot":
+   [{"id": "Jar___Merkle___stateRoot",
+     "data": null,
+     "address": "/Merkle-Structures/State-Trie/"}],
+   "Jar.Merkle.encodeLeaf":
+   [{"id": "Jar___Merkle___encodeLeaf",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.encodeBranch":
+   [{"id": "Jar___Merkle___encodeBranch",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.constDepthMerkleRoot":
+   [{"id": "Jar___Merkle___constDepthMerkleRoot",
+     "data": null,
+     "address": "/Merkle-Structures/Binary-Merkle-Tree/"}],
+   "Jar.Merkle.binaryMerkleRoot":
+   [{"id": "Jar___Merkle___binaryMerkleRoot",
+     "data": null,
+     "address": "/Merkle-Structures/Binary-Merkle-Tree/"}],
+   "Jar.Merkle.Node.regularLeaf":
+   [{"id": "Jar___Merkle___Node___branch",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.Node.embeddedLeaf":
+   [{"id": "Jar___Merkle___Node___branch",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.Node.branch":
+   [{"id": "Jar___Merkle___Node___branch",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.Node":
+   [{"id": "Jar___Merkle___Node___branch",
+     "data": null,
+     "address": "/Merkle-Structures/Trie-Nodes/"}],
+   "Jar.Merkle.MerkleMountainRange.root":
+   [{"id": "Jar___Merkle___MerkleMountainRange___root",
+     "data": null,
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "Jar.Merkle.MerkleMountainRange.peaks":
+   [{"id": "Jar___Merkle___MerkleMountainRange___mk",
+     "data": null,
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "Jar.Merkle.MerkleMountainRange.mk":
+   [{"id": "Jar___Merkle___MerkleMountainRange___mk",
+     "data": null,
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "Jar.Merkle.MerkleMountainRange.append":
+   [{"id": "Jar___Merkle___MerkleMountainRange___append",
+     "data": null,
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "Jar.Merkle.MerkleMountainRange":
+   [{"id": "Jar___Merkle___MerkleMountainRange___mk",
+     "data": null,
+     "address": "/Merkle-Structures/Merkle-Mountain-Range/"}],
+   "Jar.L_MAX_ANCHOR":
+   [{"id": "Jar___L_MAX_ANCHOR",
+     "data": null,
+     "address": "/Protocol-Constants/Timing/"}],
+   "Jar.K_MAX_TICKETS":
+   [{"id": "Jar___K_MAX_TICKETS",
+     "data": null,
+     "address": "/Protocol-Constants/Tickets/"}],
+   "Jar.JudgmentsState.wonky":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.JudgmentsState.offenders":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.JudgmentsState.mk":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.JudgmentsState.good":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.JudgmentsState.bad":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.JudgmentsState":
+   [{"id": "Jar___JudgmentsState___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.Judgment.validatorIndex":
+   [{"id": "Jar___Judgment___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Judgment.signature":
+   [{"id": "Jar___Judgment___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Judgment.mk":
+   [{"id": "Jar___Judgment___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Judgment.isValid":
+   [{"id": "Jar___Judgment___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Judgment":
+   [{"id": "Jar___Judgment___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.J_MAX_DEPS":
+   [{"id": "Jar___J_MAX_DEPS",
+     "data": null,
+     "address": "/Protocol-Constants/Work-Packages/"}],
    "Jar.JAM_EPOCH_UNIX":
    [{"id": "Jar___JAM_EPOCH_UNIX",
      "data": null,
      "address": "/Protocol-Constants/Timing/"}],
+   "Jar.I_MAX_ITEMS":
+   [{"id": "Jar___I_MAX_ITEMS",
+     "data": null,
+     "address": "/Protocol-Constants/Work-Packages/"}],
+   "Jar.Header.vrfSignature":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.timeslot":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.ticketsMarker":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.stateRoot":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.sealSig":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.parent":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.offenders":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.mk":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.extrinsicHash":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.epochMarker":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header.authorIndex":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Header":
+   [{"id": "Jar___Header___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.H_RECENT":
+   [{"id": "Jar___H_RECENT",
+     "data": null,
+     "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.Guarantee.timeslot":
+   [{"id": "Jar___Guarantee___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Guarantee.report":
+   [{"id": "Jar___Guarantee___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Guarantee.mk":
+   [{"id": "Jar___Guarantee___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Guarantee.credentials":
+   [{"id": "Jar___Guarantee___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Guarantee":
+   [{"id": "Jar___Guarantee___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Gas":
+   [{"id": "Jar___Gas",
+     "data": null,
+     "address": "/Numeric-Types/Resource-Quantities/"}],
    "Jar.G_T":
    [{"id": "Jar___G_T",
      "data": null,
@@ -631,18 +2660,530 @@
    [{"id": "Jar___G_A",
      "data": null,
      "address": "/Protocol-Constants/Gas-Allocations/"}],
+   "Jar.Fault.validatorKey":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Fault.signature":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Fault.reportHash":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Fault.mk":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Fault.isValid":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Fault":
+   [{"id": "Jar___Fault___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.F_BIAS":
+   [{"id": "Jar___F_BIAS",
+     "data": null,
+     "address": "/Protocol-Constants/Auditing/"}],
+   "Jar.Extrinsic.tickets":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic.preimages":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic.mk":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic.guarantees":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic.disputes":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic.assurances":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Extrinsic":
+   [{"id": "Jar___Extrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Erasure.toCantor":
+   [{"id": "Jar___Erasure___toCantor",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.Erasure.split":
+   [{"id": "Jar___Erasure___split",
+     "data": null,
+     "address": "/Erasure-Coding/Segment-Operations/"}],
+   "Jar.Erasure.recoverSegment":
+   [{"id": "Jar___Erasure___recoverSegment",
+     "data": null,
+     "address": "/Erasure-Coding/Segment-Operations/"}],
+   "Jar.Erasure.join":
+   [{"id": "Jar___Erasure___join",
+     "data": null,
+     "address": "/Erasure-Coding/Segment-Operations/"}],
+   "Jar.Erasure.gfMul":
+   [{"id": "Jar___Erasure___gfMul",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.Erasure.gfInv":
+   [{"id": "Jar___Erasure___gfInv",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.Erasure.gfAdd":
+   [{"id": "Jar___Erasure___gfAdd",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.Erasure.erasureRecover":
+   [{"id": "Jar___Erasure___erasureRecover",
+     "data": null,
+     "address": "/Erasure-Coding/Encoding-and-Recovery/"}],
+   "Jar.Erasure.erasureCodeSegment":
+   [{"id": "Jar___Erasure___erasureCodeSegment",
+     "data": null,
+     "address": "/Erasure-Coding/Segment-Operations/"}],
+   "Jar.Erasure.erasureCode":
+   [{"id": "Jar___Erasure___erasureCode",
+     "data": null,
+     "address": "/Erasure-Coding/Encoding-and-Recovery/"}],
+   "Jar.Erasure.cantorBasis":
+   [{"id": "Jar___Erasure___cantorBasis",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.Erasure.GF16":
+   [{"id": "Jar___Erasure___GF16",
+     "data": null,
+     "address": "/Erasure-Coding/Galois-Field-GF_LPAR_2___16_RPAR_/"}],
+   "Jar.EpochMarker.validators":
+   [{"id": "Jar___EpochMarker___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.EpochMarker.mk":
+   [{"id": "Jar___EpochMarker___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.EpochMarker.entropyPrev":
+   [{"id": "Jar___EpochMarker___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.EpochMarker.entropy":
+   [{"id": "Jar___EpochMarker___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.EpochMarker":
+   [{"id": "Jar___EpochMarker___mk",
+     "data": null,
+     "address": "/Type-Definitions/Block-Header-Types-_LPAR____5_RPAR_/"}],
+   "Jar.Entropy.twoBack":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Entropy.threeBack":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Entropy.previous":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Entropy.mk":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Entropy.current":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
+   "Jar.Entropy":
+   [{"id": "Jar___Entropy___mk",
+     "data": null,
+     "address": "/Type-Definitions/Validator-Types-_LPAR____6_RPAR_/"}],
    "Jar.E":
    [{"id": "Jar___E",
      "data": null,
      "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.DisputesExtrinsic.verdicts":
+   [{"id": "Jar___DisputesExtrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.DisputesExtrinsic.mk":
+   [{"id": "Jar___DisputesExtrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.DisputesExtrinsic.faults":
+   [{"id": "Jar___DisputesExtrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.DisputesExtrinsic.culprits":
+   [{"id": "Jar___DisputesExtrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.DisputesExtrinsic":
+   [{"id": "Jar___DisputesExtrinsic___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.DeferredTransfer.source":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer.mk":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer.memo":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer.gas":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer.dest":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer.amount":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
+   "Jar.DeferredTransfer":
+   [{"id": "Jar___DeferredTransfer___mk",
+     "data": null,
+     "address": "/Type-Definitions/Service-Account-Types-_LPAR____8_RPAR_/"}],
    "Jar.D_EXPUNGE":
    [{"id": "Jar___D_EXPUNGE",
      "data": null,
      "address": "/Protocol-Constants/Timing/"}],
+   "Jar.Culprit.validatorKey":
+   [{"id": "Jar___Culprit___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Culprit.signature":
+   [{"id": "Jar___Culprit___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Culprit.reportHash":
+   [{"id": "Jar___Culprit___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Culprit.mk":
+   [{"id": "Jar___Culprit___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Culprit":
+   [{"id": "Jar___Culprit___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Crypto.shuffle":
+   [{"id": "Jar___Crypto___shuffle",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Utility/"}],
+   "Jar.Crypto.seqFromHash":
+   [{"id": "Jar___Crypto___seqFromHash",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Utility/"}],
+   "Jar.Crypto.keccak256":
+   [{"id": "Jar___Crypto___keccak256",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Hash-Functions/"}],
+   "Jar.Crypto.ed25519Verify":
+   [{"id": "Jar___Crypto___ed25519Verify",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Ed25519/"}],
+   "Jar.Crypto.ed25519Sign":
+   [{"id": "Jar___Crypto___ed25519Sign",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Ed25519/"}],
+   "Jar.Crypto.ctxValid":
+   [{"id": "Jar___Crypto___ctxValid",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxTicketSeal":
+   [{"id": "Jar___Crypto___ctxTicketSeal",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxInvalid":
+   [{"id": "Jar___Crypto___ctxInvalid",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxGuarantee":
+   [{"id": "Jar___Crypto___ctxGuarantee",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxFallbackSeal":
+   [{"id": "Jar___Crypto___ctxFallbackSeal",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxEntropy":
+   [{"id": "Jar___Crypto___ctxEntropy",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxBeefy":
+   [{"id": "Jar___Crypto___ctxBeefy",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxAvailable":
+   [{"id": "Jar___Crypto___ctxAvailable",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxAudit":
+   [{"id": "Jar___Crypto___ctxAudit",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.ctxAnnounce":
+   [{"id": "Jar___Crypto___ctxAnnounce",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Contexts/"}],
+   "Jar.Crypto.blsVerify":
+   [{"id": "Jar___Crypto___blsVerify",
+     "data": null,
+     "address": "/Cryptographic-Primitives/BLS12-381/"}],
+   "Jar.Crypto.blsSign":
+   [{"id": "Jar___Crypto___blsSign",
+     "data": null,
+     "address": "/Cryptographic-Primitives/BLS12-381/"}],
+   "Jar.Crypto.blake2b":
+   [{"id": "Jar___Crypto___blake2b",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Hash-Functions/"}],
+   "Jar.Crypto.bandersnatchVerify":
+   [{"id": "Jar___Crypto___bandersnatchVerify",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch/"}],
+   "Jar.Crypto.bandersnatchSign":
+   [{"id": "Jar___Crypto___bandersnatchSign",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch/"}],
+   "Jar.Crypto.bandersnatchRingVerify":
+   [{"id": "Jar___Crypto___bandersnatchRingVerify",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch-Ring-VRF/"}],
+   "Jar.Crypto.bandersnatchRingSign":
+   [{"id": "Jar___Crypto___bandersnatchRingSign",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch-Ring-VRF/"}],
+   "Jar.Crypto.bandersnatchRingRoot":
+   [{"id": "Jar___Crypto___bandersnatchRingRoot",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch-Ring-VRF/"}],
+   "Jar.Crypto.bandersnatchRingOutput":
+   [{"id": "Jar___Crypto___bandersnatchRingOutput",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch-Ring-VRF/"}],
+   "Jar.Crypto.bandersnatchOutput":
+   [{"id": "Jar___Crypto___bandersnatchOutput",
+     "data": null,
+     "address": "/Cryptographic-Primitives/Bandersnatch/"}],
+   "Jar.CoreStatistics.popularity":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.mk":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.imports":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.gasUsed":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.extrinsicSize":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.extrinsicCount":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.exports":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.daLoad":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics.bundleSize":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreStatistics":
+   [{"id": "Jar___CoreStatistics___mk",
+     "data": null,
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.CoreIndex":
+   [{"id": "Jar___CoreIndex",
+     "data": null,
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
+   "Jar.Consensus.verifyTicketProof":
+   [{"id": "Jar___Consensus___verifyTicketProof",
+     "data": null,
+     "address": "/Safrole-Consensus/Ticket-Accumulation/"}],
+   "Jar.Consensus.verifySealTicketed":
+   [{"id": "Jar___Consensus___verifySealTicketed",
+     "data": null,
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "Jar.Consensus.verifySealFallback":
+   [{"id": "Jar___Consensus___verifySealFallback",
+     "data": null,
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "Jar.Consensus.verifyEntropyVrf":
+   [{"id": "Jar___Consensus___verifyEntropyVrf",
+     "data": null,
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "Jar.Consensus.updateSafrole":
+   [{"id": "Jar___Consensus___updateSafrole",
+     "data": null,
+     "address": "/Safrole-Consensus/State-Update/"}],
+   "Jar.Consensus.outsideInSequencer":
+   [{"id": "Jar___Consensus___outsideInSequencer",
+     "data": null,
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "Jar.Consensus.isAcceptable":
+   [{"id": "Jar___Consensus___isAcceptable",
+     "data": null,
+     "address": "/Safrole-Consensus/Chain-Selection/"}],
+   "Jar.Consensus.fallbackKeySequence":
+   [{"id": "Jar___Consensus___fallbackKeySequence",
+     "data": null,
+     "address": "/Safrole-Consensus/Block-Sealing/"}],
+   "Jar.Consensus.chainMetric":
+   [{"id": "Jar___Consensus___chainMetric",
+     "data": null,
+     "address": "/Safrole-Consensus/Chain-Selection/"}],
+   "Jar.Consensus.accumulateTickets":
+   [{"id": "Jar___Consensus___accumulateTickets",
+     "data": null,
+     "address": "/Safrole-Consensus/Ticket-Accumulation/"}],
+   "Jar.Codec.encodeWorkResult":
+   [{"id": "Jar___Codec___encodeWorkResult",
+     "data": null,
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "Jar.Codec.encodeWorkReport":
+   [{"id": "Jar___Codec___encodeWorkReport",
+     "data": null,
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "Jar.Codec.encodeWorkDigest":
+   [{"id": "Jar___Codec___encodeWorkDigest",
+     "data": null,
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "Jar.Codec.encodeUnsignedHeader":
+   [{"id": "Jar___Codec___encodeUnsignedHeader",
+     "data": null,
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "Jar.Codec.encodeTicketProof":
+   [{"id": "Jar___Codec___encodeTicketProof",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.encodeTicket":
+   [{"id": "Jar___Codec___encodeTicket",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.encodeRefinementContext":
+   [{"id": "Jar___Codec___encodeRefinementContext",
+     "data": null,
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "Jar.Codec.encodePreimages":
+   [{"id": "Jar___Codec___encodePreimages",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.encodeOption":
+   [{"id": "Jar___Codec___encodeOption",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "Jar.Codec.encodeNat":
+   [{"id": "Jar___Codec___encodeNat",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "Jar.Codec.encodeLengthPrefixed":
+   [{"id": "Jar___Codec___encodeLengthPrefixed",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "Jar.Codec.encodeHeader":
+   [{"id": "Jar___Codec___encodeHeader",
+     "data": null,
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "Jar.Codec.encodeGuarantee":
+   [{"id": "Jar___Codec___encodeGuarantee",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.encodeFixedNat":
+   [{"id": "Jar___Codec___encodeFixedNat",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "Jar.Codec.encodeExtrinsic":
+   [{"id": "Jar___Codec___encodeExtrinsic",
+     "data": null,
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "Jar.Codec.encodeEpochMarker":
+   [{"id": "Jar___Codec___encodeEpochMarker",
+     "data": null,
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "Jar.Codec.encodeDisputes":
+   [{"id": "Jar___Codec___encodeDisputes",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.encodeBlock":
+   [{"id": "Jar___Codec___encodeBlock",
+     "data": null,
+     "address": "/Serialization-Codec/Block-Encoding/"}],
+   "Jar.Codec.encodeBits":
+   [{"id": "Jar___Codec___encodeBits",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
+   "Jar.Codec.encodeAvailSpec":
+   [{"id": "Jar___Codec___encodeAvailSpec",
+     "data": null,
+     "address": "/Serialization-Codec/Work-Types/"}],
+   "Jar.Codec.encodeAssurance":
+   [{"id": "Jar___Codec___encodeAssurance",
+     "data": null,
+     "address": "/Serialization-Codec/Extrinsic-Encoders/"}],
+   "Jar.Codec.decodeFixedNat":
+   [{"id": "Jar___Codec___decodeFixedNat",
+     "data": null,
+     "address": "/Serialization-Codec/Primitive-Encoders/"}],
    "Jar.C":
    [{"id": "Jar___C",
      "data": null,
      "address": "/Protocol-Constants/Consensus-and-Validators/"}],
+   "Jar.Block.mk":
+   [{"id": "Jar___Block___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Block.header":
+   [{"id": "Jar___Block___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Block.extrinsic":
+   [{"id": "Jar___Block___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Block":
+   [{"id": "Jar___Block___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.BlobLength":
+   [{"id": "Jar___BlobLength",
+     "data": null,
+     "address": "/Numeric-Types/Identifiers-and-Indices/"}],
+   "Jar.Balance":
+   [{"id": "Jar___Balance",
+     "data": null,
+     "address": "/Numeric-Types/Resource-Quantities/"}],
    "Jar.B_S":
    [{"id": "Jar___B_S",
      "data": null,
@@ -655,30 +3196,298 @@
    [{"id": "Jar___B_I",
      "data": null,
      "address": "/Protocol-Constants/Balance-Thresholds/"}],
+   "Jar.AvailabilitySpec.segmentRoot":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec.segmentCount":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec.packageHash":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec.mk":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec.erasureRoot":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec.bundleLength":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.AvailabilitySpec":
+   [{"id": "Jar___AvailabilitySpec___mk",
+     "data": null,
+     "address": "/Type-Definitions/Work-Types-_LPAR____11_RPAR_/"}],
+   "Jar.Assurance.validatorIndex":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Assurance.signature":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Assurance.mk":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Assurance.bitfield":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Assurance.anchor":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
+   "Jar.Assurance":
+   [{"id": "Jar___Assurance___mk",
+     "data": null,
+     "address": "/Type-Definitions/Extrinsic-Types-_LPAR____7______10_RPAR_/"}],
    "Jar.ActivityStatistics.serviceStats":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.ActivityStatistics.previous":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.ActivityStatistics.mk":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.ActivityStatistics.current":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.ActivityStatistics.coreStats":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
    "Jar.ActivityStatistics":
    [{"id": "Jar___ActivityStatistics___mk",
      "data": null,
-     "address": "/State-and-Transitions/State-Structure/"}],
+     "address": "/Type-Definitions/State-Types-_LPAR____4_RPAR_/"}],
+   "Jar.Accumulation.handleHostCall":
+   [{"id": "Jar___Accumulation___handleHostCall",
+     "data": null,
+     "address": "/Accumulation/Host-Calls-_LPAR____12___4_RPAR_/"}],
+   "Jar.Accumulation.groupTransfersByDest":
+   [{"id": "Jar___Accumulation___groupTransfersByDest",
+     "data": null,
+     "address": "/Accumulation/Pipeline/"}],
+   "Jar.Accumulation.groupByService":
+   [{"id": "Jar___Accumulation___groupByService",
+     "data": null,
+     "address": "/Accumulation/Pipeline/"}],
+   "Jar.Accumulation.accumulate":
+   [{"id": "Jar___Accumulation___accumulate",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.accseq":
+   [{"id": "Jar___Accumulation___accseq",
+     "data": null,
+     "address": "/Accumulation/Pipeline/"}],
+   "Jar.Accumulation.accpar":
+   [{"id": "Jar___Accumulation___accpar",
+     "data": null,
+     "address": "/Accumulation/Pipeline/"}],
+   "Jar.Accumulation.accone":
+   [{"id": "Jar___Accumulation___accone",
+     "data": null,
+     "address": "/Accumulation/Single-Service-Accumulation/"}],
+   "Jar.Accumulation.PartialState.stagingKeys":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.registrar":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.mk":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.manager":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.designator":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.authQueue":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.assigners":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.alwaysAccumulate":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState.accounts":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.PartialState":
+   [{"id": "Jar___Accumulation___PartialState___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.segmentRoot":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.result":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.payloadHash":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.packageHash":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.mk":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.gasLimit":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.authorizerHash":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple.authOutput":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.OperandTuple":
+   [{"id": "Jar___Accumulation___OperandTuple___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccumulationResult.stagingKeys":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.services":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.privileged":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.outputs":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.mk":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.gasUsage":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult.authQueue":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccumulationResult":
+   [{"id": "Jar___Accumulation___AccumulationResult___mk",
+     "data": null,
+     "address": "/Accumulation/Block-Level-Accumulation/"}],
+   "Jar.Accumulation.AccOneOutput.yieldHash":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput.provisions":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput.postState":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput.mk":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput.gasUsed":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput.deferredTransfers":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccOneOutput":
+   [{"id": "Jar___Accumulation___AccOneOutput___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.yieldHash":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.transfers":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.timeslot":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.state":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.serviceId":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.provisions":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.operands":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.nextServiceId":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.mk":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.gasUsed":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext.checkpoint":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.Accumulation.AccContext":
+   [{"id": "Jar___Accumulation___AccContext___mk",
+     "data": null,
+     "address": "/Accumulation/Data-Types/"}],
+   "Jar.A_TRANCHE":
+   [{"id": "Jar___A_TRANCHE",
+     "data": null,
+     "address": "/Protocol-Constants/Auditing/"}],
    "Hash.zero":
    [{"id": "Hash___zero",
      "data": null,
@@ -703,12 +3512,40 @@
    [{"id": "Exceptional___ok",
      "data": null,
      "address": "/Notation-and-Conventions/Exceptional-Values/"}],
+   "Ed25519Signature":
+   [{"id": "Ed25519Signature",
+     "data": null,
+     "address": "/Notation-and-Conventions/Signature-Types/"}],
+   "Ed25519PublicKey":
+   [{"id": "Ed25519PublicKey",
+     "data": null,
+     "address": "/Notation-and-Conventions/Cryptographic-Key-Types/"}],
+   "Dict.values":
+   [{"id": "Dict___values",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "Dict.union":
+   [{"id": "Dict___union",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "Dict.subtract":
+   [{"id": "Dict___subtract",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "Dict.size":
+   [{"id": "Dict___size",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
    "Dict.mk":
    [{"id": "Dict___mk",
      "data": null,
      "address": "/Notation-and-Conventions/Dictionaries/"}],
    "Dict.lookup":
    [{"id": "Dict___lookup",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "Dict.keys":
+   [{"id": "Dict___keys",
      "data": null,
      "address": "/Notation-and-Conventions/Dictionaries/"}],
    "Dict.insert":
@@ -723,7 +3560,43 @@
    [{"id": "Dict___mk",
      "data": null,
      "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "Dict.empty":
+   [{"id": "Dict___empty",
+     "data": null,
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
    "Dict":
    [{"id": "Dict___mk",
      "data": null,
-     "address": "/Notation-and-Conventions/Dictionaries/"}]}}}
+     "address": "/Notation-and-Conventions/Dictionaries/"}],
+   "BlsSignature":
+   [{"id": "BlsSignature",
+     "data": null,
+     "address": "/Notation-and-Conventions/Signature-Types/"}],
+   "BlsPublicKey":
+   [{"id": "BlsPublicKey",
+     "data": null,
+     "address": "/Notation-and-Conventions/Cryptographic-Key-Types/"}],
+   "BandersnatchSignature":
+   [{"id": "BandersnatchSignature",
+     "data": null,
+     "address": "/Notation-and-Conventions/Signature-Types/"}],
+   "BandersnatchRingVrfProof":
+   [{"id": "BandersnatchRingVrfProof",
+     "data": null,
+     "address": "/Notation-and-Conventions/Signature-Types/"}],
+   "BandersnatchRingRoot":
+   [{"id": "BandersnatchRingRoot",
+     "data": null,
+     "address": "/Notation-and-Conventions/Cryptographic-Key-Types/"}],
+   "BandersnatchPublicKey":
+   [{"id": "BandersnatchPublicKey",
+     "data": null,
+     "address": "/Notation-and-Conventions/Cryptographic-Key-Types/"}],
+   "Array.lastN":
+   [{"id": "Array___lastN",
+     "data": null,
+     "address": "/Notation-and-Conventions/Sequences/"}],
+   "Array.cyclicGet":
+   [{"id": "Array___cyclicGet",
+     "data": null,
+     "address": "/Notation-and-Conventions/Sequences/"}]}}}
