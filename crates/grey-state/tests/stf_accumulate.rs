@@ -1,109 +1,16 @@
 //! STF test vectors for the accumulate sub-transition (Section 12).
 
+mod common;
+
+use common::{decode_hex, hash_from_hex, parse_work_report};
 use grey_state::accumulate::{
     AccPrivileges, AccServiceAccount, AccServiceStats, AccumulateInput, AccumulateState,
     ReadyRecord, process_accumulate,
 };
 use grey_types::config::Config;
-use grey_types::work::{AvailabilitySpec, RefinementContext, WorkDigest, WorkReport, WorkResult};
 use grey_types::{Gas, Hash, ServiceId, Timeslot};
 use std::collections::BTreeMap;
 use tracing_test::traced_test;
-
-fn decode_hex(s: &str) -> Vec<u8> {
-    hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex")
-}
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = decode_hex(s);
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
-
-fn parse_work_result(v: &serde_json::Value) -> WorkResult {
-    if let Some(ok) = v.get("ok") {
-        WorkResult::Ok(decode_hex(ok.as_str().unwrap()))
-    } else if v.get("out_of_gas").is_some() {
-        WorkResult::OutOfGas
-    } else if v.get("panic").is_some() {
-        WorkResult::Panic
-    } else if v.get("bad_exports").is_some() {
-        WorkResult::BadExports
-    } else if v.get("bad_code").is_some() {
-        WorkResult::BadCode
-    } else if v.get("code_oversize").is_some() {
-        WorkResult::CodeOversize
-    } else {
-        panic!("unknown work result: {v}");
-    }
-}
-
-fn parse_work_report(v: &serde_json::Value) -> WorkReport {
-    let ps = &v["package_spec"];
-    let ctx = &v["context"];
-
-    let segment_root_lookup: BTreeMap<Hash, Hash> = v["segment_root_lookup"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|entry| {
-            let pkg_hash = hash_from_hex(entry["work_package_hash"].as_str().unwrap());
-            let seg_root = hash_from_hex(entry["segment_tree_root"].as_str().unwrap());
-            (pkg_hash, seg_root)
-        })
-        .collect();
-
-    let results: Vec<WorkDigest> = v["results"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|d| {
-            let rl = &d["refine_load"];
-            WorkDigest {
-                service_id: d["service_id"].as_u64().unwrap() as ServiceId,
-                code_hash: hash_from_hex(d["code_hash"].as_str().unwrap()),
-                payload_hash: hash_from_hex(d["payload_hash"].as_str().unwrap()),
-                accumulate_gas: d["accumulate_gas"].as_u64().unwrap() as Gas,
-                result: parse_work_result(&d["result"]),
-                gas_used: rl["gas_used"].as_u64().unwrap() as Gas,
-                imports_count: rl["imports"].as_u64().unwrap() as u16,
-                extrinsics_count: rl["extrinsic_count"].as_u64().unwrap() as u16,
-                extrinsics_size: rl["extrinsic_size"].as_u64().unwrap() as u32,
-                exports_count: rl["exports"].as_u64().unwrap() as u16,
-            }
-        })
-        .collect();
-
-    WorkReport {
-        package_spec: AvailabilitySpec {
-            package_hash: hash_from_hex(ps["hash"].as_str().unwrap()),
-            bundle_length: ps["length"].as_u64().unwrap() as u32,
-            erasure_root: hash_from_hex(ps["erasure_root"].as_str().unwrap()),
-            exports_root: hash_from_hex(ps["exports_root"].as_str().unwrap()),
-            exports_count: ps["exports_count"].as_u64().unwrap() as u16,
-        },
-        context: RefinementContext {
-            anchor: hash_from_hex(ctx["anchor"].as_str().unwrap()),
-            state_root: hash_from_hex(ctx["state_root"].as_str().unwrap()),
-            beefy_root: hash_from_hex(ctx["beefy_root"].as_str().unwrap()),
-            lookup_anchor: hash_from_hex(ctx["lookup_anchor"].as_str().unwrap()),
-            lookup_anchor_timeslot: ctx["lookup_anchor_slot"].as_u64().unwrap() as Timeslot,
-            prerequisites: ctx["prerequisites"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|h| hash_from_hex(h.as_str().unwrap()))
-                .collect(),
-        },
-        core_index: v["core_index"].as_u64().unwrap() as u16,
-        authorizer_hash: hash_from_hex(v["authorizer_hash"].as_str().unwrap()),
-        auth_gas_used: v["auth_gas_used"].as_u64().unwrap() as Gas,
-        auth_output: decode_hex(v["auth_output"].as_str().unwrap()),
-        segment_root_lookup,
-        results,
-    }
-}
 
 fn parse_ready_record(v: &serde_json::Value) -> ReadyRecord {
     ReadyRecord {

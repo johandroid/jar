@@ -68,6 +68,16 @@ pub fn decode_compact(data: &[u8]) -> Result<(u64, usize), CodecError> {
     Ok((value, 1 + len))
 }
 
+/// Decode a compact-encoded u64 at a given position, advancing `pos`.
+///
+/// This is a convenience wrapper around [`decode_compact`] for
+/// streaming-style deserialization where you track position manually.
+pub fn decode_compact_at(data: &[u8], pos: &mut usize) -> Result<u64, CodecError> {
+    let (value, consumed) = decode_compact(&data[*pos..])?;
+    *pos += consumed;
+    Ok(value)
+}
+
 fn ensure_bytes(data: &[u8], needed: usize) -> Result<(), CodecError> {
     if data.len() < needed {
         Err(CodecError::UnexpectedEof {

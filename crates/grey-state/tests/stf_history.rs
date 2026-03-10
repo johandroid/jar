@@ -1,20 +1,12 @@
 //! STF test vectors for history sub-transition (Section 7).
 
+mod common;
+
+use common::hash_from_hex;
 use grey_state::history::{update_history, HistoryInput};
-use grey_types::state::{RecentBlockInfo, RecentBlocks};
 use grey_types::Hash;
+use grey_types::state::{RecentBlockInfo, RecentBlocks};
 use std::collections::BTreeMap;
-
-fn decode_hex(s: &str) -> Vec<u8> {
-    hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex")
-}
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = decode_hex(s);
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
 
 /// Parse RecentBlockInfo from JSON.
 fn block_info_from_json(json: &serde_json::Value) -> RecentBlockInfo {

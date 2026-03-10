@@ -1,5 +1,8 @@
 //! STF test vectors for disputes sub-transition (Section 10).
 
+mod common;
+
+use common::{ed25519_from_hex, hash_from_hex, sig_from_hex};
 use grey_state::disputes::{process_disputes, DisputeError};
 use grey_types::config::Config;
 use grey_types::header::*;
@@ -7,35 +10,6 @@ use grey_types::state::{Judgments, PendingReport};
 use grey_types::validator::ValidatorKey;
 use grey_types::{Ed25519PublicKey, Hash};
 use std::collections::BTreeSet;
-
-fn decode_hex(s: &str) -> Vec<u8> {
-    hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex")
-}
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = decode_hex(s);
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
-
-fn ed25519_key_from_hex(s: &str) -> Ed25519PublicKey {
-    let bytes = decode_hex(s);
-    let mut k = [0u8; 32];
-    k.copy_from_slice(&bytes);
-    Ed25519PublicKey(k)
-}
-
-fn sig64_from_hex(s: &str) -> grey_types::Ed25519Signature {
-    let bytes = decode_hex(s);
-    let mut sig = [0u8; 64];
-    sig.copy_from_slice(&bytes);
-    grey_types::Ed25519Signature(sig)
-}
-
-fn parse_validator_key(json: &serde_json::Value) -> ValidatorKey {
-    serde_json::from_value(json.clone()).expect("failed to parse ValidatorKey")
-}
 
 fn parse_judgments(json: &serde_json::Value) -> Judgments {
     Judgments {
@@ -61,7 +35,7 @@ fn parse_judgments(json: &serde_json::Value) -> Judgments {
             .as_array()
             .unwrap()
             .iter()
-            .map(|v| ed25519_key_from_hex(v.as_str().unwrap()))
+            .map(|v| ed25519_from_hex(v.as_str().unwrap()))
             .collect(),
     }
 }
@@ -82,7 +56,7 @@ fn parse_disputes_extrinsic(json: &serde_json::Value) -> DisputesExtrinsic {
                     .map(|j| Judgment {
                         is_valid: j["vote"].as_bool().unwrap(),
                         validator_index: j["index"].as_u64().unwrap() as u16,
-                        signature: sig64_from_hex(j["signature"].as_str().unwrap()),
+                        signature: sig_from_hex(j["signature"].as_str().unwrap()),
                     })
                     .collect(),
             })
@@ -93,8 +67,8 @@ fn parse_disputes_extrinsic(json: &serde_json::Value) -> DisputesExtrinsic {
             .iter()
             .map(|c| Culprit {
                 report_hash: hash_from_hex(c["target"].as_str().unwrap()),
-                validator_key: ed25519_key_from_hex(c["key"].as_str().unwrap()),
-                signature: sig64_from_hex(c["signature"].as_str().unwrap()),
+                validator_key: ed25519_from_hex(c["key"].as_str().unwrap()),
+                signature: sig_from_hex(c["signature"].as_str().unwrap()),
             })
             .collect(),
         faults: json["faults"]
@@ -104,8 +78,8 @@ fn parse_disputes_extrinsic(json: &serde_json::Value) -> DisputesExtrinsic {
             .map(|f| Fault {
                 report_hash: hash_from_hex(f["target"].as_str().unwrap()),
                 is_valid: f["vote"].as_bool().unwrap(),
-                validator_key: ed25519_key_from_hex(f["key"].as_str().unwrap()),
-                signature: sig64_from_hex(f["signature"].as_str().unwrap()),
+                validator_key: ed25519_from_hex(f["key"].as_str().unwrap()),
+                signature: sig_from_hex(f["signature"].as_str().unwrap()),
             })
             .collect(),
     }
@@ -147,13 +121,13 @@ fn run_disputes_test(path: &str) {
         .as_array()
         .unwrap()
         .iter()
-        .map(|v| parse_validator_key(v))
+        .map(|v| serde_json::from_value(v.clone()).expect("failed to parse ValidatorKey"))
         .collect();
     let previous_validators: Vec<ValidatorKey> = pre["lambda"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|v| parse_validator_key(v))
+        .map(|v| serde_json::from_value(v.clone()).expect("failed to parse ValidatorKey"))
         .collect();
 
     let config = Config::tiny();
@@ -198,7 +172,7 @@ fn run_disputes_test(path: &str) {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|v| ed25519_key_from_hex(v.as_str().unwrap()))
+                    .map(|v| ed25519_from_hex(v.as_str().unwrap()))
                     .collect();
                 assert_eq!(
                     dispute_output.offenders_mark, expected_offenders,

@@ -1,62 +1,14 @@
 //! STF test vectors for the Safrole sub-transition (Section 6).
 
+mod common;
+
+use common::{bandersnatch_from_hex, decode_hex, ed25519_from_hex, hash_from_hex, parse_validator};
 use grey_state::safrole::{self, SafroleError, SafroleInput, SafroleState};
 use grey_types::config::Config;
 use grey_types::header::{Ticket, TicketProof};
 use grey_types::state::SealKeySeries;
 use grey_types::validator::ValidatorKey;
 use grey_types::{BandersnatchPublicKey, BandersnatchRingRoot, Ed25519PublicKey, Hash};
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
-
-fn bandersnatch_from_hex(s: &str) -> BandersnatchPublicKey {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut k = [0u8; 32];
-    k.copy_from_slice(&bytes);
-    BandersnatchPublicKey(k)
-}
-
-fn ed25519_from_hex(s: &str) -> Ed25519PublicKey {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut k = [0u8; 32];
-    k.copy_from_slice(&bytes);
-    Ed25519PublicKey(k)
-}
-
-fn ring_root_from_hex(s: &str) -> BandersnatchRingRoot {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut r = [0u8; 144];
-    r.copy_from_slice(&bytes);
-    BandersnatchRingRoot(r)
-}
-
-fn parse_validator(v: &serde_json::Value) -> ValidatorKey {
-    let bandersnatch = bandersnatch_from_hex(v["bandersnatch"].as_str().unwrap());
-    let ed25519 = ed25519_from_hex(v["ed25519"].as_str().unwrap());
-
-    let bls_hex = v["bls"].as_str().unwrap();
-    let bls_bytes = hex::decode(bls_hex.strip_prefix("0x").unwrap_or(bls_hex)).expect("bad hex");
-    let mut bls = [0u8; 144];
-    bls.copy_from_slice(&bls_bytes);
-
-    let meta_hex = v["metadata"].as_str().unwrap();
-    let meta_bytes =
-        hex::decode(meta_hex.strip_prefix("0x").unwrap_or(meta_hex)).expect("bad hex");
-    let mut metadata = [0u8; 128];
-    metadata.copy_from_slice(&meta_bytes);
-
-    ValidatorKey {
-        bandersnatch,
-        ed25519,
-        bls: grey_types::BlsPublicKey(bls),
-        metadata,
-    }
-}
 
 fn parse_validators(arr: &serde_json::Value) -> Vec<ValidatorKey> {
     arr.as_array()
@@ -117,7 +69,7 @@ fn parse_state(s: &serde_json::Value) -> SafroleState {
         iota: parse_validators(&s["iota"]),
         gamma_a: parse_tickets(&s["gamma_a"]),
         gamma_s: parse_seal_key_series(&s["gamma_s"]),
-        gamma_z: ring_root_from_hex(s["gamma_z"].as_str().unwrap()),
+        gamma_z: BandersnatchRingRoot::from_hex(s["gamma_z"].as_str().unwrap()),
         offenders,
     }
 }
@@ -128,9 +80,7 @@ fn parse_input(input: &serde_json::Value) -> SafroleInput {
         .unwrap()
         .iter()
         .map(|tp| {
-            let sig_hex = tp["signature"].as_str().unwrap();
-            let sig_bytes =
-                hex::decode(sig_hex.strip_prefix("0x").unwrap_or(sig_hex)).expect("bad hex");
+            let sig_bytes = decode_hex(tp["signature"].as_str().unwrap());
             TicketProof {
                 attempt: tp["attempt"].as_u64().unwrap() as u8,
                 proof: sig_bytes,

@@ -12,6 +12,6 @@ pub mod encode;
 pub mod error;
 pub mod header_codec;
 
-pub use decode::{Decode, DecodeWithConfig};
+pub use decode::{Decode, DecodeWithConfig, decode_compact, decode_compact_at, decode_natural};
 pub use encode::Encode;
 pub use error::CodecError;

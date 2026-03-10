@@ -1,19 +1,11 @@
 //! STF test vectors for preimages sub-transition (Section 12, eq 12.35-12.38).
 
+mod common;
+
+use common::{decode_hex, hash_from_hex};
 use grey_state::preimages::{process_preimages, PreimageAccountData, PreimageServiceRecord};
 use grey_types::{Hash, ServiceId, Timeslot};
 use std::collections::BTreeMap;
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
-
-fn bytes_from_hex(s: &str) -> Vec<u8> {
-    hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex")
-}
 
 fn run_preimages_test(path: &str) {
     let content = std::fs::read_to_string(path).expect("failed to read test vector");
@@ -28,7 +20,7 @@ fn run_preimages_test(path: &str) {
         .iter()
         .map(|p| {
             let requester = p["requester"].as_u64().unwrap() as ServiceId;
-            let blob = bytes_from_hex(p["blob"].as_str().unwrap());
+            let blob = decode_hex(p["blob"].as_str().unwrap());
             (requester, blob)
         })
         .collect();
@@ -44,7 +36,7 @@ fn run_preimages_test(path: &str) {
         let mut blobs = BTreeMap::new();
         for blob_entry in data["preimage_blobs"].as_array().unwrap() {
             let hash = hash_from_hex(blob_entry["hash"].as_str().unwrap());
-            let blob = bytes_from_hex(blob_entry["blob"].as_str().unwrap());
+            let blob = decode_hex(blob_entry["blob"].as_str().unwrap());
             blobs.insert(hash, blob);
         }
 
@@ -103,7 +95,7 @@ fn run_preimages_test(path: &str) {
                 .iter()
                 .map(|b| {
                     let hash = hash_from_hex(b["hash"].as_str().unwrap());
-                    let blob = bytes_from_hex(b["blob"].as_str().unwrap());
+                    let blob = decode_hex(b["blob"].as_str().unwrap());
                     (hash, blob)
                 })
                 .collect();

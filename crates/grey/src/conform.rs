@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 
+use grey_codec::decode_compact_at;
 use grey_codec::encode::encode_compact;
 use grey_codec::header_codec::{compute_header_hash, compute_unsigned_header_hash};
 use grey_codec::DecodeWithConfig;
@@ -995,49 +996,6 @@ fn make_error(text: &str) -> Vec<u8> {
     encode_compact(text.len() as u64, &mut msg);
     msg.extend_from_slice(text.as_bytes());
     msg
-}
-
-/// Decode a compact natural from a byte slice at the given position.
-fn decode_compact_at(data: &[u8], pos: &mut usize) -> Result<u64, String> {
-    if *pos >= data.len() {
-        return Err("unexpected end of data".into());
-    }
-    let first = data[*pos];
-    *pos += 1;
-
-    if first < 128 {
-        return Ok(first as u64);
-    }
-
-    let leading_ones = first.leading_ones() as usize;
-
-    if leading_ones == 8 {
-        if *pos + 8 > data.len() {
-            return Err("unexpected end of data in compact".into());
-        }
-        let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&data[*pos..*pos + 8]);
-        *pos += 8;
-        return Ok(u64::from_le_bytes(bytes));
-    }
-
-    let extra_bytes = leading_ones;
-    if *pos + extra_bytes > data.len() {
-        return Err("unexpected end of data in compact".into());
-    }
-
-    let mask = (1u8 << (8 - leading_ones - 1)) - 1;
-    let first_value_bits = first & mask;
-
-    let mut value: u64 = 0;
-    for i in 0..extra_bytes {
-        value |= (data[*pos + i] as u64) << (i * 8);
-    }
-    *pos += extra_bytes;
-
-    value |= (first_value_bits as u64) << (extra_bytes * 8);
-
-    Ok(value)
 }
 
 fn main() {

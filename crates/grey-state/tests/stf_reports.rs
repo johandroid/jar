@@ -1,155 +1,16 @@
 //! STF test vectors for reports (guarantees) sub-transition (Section 11).
 
+mod common;
+
+use common::{decode_hex, ed25519_from_hex, hash_from_hex, parse_validator, parse_work_report, sig_from_hex};
 use grey_state::reports::{
     process_reports, AvailAssignment, CoreStats, GuaranteeInput, RecentBlockEntry, ReportsState,
     ServiceInfo, ServiceStats,
 };
 use grey_types::config::Config;
 use grey_types::validator::ValidatorKey;
-use grey_types::work::{AvailabilitySpec, RefinementContext, WorkDigest, WorkReport, WorkResult};
-use grey_types::{
-    BandersnatchPublicKey, BlsPublicKey, Ed25519PublicKey, Ed25519Signature, Hash, ServiceId,
-};
+use grey_types::{Ed25519PublicKey, Ed25519Signature, Hash, ServiceId};
 use std::collections::{BTreeMap, BTreeSet};
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
-
-fn ed25519_from_hex(s: &str) -> Ed25519PublicKey {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut k = [0u8; 32];
-    k.copy_from_slice(&bytes);
-    Ed25519PublicKey(k)
-}
-
-fn sig_from_hex(s: &str) -> Ed25519Signature {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut sig = [0u8; 64];
-    sig.copy_from_slice(&bytes);
-    Ed25519Signature(sig)
-}
-
-fn parse_validator(v: &serde_json::Value) -> ValidatorKey {
-    let bandersnatch_bytes =
-        hex::decode(v["bandersnatch"].as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
-    let mut bandersnatch = [0u8; 32];
-    bandersnatch.copy_from_slice(&bandersnatch_bytes);
-
-    let ed25519 = ed25519_from_hex(v["ed25519"].as_str().unwrap());
-
-    let bls_bytes =
-        hex::decode(v["bls"].as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
-    let mut bls = [0u8; 144];
-    bls.copy_from_slice(&bls_bytes);
-
-    let metadata_bytes =
-        hex::decode(v["metadata"].as_str().unwrap().strip_prefix("0x").unwrap()).unwrap();
-    let mut metadata = [0u8; 128];
-    metadata.copy_from_slice(&metadata_bytes);
-
-    ValidatorKey {
-        bandersnatch: BandersnatchPublicKey(bandersnatch),
-        ed25519,
-        bls: BlsPublicKey(bls),
-        metadata,
-    }
-}
-
-fn parse_work_result(r: &serde_json::Value) -> WorkResult {
-    if let Some(ok_val) = r.get("ok") {
-        let data_hex = ok_val.as_str().unwrap();
-        let data = hex::decode(data_hex.strip_prefix("0x").unwrap_or(data_hex)).unwrap();
-        WorkResult::Ok(data)
-    } else if r.get("out_of_gas").is_some() {
-        WorkResult::OutOfGas
-    } else if r.get("panic").is_some() {
-        WorkResult::Panic
-    } else if r.get("bad_exports").is_some() {
-        WorkResult::BadExports
-    } else if r.get("bad_code").is_some() {
-        WorkResult::BadCode
-    } else if r.get("code_oversize").is_some() {
-        WorkResult::CodeOversize
-    } else {
-        panic!("Unknown work result: {:?}", r);
-    }
-}
-
-fn parse_work_report(r: &serde_json::Value) -> WorkReport {
-    let ps = &r["package_spec"];
-    let package_spec = AvailabilitySpec {
-        package_hash: hash_from_hex(ps["hash"].as_str().unwrap()),
-        bundle_length: ps["length"].as_u64().unwrap() as u32,
-        erasure_root: hash_from_hex(ps["erasure_root"].as_str().unwrap()),
-        exports_root: hash_from_hex(ps["exports_root"].as_str().unwrap()),
-        exports_count: ps["exports_count"].as_u64().unwrap() as u16,
-    };
-
-    let ctx = &r["context"];
-    let context = RefinementContext {
-        anchor: hash_from_hex(ctx["anchor"].as_str().unwrap()),
-        state_root: hash_from_hex(ctx["state_root"].as_str().unwrap()),
-        beefy_root: hash_from_hex(ctx["beefy_root"].as_str().unwrap()),
-        lookup_anchor: hash_from_hex(ctx["lookup_anchor"].as_str().unwrap()),
-        lookup_anchor_timeslot: ctx["lookup_anchor_slot"].as_u64().unwrap() as u32,
-        prerequisites: ctx["prerequisites"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|h| hash_from_hex(h.as_str().unwrap()))
-            .collect(),
-    };
-
-    let mut segment_root_lookup = BTreeMap::new();
-    for entry in r["segment_root_lookup"].as_array().unwrap() {
-        let pkg_hash = hash_from_hex(entry["work_package_hash"].as_str().unwrap());
-        let seg_root = hash_from_hex(entry["segment_tree_root"].as_str().unwrap());
-        segment_root_lookup.insert(pkg_hash, seg_root);
-    }
-
-    let results: Vec<WorkDigest> = r["results"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|d| {
-            let refine = &d["refine_load"];
-            WorkDigest {
-                service_id: d["service_id"].as_u64().unwrap() as ServiceId,
-                code_hash: hash_from_hex(d["code_hash"].as_str().unwrap()),
-                payload_hash: hash_from_hex(d["payload_hash"].as_str().unwrap()),
-                accumulate_gas: d["accumulate_gas"].as_u64().unwrap(),
-                result: parse_work_result(&d["result"]),
-                gas_used: refine["gas_used"].as_u64().unwrap(),
-                imports_count: refine["imports"].as_u64().unwrap() as u16,
-                extrinsics_count: refine["extrinsic_count"].as_u64().unwrap() as u16,
-                extrinsics_size: refine["extrinsic_size"].as_u64().unwrap() as u32,
-                exports_count: refine["exports"].as_u64().unwrap() as u16,
-            }
-        })
-        .collect();
-
-    WorkReport {
-        package_spec,
-        context,
-        core_index: r["core_index"].as_u64().unwrap() as u16,
-        authorizer_hash: hash_from_hex(r["authorizer_hash"].as_str().unwrap()),
-        auth_gas_used: r["auth_gas_used"].as_u64().unwrap(),
-        auth_output: hex::decode(
-            r["auth_output"]
-                .as_str()
-                .unwrap()
-                .strip_prefix("0x")
-                .unwrap_or(""),
-        )
-        .unwrap_or_default(),
-        segment_root_lookup,
-        results,
-    }
-}
 
 fn parse_avail_assignment(v: &serde_json::Value) -> Option<AvailAssignment> {
     if v.is_null() {
@@ -334,7 +195,7 @@ fn run_reports_test(path: &str) {
         .map(parse_core_stats)
         .collect();
 
-    let mut services_statistics: BTreeMap<ServiceId, ServiceStats> = pre["services_statistics"]
+    let services_statistics: BTreeMap<ServiceId, ServiceStats> = pre["services_statistics"]
         .as_array()
         .unwrap()
         .iter()

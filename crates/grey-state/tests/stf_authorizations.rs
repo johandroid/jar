@@ -1,15 +1,11 @@
 //! STF test vectors for authorizations sub-transition (Section 8).
 
+mod common;
+
+use common::hash_from_hex;
 use grey_state::authorizations::{update_authorizations, AuthorizationInput};
 use grey_types::config::Config;
 use grey_types::Hash;
-
-fn hash_from_hex(s: &str) -> Hash {
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).expect("bad hex");
-    let mut h = [0u8; 32];
-    h.copy_from_slice(&bytes);
-    Hash(h)
-}
 
 fn run_authorizations_test(path: &str) {
     let content = std::fs::read_to_string(path).expect("failed to read test vector");

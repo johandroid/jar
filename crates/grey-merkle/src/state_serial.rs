@@ -4,6 +4,7 @@
 //! variable-length byte values, suitable for Merklization via the binary
 //! Patricia Merkle trie.
 
+use grey_codec::decode_compact_at;
 use grey_codec::encode::encode_compact;
 use grey_crypto::blake2b_256;
 use grey_types::config::Config;
@@ -772,47 +773,7 @@ fn classify_key(key: &[u8; 31]) -> KeyType {
 // --- Component deserializers ---
 
 fn decode_compact(data: &[u8], pos: &mut usize) -> Result<u64, String> {
-    if *pos >= data.len() {
-        return Err("unexpected end of data in compact".into());
-    }
-    let first = data[*pos];
-    *pos += 1;
-
-    if first < 128 {
-        return Ok(first as u64);
-    }
-
-    // Count leading 1 bits to determine length
-    let leading_ones = first.leading_ones() as usize;
-    let extra_bytes = leading_ones;
-
-    if *pos + extra_bytes > data.len() {
-        return Err("unexpected end of data in compact".into());
-    }
-
-    if leading_ones == 8 {
-        // 0xFF prefix: 8 extra bytes, full u64 LE
-        let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&data[*pos..*pos + 8]);
-        *pos += 8;
-        return Ok(u64::from_le_bytes(bytes));
-    }
-
-    // The value bits in the first byte
-    let mask = (1u8 << (8 - leading_ones - 1)) - 1;
-    let first_value_bits = first & mask;
-
-    // Reconstruct: first_value_bits are the high bits, extra bytes are LE low bytes
-    let mut value: u64 = 0;
-    for i in 0..extra_bytes {
-        value |= (data[*pos + i] as u64) << (i * 8);
-    }
-    *pos += extra_bytes;
-
-    // The first byte's value bits go in the high position
-    value |= (first_value_bits as u64) << (extra_bytes * 8);
-
-    Ok(value)
+    decode_compact_at(data, pos).map_err(|e| e.to_string())
 }
 
 fn read_hash(data: &[u8], pos: &mut usize) -> Result<Hash, String> {
