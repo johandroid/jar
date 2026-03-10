@@ -23,6 +23,36 @@ pub enum ExitReason {
     HostCall(u32),
 }
 
+/// Pre-decoded instruction for the fast interpreter path.
+///
+/// Flattened representation: all operands stored directly (no enum discrimination
+/// needed at runtime). This avoids the Args pattern-matching overhead.
+#[derive(Clone, Copy, Debug)]
+pub struct DecodedInst {
+    pub opcode: Opcode,
+    pub args: Args,
+    /// Register A (first register operand, context-dependent).
+    pub ra: u8,
+    /// Register B (second register operand, context-dependent).
+    pub rb: u8,
+    /// Register D (destination register, context-dependent).
+    pub rd: u8,
+    /// First immediate / offset value.
+    pub imm1: u64,
+    /// Second immediate / offset value.
+    pub imm2: u64,
+    /// Byte offset of this instruction in the code.
+    pub pc: u32,
+    /// Byte offset of the next sequential instruction.
+    pub next_pc: u32,
+    /// Pre-resolved instruction index for the next sequential instruction.
+    pub next_idx: u32,
+    /// Pre-resolved instruction index for the branch/jump target (u32::MAX = invalid).
+    pub target_idx: u32,
+    /// Gas cost to charge at basic-block entry (0 for non-BB-start instructions).
+    pub bb_gas_cost: u64,
+}
+
 /// PVM instance state (eq A.6).
 #[derive(Clone, Debug)]
 pub struct Pvm {
@@ -53,6 +83,10 @@ pub struct Pvm {
     pub tracing_enabled: bool,
     /// Collected instruction trace: (PC, opcode_byte) pairs.
     pub pc_trace: Vec<(u32, u8)>,
+    /// Pre-decoded instruction stream (indexed by instruction number).
+    decoded_insts: Vec<DecodedInst>,
+    /// Mapping from PC byte offset → instruction index. u32::MAX = invalid.
+    pc_to_idx: Vec<u32>,
 }
 
 impl Pvm {
@@ -67,6 +101,8 @@ impl Pvm {
     ) -> Self {
         let basic_block_starts = compute_basic_block_starts(&code, &bitmask);
         let block_gas_costs = compute_block_gas_costs(&code, &bitmask, &basic_block_starts);
+        let (decoded_insts, pc_to_idx) =
+            predecode_instructions(&code, &bitmask, &basic_block_starts, &block_gas_costs);
         Self {
             gas,
             registers,
@@ -81,6 +117,8 @@ impl Pvm {
             block_gas_costs,
             tracing_enabled: false,
             pc_trace: Vec::new(),
+            decoded_insts,
+            pc_to_idx,
         }
     }
 
@@ -1400,9 +1438,261 @@ impl Pvm {
 
     /// Run the machine until it exits (eq A.1).
     ///
+    /// Uses pre-decoded instructions with basic-block gas charging for speed.
     /// Returns (exit_reason, gas_used).
     pub fn run(&mut self) -> (ExitReason, Gas) {
         let initial_gas = self.gas;
+
+        // If tracing is enabled, fall back to the slow step-by-step path
+        if self.tracing_enabled {
+            return self.run_stepping(initial_gas);
+        }
+
+        // Resolve starting PC to instruction index
+        let mut idx = if (self.pc as usize) < self.pc_to_idx.len() {
+            self.pc_to_idx[self.pc as usize]
+        } else {
+            u32::MAX
+        };
+
+        if idx == u32::MAX {
+            // Invalid starting PC
+            self.gas = self.gas.saturating_sub(1);
+            return (ExitReason::Panic, initial_gas - self.gas);
+        }
+
+        loop {
+            // Copy the decoded instruction (avoids borrow conflict with &mut self)
+            let inst = *unsafe { self.decoded_insts.get_unchecked(idx as usize) };
+
+            // Basic-block gas charging: charge once at block entry
+            if inst.bb_gas_cost > 0 {
+                if self.gas < inst.bb_gas_cost {
+                    self.pc = inst.pc;
+                    return (ExitReason::OutOfGas, initial_gas - self.gas);
+                }
+                self.gas -= inst.bb_gas_cost;
+            }
+
+            // Fast-path execution using flat operands (no Args enum matching).
+            let ra = inst.ra as usize;
+            let rb = inst.rb as usize;
+            let rd = inst.rd as usize;
+            let imm1 = inst.imm1;
+            let next_pc = inst.next_pc;
+
+            // Most instructions advance sequentially. Branches/jumps set
+            // branch_idx to the pre-resolved instruction index.
+            let mut branch_idx: u32 = u32::MAX; // sentinel: means sequential
+            let mut exit: Option<ExitReason> = None;
+
+            match inst.opcode {
+                // === No arguments ===
+                Opcode::Trap => { exit = Some(ExitReason::Panic); }
+                Opcode::Fallthrough => {}
+
+                // === One immediate ===
+                Opcode::Ecalli => {
+                    self.pc = next_pc;
+                    return (ExitReason::HostCall(imm1 as u32), initial_gas - self.gas);
+                }
+
+                // === One register + extended immediate ===
+                Opcode::LoadImm64 => { self.registers[ra] = imm1; }
+
+                // === One offset (jump) ===
+                Opcode::Jump => {
+                    if inst.target_idx != u32::MAX {
+                        branch_idx = inst.target_idx;
+                    } else {
+                        exit = Some(ExitReason::Panic);
+                    }
+                }
+
+                // === One register + one immediate ===
+                Opcode::JumpInd => {
+                    let addr = self.registers[ra].wrapping_add(imm1) % (1u64 << 32);
+                    let (e, target_pc) = self.djump(addr);
+                    if let Some(reason) = e {
+                        exit = Some(reason);
+                    } else {
+                        let t = target_pc as usize;
+                        if t < self.pc_to_idx.len() {
+                            let tidx = self.pc_to_idx[t];
+                            if tidx != u32::MAX { branch_idx = tidx; }
+                            else { exit = Some(ExitReason::Panic); }
+                        } else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::LoadImm => { self.registers[ra] = imm1; }
+
+                // === Two registers ===
+                Opcode::MoveReg => { self.registers[rd] = self.registers[ra]; }
+                Opcode::Sbrk => {
+                    self.pc = inst.pc;
+                    if let Some(e) = self.execute(inst.opcode, inst.args, next_pc) {
+                        return (e, initial_gas - self.gas);
+                    }
+                    if self.pc != next_pc {
+                        // sbrk changed PC — resolve dynamically
+                        let t = self.pc as usize;
+                        if t < self.pc_to_idx.len() {
+                            let ti = self.pc_to_idx[t];
+                            if ti != u32::MAX { branch_idx = ti; }
+                            else { exit = Some(ExitReason::Panic); }
+                        } else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::CountSetBits64 => { self.registers[rd] = self.registers[ra].count_ones() as u64; }
+                Opcode::CountSetBits32 => { self.registers[rd] = (self.registers[ra] as u32).count_ones() as u64; }
+                Opcode::LeadingZeroBits64 => { self.registers[rd] = self.registers[ra].leading_zeros() as u64; }
+                Opcode::LeadingZeroBits32 => { self.registers[rd] = (self.registers[ra] as u32).leading_zeros() as u64; }
+                Opcode::TrailingZeroBits64 => { self.registers[rd] = self.registers[ra].trailing_zeros() as u64; }
+                Opcode::TrailingZeroBits32 => { self.registers[rd] = (self.registers[ra] as u32).trailing_zeros() as u64; }
+                Opcode::SignExtend8 => { self.registers[rd] = self.registers[ra] as u8 as i8 as i64 as u64; }
+                Opcode::SignExtend16 => { self.registers[rd] = self.registers[ra] as u16 as i16 as i64 as u64; }
+                Opcode::ZeroExtend16 => { self.registers[rd] = self.registers[ra] as u16 as u64; }
+                Opcode::ReverseBytes => { self.registers[rd] = self.registers[ra].swap_bytes(); }
+
+                // === Two registers + one immediate ===
+                Opcode::AddImm32 => { self.registers[ra] = args::sign_extend_32(self.registers[rb].wrapping_add(imm1)); }
+                Opcode::AddImm64 => { self.registers[ra] = self.registers[rb].wrapping_add(imm1); }
+                Opcode::MulImm32 => { self.registers[ra] = args::sign_extend_32((self.registers[rb] as u32).wrapping_mul(imm1 as u32) as u64); }
+                Opcode::MulImm64 => { self.registers[ra] = self.registers[rb].wrapping_mul(imm1); }
+                Opcode::AndImm => { self.registers[ra] = self.registers[rb] & imm1; }
+                Opcode::XorImm => { self.registers[ra] = self.registers[rb] ^ imm1; }
+                Opcode::OrImm => { self.registers[ra] = self.registers[rb] | imm1; }
+                Opcode::SetLtUImm => { self.registers[ra] = if self.registers[rb] < imm1 { 1 } else { 0 }; }
+                Opcode::SetLtSImm => { self.registers[ra] = if (self.registers[rb] as i64) < (imm1 as i64) { 1 } else { 0 }; }
+                Opcode::SetGtUImm => { self.registers[ra] = if self.registers[rb] > imm1 { 1 } else { 0 }; }
+                Opcode::SetGtSImm => { self.registers[ra] = if (self.registers[rb] as i64) > (imm1 as i64) { 1 } else { 0 }; }
+                Opcode::ShloLImm32 => { self.registers[ra] = args::sign_extend_32((self.registers[rb] as u32).wrapping_shl((imm1 % 32) as u32) as u64); }
+                Opcode::ShloRImm32 => { self.registers[ra] = args::sign_extend_32((self.registers[rb] as u32).wrapping_shr((imm1 % 32) as u32) as u64); }
+                Opcode::SharRImm32 => { self.registers[ra] = (self.registers[rb] as u32 as i32).wrapping_shr((imm1 % 32) as u32) as i64 as u64; }
+                Opcode::ShloLImm64 => { self.registers[ra] = self.registers[rb].wrapping_shl((imm1 % 64) as u32); }
+                Opcode::ShloRImm64 => { self.registers[ra] = self.registers[rb].wrapping_shr((imm1 % 64) as u32); }
+                Opcode::SharRImm64 => { self.registers[ra] = (self.registers[rb] as i64).wrapping_shr((imm1 % 64) as u32) as u64; }
+                Opcode::NegAddImm32 => { self.registers[ra] = args::sign_extend_32(imm1.wrapping_sub(self.registers[rb]) as u32 as u64); }
+                Opcode::NegAddImm64 => { self.registers[ra] = imm1.wrapping_sub(self.registers[rb]); }
+                Opcode::CmovIzImm => { if self.registers[rb] == 0 { self.registers[ra] = imm1; } }
+                Opcode::CmovNzImm => { if self.registers[rb] != 0 { self.registers[ra] = imm1; } }
+                Opcode::RotR64Imm => { self.registers[ra] = self.registers[rb].rotate_right((imm1 % 64) as u32); }
+                Opcode::RotR32Imm => { self.registers[ra] = args::sign_extend_32((self.registers[rb] as u32).rotate_right((imm1 % 32) as u32) as u64); }
+
+                // ImmAlt variants: op ra, imm, rb (imm is the "left" operand)
+                Opcode::ShloLImmAlt32 => { self.registers[ra] = args::sign_extend_32((imm1 as u32).wrapping_shl((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::ShloRImmAlt32 => { self.registers[ra] = args::sign_extend_32((imm1 as u32).wrapping_shr((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::SharRImmAlt32 => { self.registers[ra] = ((imm1 as u32) as i32).wrapping_shr((self.registers[rb] % 32) as u32) as i64 as u64; }
+                Opcode::ShloLImmAlt64 => { self.registers[ra] = imm1.wrapping_shl((self.registers[rb] % 64) as u32); }
+                Opcode::ShloRImmAlt64 => { self.registers[ra] = imm1.wrapping_shr((self.registers[rb] % 64) as u32); }
+                Opcode::SharRImmAlt64 => { self.registers[ra] = (imm1 as i64).wrapping_shr((self.registers[rb] % 64) as u32) as u64; }
+                Opcode::RotR64ImmAlt => { self.registers[ra] = imm1.rotate_right((self.registers[rb] % 64) as u32); }
+                Opcode::RotR32ImmAlt => { self.registers[ra] = args::sign_extend_32((imm1 as u32).rotate_right((self.registers[rb] % 32) as u32) as u64); }
+
+                // === Two registers + one offset (branches) ===
+                Opcode::BranchEq => {
+                    if self.registers[ra] == self.registers[rb] {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::BranchNe => {
+                    if self.registers[ra] != self.registers[rb] {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::BranchLtU => {
+                    if self.registers[ra] < self.registers[rb] {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::BranchLtS => {
+                    if (self.registers[ra] as i64) < (self.registers[rb] as i64) {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::BranchGeU => {
+                    if self.registers[ra] >= self.registers[rb] {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+                Opcode::BranchGeS => {
+                    if (self.registers[ra] as i64) >= (self.registers[rb] as i64) {
+                        if inst.target_idx != u32::MAX { branch_idx = inst.target_idx; }
+                        else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+
+                // === Three register ALU ===
+                Opcode::Add32 => { self.registers[rd] = args::sign_extend_32(self.registers[ra].wrapping_add(self.registers[rb])); }
+                Opcode::Sub32 => { self.registers[rd] = args::sign_extend_32(self.registers[ra].wrapping_sub(self.registers[rb])); }
+                Opcode::Add64 => { self.registers[rd] = self.registers[ra].wrapping_add(self.registers[rb]); }
+                Opcode::Sub64 => { self.registers[rd] = self.registers[ra].wrapping_sub(self.registers[rb]); }
+                Opcode::Mul32 => { self.registers[rd] = args::sign_extend_32((self.registers[ra] as u32).wrapping_mul(self.registers[rb] as u32) as u64); }
+                Opcode::Mul64 => { self.registers[rd] = self.registers[ra].wrapping_mul(self.registers[rb]); }
+                Opcode::And => { self.registers[rd] = self.registers[ra] & self.registers[rb]; }
+                Opcode::Or => { self.registers[rd] = self.registers[ra] | self.registers[rb]; }
+                Opcode::Xor => { self.registers[rd] = self.registers[ra] ^ self.registers[rb]; }
+                Opcode::SetLtU => { self.registers[rd] = if self.registers[ra] < self.registers[rb] { 1 } else { 0 }; }
+                Opcode::SetLtS => { self.registers[rd] = if (self.registers[ra] as i64) < (self.registers[rb] as i64) { 1 } else { 0 }; }
+                Opcode::CmovIz => { if self.registers[rb] == 0 { self.registers[rd] = self.registers[ra]; } }
+                Opcode::CmovNz => { if self.registers[rb] != 0 { self.registers[rd] = self.registers[ra]; } }
+                Opcode::ShloL32 => { self.registers[rd] = args::sign_extend_32((self.registers[ra] as u32).wrapping_shl((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::ShloR32 => { self.registers[rd] = args::sign_extend_32((self.registers[ra] as u32).wrapping_shr((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::SharR32 => { self.registers[rd] = (self.registers[ra] as u32 as i32).wrapping_shr((self.registers[rb] % 32) as u32) as i64 as u64; }
+                Opcode::ShloL64 => { self.registers[rd] = self.registers[ra].wrapping_shl((self.registers[rb] % 64) as u32); }
+                Opcode::ShloR64 => { self.registers[rd] = self.registers[ra].wrapping_shr((self.registers[rb] % 64) as u32); }
+                Opcode::SharR64 => { self.registers[rd] = (self.registers[ra] as i64).wrapping_shr((self.registers[rb] % 64) as u32) as u64; }
+                Opcode::RotL64 => { self.registers[rd] = self.registers[ra].rotate_left((self.registers[rb] % 64) as u32); }
+                Opcode::RotR64 => { self.registers[rd] = self.registers[ra].rotate_right((self.registers[rb] % 64) as u32); }
+                Opcode::RotL32 => { self.registers[rd] = args::sign_extend_32((self.registers[ra] as u32).rotate_left((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::RotR32 => { self.registers[rd] = args::sign_extend_32((self.registers[ra] as u32).rotate_right((self.registers[rb] % 32) as u32) as u64); }
+                Opcode::AndInv => { self.registers[rd] = self.registers[ra] & !self.registers[rb]; }
+                Opcode::OrInv => { self.registers[rd] = self.registers[ra] | !self.registers[rb]; }
+                Opcode::Xnor => { self.registers[rd] = !(self.registers[ra] ^ self.registers[rb]); }
+                Opcode::Max => { self.registers[rd] = std::cmp::max(self.registers[ra] as i64, self.registers[rb] as i64) as u64; }
+                Opcode::MaxU => { self.registers[rd] = std::cmp::max(self.registers[ra], self.registers[rb]); }
+                Opcode::Min => { self.registers[rd] = std::cmp::min(self.registers[ra] as i64, self.registers[rb] as i64) as u64; }
+                Opcode::MinU => { self.registers[rd] = std::cmp::min(self.registers[ra], self.registers[rb]); }
+
+                // === All other instructions: delegate to execute() ===
+                _ => {
+                    self.pc = inst.pc;
+                    if let Some(e) = self.execute(inst.opcode, inst.args, next_pc) {
+                        return (e, initial_gas - self.gas);
+                    }
+                    if self.pc != next_pc {
+                        // execute() changed PC — resolve dynamically
+                        let t = self.pc as usize;
+                        if t < self.pc_to_idx.len() {
+                            let ti = self.pc_to_idx[t];
+                            if ti != u32::MAX { branch_idx = ti; }
+                            else { exit = Some(ExitReason::Panic); }
+                        } else { exit = Some(ExitReason::Panic); }
+                    }
+                }
+            }
+
+            if let Some(reason) = exit {
+                self.pc = inst.pc;
+                return (reason, initial_gas - self.gas);
+            }
+
+            if branch_idx == u32::MAX {
+                // Sequential advance
+                idx += 1;
+            } else {
+                idx = branch_idx;
+            }
+        }
+    }
+
+    /// Slow run path for tracing/stepping mode — uses step() with per-instruction gas.
+    fn run_stepping(&mut self, initial_gas: Gas) -> (ExitReason, Gas) {
         loop {
             match self.step() {
                 Some(exit) => {
@@ -1534,6 +1824,145 @@ fn compute_block_gas_costs(code: &[u8], bitmask: &[u8], basic_block_starts: &[bo
     }
 
     costs
+}
+
+/// Extract flat operands (ra, rb, rd, imm1, imm2) from a decoded Args enum.
+fn flatten_args(args: &Args) -> (u8, u8, u8, u64, u64) {
+    match *args {
+        Args::None => (0, 0, 0, 0, 0),
+        Args::Imm { imm } => (0, 0, 0, imm, 0),
+        Args::RegExtImm { ra, imm } => (ra as u8, 0, 0, imm, 0),
+        Args::TwoImm { imm_x, imm_y } => (0, 0, 0, imm_x, imm_y),
+        Args::Offset { offset } => (0, 0, 0, offset, 0),
+        Args::RegImm { ra, imm } => (ra as u8, 0, 0, imm, 0),
+        Args::RegTwoImm { ra, imm_x, imm_y } => (ra as u8, 0, 0, imm_x, imm_y),
+        Args::RegImmOffset { ra, imm, offset } => (ra as u8, 0, 0, imm, offset),
+        Args::TwoReg { rd, ra } => (ra as u8, 0, rd as u8, 0, 0),
+        Args::TwoRegImm { ra, rb, imm } => (ra as u8, rb as u8, 0, imm, 0),
+        Args::TwoRegOffset { ra, rb, offset } => (ra as u8, rb as u8, 0, offset, 0),
+        Args::TwoRegTwoImm { ra, rb, imm_x, imm_y } => (ra as u8, rb as u8, 0, imm_x, imm_y),
+        Args::ThreeReg { ra, rb, rd } => (ra as u8, rb as u8, rd as u8, 0, 0),
+    }
+}
+
+/// Pre-decode all instructions into a flat array for fast execution.
+///
+/// Returns (decoded_insts, pc_to_idx) where:
+/// - decoded_insts[i] is the i-th instruction with pre-decoded opcode, args, and gas
+/// - pc_to_idx[pc] maps a byte offset to instruction index (u32::MAX = invalid)
+fn predecode_instructions(
+    code: &[u8],
+    bitmask: &[u8],
+    basic_block_starts: &[bool],
+    block_gas_costs: &[u64],
+) -> (Vec<DecodedInst>, Vec<u32>) {
+    let len = code.len();
+    let mut insts = Vec::new();
+    let mut pc_to_idx = vec![u32::MAX; len + 1]; // +1 for sentinel
+
+    let skip_at = |i: usize| -> usize {
+        for j in 0..25 {
+            let idx = i + 1 + j;
+            let bit = if idx < bitmask.len() { bitmask[idx] } else { 1 };
+            if bit == 1 {
+                return j;
+            }
+        }
+        24
+    };
+
+    let mut pc = 0;
+    while pc < len {
+        if pc < bitmask.len() && bitmask[pc] == 1 {
+            if let Some(opcode) = Opcode::from_byte(code[pc]) {
+                let skip = skip_at(pc);
+                let next_pc = (pc + 1 + skip) as u32;
+                let category = opcode.category();
+                let args = args::decode_args(code, pc, skip, category);
+                let bb_gas_cost = if pc < basic_block_starts.len() && basic_block_starts[pc] {
+                    block_gas_costs[pc]
+                } else {
+                    0
+                };
+
+                // Extract flat operands from decoded args
+                let (ra, rb, rd, imm1, imm2) = flatten_args(&args);
+
+                let idx = insts.len() as u32;
+                pc_to_idx[pc] = idx;
+                insts.push(DecodedInst {
+                    opcode,
+                    args,
+                    ra, rb, rd, imm1, imm2,
+                    pc: pc as u32,
+                    next_pc,
+                    next_idx: u32::MAX, // resolved in second pass
+                    target_idx: u32::MAX, // resolved in second pass
+                    bb_gas_cost,
+                });
+
+                pc = next_pc as usize;
+                continue;
+            }
+        }
+        pc += 1;
+    }
+
+    let sentinel_idx = insts.len() as u32;
+
+    // Add a sentinel instruction at the end (trap) so sequential advance past
+    // the last instruction doesn't index out of bounds.
+    insts.push(DecodedInst {
+        opcode: Opcode::Trap,
+        args: Args::None,
+        ra: 0, rb: 0, rd: 0, imm1: 0, imm2: 0,
+        pc: len as u32,
+        next_pc: len as u32 + 1,
+        next_idx: sentinel_idx, // self-loop (will trap anyway)
+        target_idx: u32::MAX,
+        bb_gas_cost: 1, // charge 1 gas for the trap
+    });
+
+    // Second pass: resolve next_idx and target_idx for all instructions.
+    for i in 0..insts.len() {
+        let inst = &insts[i];
+        // Resolve next sequential instruction index
+        let np = inst.next_pc as usize;
+        let next_idx = if np < pc_to_idx.len() {
+            let ni = pc_to_idx[np];
+            if ni != u32::MAX { ni } else { sentinel_idx }
+        } else {
+            sentinel_idx
+        };
+
+        // Resolve branch/jump target index for instructions where imm1 is the target PC:
+        // Jump (OneOffset) and BranchEq/Ne/LtU/LtS/GeU/GeS (TwoRegOneOffset)
+        let target_idx = {
+            let op = inst.opcode;
+            let has_imm1_target = matches!(op,
+                Opcode::Jump | Opcode::BranchEq | Opcode::BranchNe |
+                Opcode::BranchLtU | Opcode::BranchLtS | Opcode::BranchGeU | Opcode::BranchGeS
+            );
+            if has_imm1_target {
+                let target_pc = inst.imm1 as usize;
+                if target_pc < basic_block_starts.len() && basic_block_starts[target_pc]
+                    && target_pc < pc_to_idx.len()
+                {
+                    pc_to_idx[target_pc]
+                } else {
+                    u32::MAX
+                }
+            } else {
+                u32::MAX
+            }
+        };
+
+        // Can't borrow mutably with the immutable reference, so use indexing
+        insts[i].next_idx = next_idx;
+        insts[i].target_idx = target_idx;
+    }
+
+    (insts, pc_to_idx)
 }
 
 #[cfg(test)]

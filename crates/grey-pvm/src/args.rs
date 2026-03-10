@@ -5,6 +5,7 @@
 /// Sign-extend a value from `n` bytes to 64 bits (eq A.16: Xₙ).
 ///
 /// X_n(x) = x + floor(x / 2^(8n-1)) * (2^64 - 2^(8n))
+#[inline(always)]
 pub fn sign_extend(value: u64, n: usize) -> u64 {
     match n {
         0 => 0,
@@ -48,7 +49,7 @@ pub fn decode_le(bytes: &[u8]) -> u64 {
 }
 
 /// Decoded instruction arguments.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Args {
     /// No arguments (trap, fallthrough).
     None,
@@ -79,8 +80,25 @@ pub enum Args {
 }
 
 /// Read from the zero-extended code blob (ζ, eq A.4).
+#[inline(always)]
 fn zeta(code: &[u8], i: usize) -> u8 {
     if i < code.len() { code[i] } else { 0 }
+}
+
+/// Read `n` bytes from code at offset as little-endian u64 (no allocation).
+#[inline(always)]
+fn read_le_at(code: &[u8], offset: usize, n: usize) -> u64 {
+    let mut val = 0u64;
+    for i in 0..n {
+        val |= (zeta(code, offset + i) as u64) << (i * 8);
+    }
+    val
+}
+
+/// Read `n` bytes and sign-extend (no allocation).
+#[inline(always)]
+fn read_signed_at(code: &[u8], offset: usize, n: usize) -> u64 {
+    sign_extend(read_le_at(code, offset, n), n)
 }
 
 /// Decode arguments based on instruction category.
@@ -102,16 +120,14 @@ pub fn decode_args(
         // A.5.2: lX = min(4, ℓ), νX = X_lX(E_lX⁻¹(ζ[ı+1..+lX]))
         OneImm => {
             let lx = l.min(4);
-            let imm_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 1 + i)).collect();
-            let imm = sign_extend(decode_le(&imm_bytes), lx);
+            let imm = read_signed_at(code, pc + 1, lx);
             Args::Imm { imm }
         }
 
         // A.5.3: rA = min(12, ζ[ı+1] mod 16), νX = E₈⁻¹(ζ[ı+2..+8])
         OneRegExtImm => {
             let ra = (zeta(code, pc + 1) % 16).min(12) as usize;
-            let imm_bytes: Vec<u8> = (0..8).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm = decode_le(&imm_bytes);
+            let imm = read_le_at(code, pc + 2, 8);
             Args::RegExtImm { ra, imm }
         }
 
@@ -119,19 +135,15 @@ pub fn decode_args(
         TwoImm => {
             let lx = (zeta(code, pc + 1) as usize % 8).min(4);
             let ly = if l > lx + 1 { (l - lx - 1).min(4) } else { 0 };
-            let imm_x_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm_y_bytes: Vec<u8> = (0..ly).map(|i| zeta(code, pc + 2 + lx + i)).collect();
-            let imm_x = sign_extend(decode_le(&imm_x_bytes), lx);
-            let imm_y = sign_extend(decode_le(&imm_y_bytes), ly);
+            let imm_x = read_signed_at(code, pc + 2, lx);
+            let imm_y = read_signed_at(code, pc + 2 + lx, ly);
             Args::TwoImm { imm_x, imm_y }
         }
 
         // A.5.5: lX = min(4, ℓ), νX = ı + Z_lX(...)
         OneOffset => {
             let lx = l.min(4);
-            let imm_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 1 + i)).collect();
-            // Offset is relative to PC: ı + signed(imm)
-            let signed_offset = sign_extend(decode_le(&imm_bytes), lx) as i64;
+            let signed_offset = read_signed_at(code, pc + 1, lx) as i64;
             let offset = (pc as i64).wrapping_add(signed_offset) as u64;
             Args::Offset { offset }
         }
@@ -140,8 +152,7 @@ pub fn decode_args(
         OneRegOneImm => {
             let ra = (zeta(code, pc + 1) % 16).min(12) as usize;
             let lx = if l > 1 { (l - 1).min(4) } else { 0 };
-            let imm_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm = sign_extend(decode_le(&imm_bytes), lx);
+            let imm = read_signed_at(code, pc + 2, lx);
             Args::RegImm { ra, imm }
         }
 
@@ -151,10 +162,8 @@ pub fn decode_args(
             let ra = (reg_byte % 16).min(12) as usize;
             let lx = ((reg_byte as usize / 16) % 8).min(4);
             let ly = if l > lx + 1 { (l - lx - 1).min(4) } else { 0 };
-            let imm_x_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm_y_bytes: Vec<u8> = (0..ly).map(|i| zeta(code, pc + 2 + lx + i)).collect();
-            let imm_x = sign_extend(decode_le(&imm_x_bytes), lx);
-            let imm_y = sign_extend(decode_le(&imm_y_bytes), ly);
+            let imm_x = read_signed_at(code, pc + 2, lx);
+            let imm_y = read_signed_at(code, pc + 2 + lx, ly);
             Args::RegTwoImm { ra, imm_x, imm_y }
         }
 
@@ -164,10 +173,8 @@ pub fn decode_args(
             let ra = (reg_byte % 16).min(12) as usize;
             let lx = ((reg_byte as usize / 16) % 8).min(4);
             let ly = if l > lx + 1 { (l - lx - 1).min(4) } else { 0 };
-            let imm_x_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm_y_bytes: Vec<u8> = (0..ly).map(|i| zeta(code, pc + 2 + lx + i)).collect();
-            let imm = sign_extend(decode_le(&imm_x_bytes), lx);
-            let signed_offset = sign_extend(decode_le(&imm_y_bytes), ly) as i64;
+            let imm = read_signed_at(code, pc + 2, lx);
+            let signed_offset = read_signed_at(code, pc + 2 + lx, ly) as i64;
             let offset = (pc as i64).wrapping_add(signed_offset) as u64;
             Args::RegImmOffset { ra, imm, offset }
         }
@@ -186,8 +193,7 @@ pub fn decode_args(
             let ra = (reg_byte % 16).min(12) as usize;
             let rb = (reg_byte / 16).min(12) as usize;
             let lx = if l > 1 { (l - 1).min(4) } else { 0 };
-            let imm_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let imm = sign_extend(decode_le(&imm_bytes), lx);
+            let imm = read_signed_at(code, pc + 2, lx);
             Args::TwoRegImm { ra, rb, imm }
         }
 
@@ -197,8 +203,7 @@ pub fn decode_args(
             let ra = (reg_byte % 16).min(12) as usize;
             let rb = (reg_byte / 16).min(12) as usize;
             let lx = if l > 1 { (l - 1).min(4) } else { 0 };
-            let imm_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 2 + i)).collect();
-            let signed_offset = sign_extend(decode_le(&imm_bytes), lx) as i64;
+            let signed_offset = read_signed_at(code, pc + 2, lx) as i64;
             let offset = (pc as i64).wrapping_add(signed_offset) as u64;
             Args::TwoRegOffset { ra, rb, offset }
         }
@@ -210,10 +215,8 @@ pub fn decode_args(
             let rb = (reg_byte / 16).min(12) as usize;
             let lx = (zeta(code, pc + 2) as usize % 8).min(4);
             let ly = if l > lx + 2 { (l - lx - 2).min(4) } else { 0 };
-            let imm_x_bytes: Vec<u8> = (0..lx).map(|i| zeta(code, pc + 3 + i)).collect();
-            let imm_y_bytes: Vec<u8> = (0..ly).map(|i| zeta(code, pc + 3 + lx + i)).collect();
-            let imm_x = sign_extend(decode_le(&imm_x_bytes), lx);
-            let imm_y = sign_extend(decode_le(&imm_y_bytes), ly);
+            let imm_x = read_signed_at(code, pc + 3, lx);
+            let imm_y = read_signed_at(code, pc + 3 + lx, ly);
             Args::TwoRegTwoImm { ra, rb, imm_x, imm_y }
         }
 
