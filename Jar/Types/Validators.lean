@@ -42,6 +42,9 @@ structure Ticket where
   /-- a : Attempt/entry index ∈ {0, 1}. -/
   attempt : TicketEntryIndex
 
+instance : Inhabited Ticket where
+  default := { id := default, attempt := ⟨0, by simp [N_TICKETS]⟩ }
+
 -- ============================================================================
 -- §6.2 — Seal Key Series (eq:ticketaccumulatorsealticketsspec)
 -- ============================================================================

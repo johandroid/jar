@@ -44,3 +44,11 @@ lean_exe cryptotest where
     "-ljar_crypto_ffi",
     "-lpthread", "-ldl", "-lm"
   ]
+
+lean_exe safroletest where
+  root := `Jar.Test.SafroleVectors
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
