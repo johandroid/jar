@@ -112,22 +112,27 @@ opaque bandersnatchRingRoot
     zk-SNARK-enabled anonymous proof of secret knowledge within a set.
     Deliberately left abstract — intended to be axiomatically specified
     or linked via FFI to a concrete cryptographic implementation. -/
+/- NOTE: ringSize must match the number of keys used to compute root.
+   For tiny config tests ringSize=6; for full JAM ringSize=V=1023. -/
 @[extern "jar_bandersnatch_ring_verify"]
 opaque bandersnatchRingVerify
   (root : BandersnatchRingRoot)
   (context : ByteArray)
   (message : ByteArray)
-  (proof : BandersnatchRingVrfProof) : Bool := false
+  (proof : BandersnatchRingVrfProof)
+  (ringSize : UInt32) : Bool := false
 
 /-- V°_r^x⟨m⟩ : Ring VRF proof generation (requires secret key).
     Deliberately left abstract — intended to be axiomatically specified
     or linked via FFI to a concrete cryptographic implementation. -/
+/- NOTE: ringSize must match the number of keys used to compute root. -/
 @[extern "jar_bandersnatch_ring_sign"]
 opaque bandersnatchRingSign
   (secretKey : ByteArray)
   (root : BandersnatchRingRoot)
   (context : ByteArray)
-  (message : ByteArray) : BandersnatchRingVrfProof := default
+  (message : ByteArray)
+  (ringSize : UInt32) : BandersnatchRingVrfProof := default
 
 /-- Y(p) : VRF output extraction from ring proof. GP Appendix G eq (G.5).
     banderout(p) ∈ ℍ. Same VRF output semantics as regular signatures.
@@ -163,26 +168,29 @@ opaque blsSign
 -- Signing Contexts — GP §I.4.5 (definitions.tex)
 -- ============================================================================
 
-/-- $jam_entropy — On-chain entropy generation. GP eq (6.27). -/
-def ctxEntropy : ByteArray := "$jam_entropy".toUTF8
-/-- $jam_ticket_seal — Ticket generation and regular block seal. GP eq (6.24). -/
-def ctxTicketSeal : ByteArray := "$jam_ticket_seal".toUTF8
-/-- $jam_fallback_seal — Fallback block seal. GP eq (6.25). -/
-def ctxFallbackSeal : ByteArray := "$jam_fallback_seal".toUTF8
-/-- $jam_guarantee — Guarantee statements. GP eq (11.31). -/
-def ctxGuarantee : ByteArray := "$jam_guarantee".toUTF8
-/-- $jam_available — Availability assurances. GP eq (11.12). -/
-def ctxAvailable : ByteArray := "$jam_available".toUTF8
-/-- $jam_announce — Audit announcement statements. GP eq (17.7). -/
-def ctxAnnounce : ByteArray := "$jam_announce".toUTF8
-/-- $jam_audit — Audit selection entropy. GP eq (17.3). -/
-def ctxAudit : ByteArray := "$jam_audit".toUTF8
-/-- $jam_valid — Judgments for valid work-reports. GP eq (10.5). -/
-def ctxValid : ByteArray := "$jam_valid".toUTF8
-/-- $jam_invalid — Judgments for invalid work-reports. GP eq (10.5). -/
-def ctxInvalid : ByteArray := "$jam_invalid".toUTF8
-/-- $jam_beefy — Accumulate-result-root MMR commitment. GP eq (19.1). -/
-def ctxBeefy : ByteArray := "$jam_beefy".toUTF8
+/- GP uses $-prefixed names (e.g. $jam_entropy) for context strings, but the
+   $ is a naming convention in the spec — the actual byte strings do NOT include
+   the $ character. This matches the grey Rust implementation. -/
+/-- X_E : On-chain entropy generation. GP eq (6.27). -/
+def ctxEntropy : ByteArray := "jam_entropy".toUTF8
+/-- X_T : Ticket generation and regular block seal. GP eq (6.24). -/
+def ctxTicketSeal : ByteArray := "jam_ticket_seal".toUTF8
+/-- X_F : Fallback block seal. GP eq (6.25). -/
+def ctxFallbackSeal : ByteArray := "jam_fallback_seal".toUTF8
+/-- X_G : Guarantee statements. GP eq (11.31). -/
+def ctxGuarantee : ByteArray := "jam_guarantee".toUTF8
+/-- X_A : Availability assurances. GP eq (11.12). -/
+def ctxAvailable : ByteArray := "jam_available".toUTF8
+/-- X_N : Audit announcement statements. GP eq (17.7). -/
+def ctxAnnounce : ByteArray := "jam_announce".toUTF8
+/-- X_U : Audit selection entropy. GP eq (17.3). -/
+def ctxAudit : ByteArray := "jam_audit".toUTF8
+/-- X_V : Judgments for valid work-reports. GP eq (10.5). -/
+def ctxValid : ByteArray := "jam_valid".toUTF8
+/-- X_I : Judgments for invalid work-reports. GP eq (10.5). -/
+def ctxInvalid : ByteArray := "jam_invalid".toUTF8
+/-- X_B : Accumulate-result-root MMR commitment. GP eq (19.1). -/
+def ctxBeefy : ByteArray := "jam_beefy".toUTF8
 
 -- ============================================================================
 -- Appendix F — Fisher-Yates Shuffle

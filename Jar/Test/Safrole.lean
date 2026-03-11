@@ -16,6 +16,24 @@ namespace Jar.Test.Safrole
 open Jar Jar.Crypto Jar.Consensus
 
 -- ============================================================================
+-- Tiny Config Constants (matching grey Config::tiny())
+-- These override the full-spec constants from Jar.Types.Constants.
+-- TODO: When expanding to full-spec tests, these should be parameterized
+-- or selected based on the test vector's config field.
+-- ============================================================================
+
+/-- Tiny: V = 6 validators. Full: V = 1023. -/
+def V_TINY : Nat := 6
+/-- Tiny: E = 12 epoch length. Full: E = 600. -/
+def E_TINY : Nat := 12
+/-- Tiny: N = 3 tickets per validator. Full: N = 2. -/
+def N_TINY : Nat := 3
+/-- Tiny: Y = 10 ticket submission end. Full: Y = 500. -/
+def Y_TINY : Nat := 10
+/-- Tiny: K = 3 max tickets per extrinsic. Full: K = 16. -/
+def K_TINY : Nat := 3
+
+-- ============================================================================
 -- Flattened Safrole State (matches test vector JSON shape)
 -- ============================================================================
 
@@ -54,11 +72,11 @@ inductive SafroleResult where
 
 /-- Check if the slot crosses an epoch boundary. -/
 def isEpochChange (oldSlot newSlot : Timeslot) : Bool :=
-  oldSlot.toNat / E != newSlot.toNat / E
+  oldSlot.toNat / E_TINY != newSlot.toNat / E_TINY
 
 /-- Slot index within the current epoch. -/
 def epochSlot (slot : Timeslot) : Nat :=
-  slot.toNat % E
+  slot.toNat % E_TINY
 
 /-- Filter offenders: replace matching keys with null (zero) keys. GP eq 6.14: Φ. -/
 def filterOffenders (keys : Array ValidatorKey) (offenders : Array Ed25519PublicKey)
@@ -75,7 +93,7 @@ def fallbackKeys (entropy : Hash) (validators : Array ValidatorKey)
   let v := validators.size
   if v == 0 then #[]
   else
-    Array.ofFn (n := E) fun ⟨i, _⟩ =>
+    Array.ofFn (n := E_TINY) fun ⟨i, _⟩ =>
       let preimage := entropy.data ++ Codec.encodeFixedNat 4 i
       let h := blake2b preimage
       let idx := (h.data.get! 0).toNat + (h.data.get! 1).toNat * 256
@@ -83,18 +101,20 @@ def fallbackKeys (entropy : Hash) (validators : Array ValidatorKey)
       let idx := idx % v
       validators[idx]!.bandersnatch
 
-/-- Verify and extract tickets from proofs. Returns (tickets, error?). -/
+/-- Verify and extract tickets from proofs. Returns (tickets, error?).
+    ringSize must match the number of keys used to compute ringRoot. -/
 def extractTickets (proofs : Array TicketProof) (ringRoot : BandersnatchRingRoot)
-    (eta2 : Hash) : Except String (Array Ticket) := do
+    (eta2 : Hash) (ringSize : Nat) : Except String (Array Ticket) := do
   let mut tickets : Array Ticket := #[]
   for tp in proofs do
     -- Validate attempt
-    if tp.attempt.val >= N_TICKETS then
+    if tp.attempt.val >= N_TINY then
       throw "bad_ticket_attempt"
     -- Verify ring VRF proof
     let context := Crypto.ctxTicketSeal ++ eta2.data
       ++ ByteArray.mk #[UInt8.ofNat tp.attempt.val]
-    if !bandersnatchRingVerify ringRoot context ByteArray.empty tp.proof then
+    let verifyResult := bandersnatchRingVerify ringRoot context ByteArray.empty tp.proof ringSize.toUInt32
+    if !verifyResult then
       throw "bad_ticket_proof"
     let ticketId := bandersnatchRingOutput tp.proof
     tickets := tickets.push { id := ticketId, attempt := tp.attempt }
@@ -110,7 +130,7 @@ def mergeTickets (existing : Array Ticket) (newTickets : Array Ticket)
     : Array Ticket :=
   let all := existing ++ newTickets
   let sorted := all.qsort (fun a b => a.id.data.data < b.id.data.data)
-  if sorted.size > E then sorted.extract 0 E else sorted
+  if sorted.size > E_TINY then sorted.extract 0 E_TINY else sorted
 
 -- ============================================================================
 -- Safrole Sub-Transition (GP §6)
@@ -123,18 +143,18 @@ def safroleTransition (pre : FlatSafroleState) (input : SafroleInput)
   if input.slot ≤ pre.tau then
     (.err "bad_slot", pre)
   else
-    let oldEpoch := pre.tau.toNat / E
-    let newEpoch := input.slot.toNat / E
-    let oldSlotInEpoch := pre.tau.toNat % E
-    let newSlotInEpoch := input.slot.toNat % E
+    let oldEpoch := pre.tau.toNat / E_TINY
+    let newEpoch := input.slot.toNat / E_TINY
+    let oldSlotInEpoch := pre.tau.toNat % E_TINY
+    let newSlotInEpoch := input.slot.toNat % E_TINY
     let epochChanged := newEpoch > oldEpoch
 
     -- Validate ticket extrinsic (eq 6.30)
-    if input.extrinsic.size > 0 && newSlotInEpoch >= Y_TAIL then
+    if input.extrinsic.size > 0 && newSlotInEpoch >= Y_TINY then
       (.err "unexpected_ticket", pre)
     else if input.extrinsic.size > 0 then
       -- Check attempt values
-      let badAttempt := input.extrinsic.any fun tp => tp.attempt.val >= N_TICKETS
+      let badAttempt := input.extrinsic.any fun tp => tp.attempt.val >= N_TINY
       if badAttempt then
         (.err "bad_ticket_attempt", pre)
       else
@@ -169,9 +189,11 @@ where
     let new_eta0 := blake2b (eta0.data ++ input.entropy.data)
 
     -- eq 6.29-6.31: Process ticket extrinsic
+    -- NOTE: ringSize = gamma_k.size (6 for tiny, 1023 for full JAM)
+    let ringSize := new_gamma_k.size
     let ticketResult :=
       if input.extrinsic.size > 0 then
-        extractTickets input.extrinsic new_gamma_z new_eta2
+        extractTickets input.extrinsic new_gamma_z new_eta2 ringSize
       else .ok #[]
 
     match ticketResult with
@@ -230,13 +252,13 @@ where
     let eta1 := if pre.eta.size > 1 then pre.eta[1]! else default
 
     -- eq 6.24: Seal-key series
-    let oldEpoch := pre.tau.toNat / E
-    let newEpoch := input.slot.toNat / E
+    let oldEpoch := pre.tau.toNat / E_TINY
+    let newEpoch := input.slot.toNat / E_TINY
     let singleAdvance := newEpoch == oldEpoch + 1
     let new_gamma_s :=
       if epochChanged then
-        let wasPastY := oldSlotInEpoch >= Y_TAIL
-        let accFull := pre.gamma_a.size == E
+        let wasPastY := oldSlotInEpoch >= Y_TINY
+        let accFull := pre.gamma_a.size == E_TINY
         if singleAdvance && wasPastY && accFull then
           SealKeySeries.tickets (outsideInSequencer pre.gamma_a)
         else
@@ -255,8 +277,8 @@ where
 
     -- eq 6.28: Winning-tickets marker
     let tickets_mark :=
-      if !epochChanged && oldSlotInEpoch < Y_TAIL && newSlotInEpoch >= Y_TAIL
-         && new_gamma_a.size == E then
+      if !epochChanged && oldSlotInEpoch < Y_TINY && newSlotInEpoch >= Y_TINY
+         && new_gamma_a.size == E_TINY then
         some (outsideInSequencer new_gamma_a)
       else none
 

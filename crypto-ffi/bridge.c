@@ -9,6 +9,7 @@
 #include <lean/lean.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 /* Rust FFI declarations */
 extern void    jar_ffi_blake2b(const uint8_t* data, size_t len, uint8_t* out);
@@ -67,7 +68,7 @@ LEAN_EXPORT lean_obj_res jar_keccak256(b_lean_obj_arg m) {
 /* ed25519Verify(key : Ed25519PublicKey, message : ByteArray,               */
 /*               sig : Ed25519Signature) : Bool                             */
 /* ======================================================================== */
-LEAN_EXPORT lean_obj_res jar_ed25519_verify(
+LEAN_EXPORT uint8_t jar_ed25519_verify(
     b_lean_obj_arg key, b_lean_obj_arg message, b_lean_obj_arg sig
 ) {
     uint8_t r = jar_ffi_ed25519_verify(
@@ -75,7 +76,7 @@ LEAN_EXPORT lean_obj_res jar_ed25519_verify(
         lean_sarray_cptr(message), lean_sarray_size(message),
         octet_seq_data(sig)
     );
-    return lean_box(r ? 1 : 0);
+    return r ? 1 : 0;
 }
 
 /* ======================================================================== */
@@ -99,7 +100,7 @@ LEAN_EXPORT lean_obj_res jar_ed25519_sign(
 /*                    message : ByteArray,                                   */
 /*                    sig : BandersnatchSignature) : Bool                    */
 /* ======================================================================== */
-LEAN_EXPORT lean_obj_res jar_bandersnatch_verify(
+LEAN_EXPORT uint8_t jar_bandersnatch_verify(
     b_lean_obj_arg key, b_lean_obj_arg context,
     b_lean_obj_arg message, b_lean_obj_arg sig
 ) {
@@ -109,7 +110,7 @@ LEAN_EXPORT lean_obj_res jar_bandersnatch_verify(
         lean_sarray_cptr(message), lean_sarray_size(message),
         octet_seq_data(sig)
     );
-    return lean_box(r ? 1 : 0);
+    return r ? 1 : 0;
 }
 
 /* ======================================================================== */
@@ -164,14 +165,12 @@ LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_root(b_lean_obj_arg keys) {
 /*   context : ByteArray, message : ByteArray,                              */
 /*   proof : BandersnatchRingVrfProof) : Bool                               */
 /* ======================================================================== */
-LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_verify(
+LEAN_EXPORT uint8_t jar_bandersnatch_ring_verify(
     b_lean_obj_arg root, b_lean_obj_arg context,
-    b_lean_obj_arg message, b_lean_obj_arg proof
+    b_lean_obj_arg message, b_lean_obj_arg proof,
+    uint32_t ringSize
 ) {
-    /* Ring size: V=1023 in full config, but for tiny test vectors it varies.
-     * We pass the ring size as a constant here. For testing, this may need
-     * to be configurable. For now use 1023 (full JAM). */
-    size_t ring_size = 1023;
+    size_t ring_size = (size_t)ringSize;
     uint8_t r = jar_ffi_bandersnatch_ring_verify(
         octet_seq_data(root),
         lean_sarray_cptr(context), lean_sarray_size(context),
@@ -179,7 +178,7 @@ LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_verify(
         octet_seq_data(proof),
         ring_size
     );
-    return lean_box(r ? 1 : 0);
+    return r ? 1 : 0;
 }
 
 /* ======================================================================== */
@@ -189,9 +188,10 @@ LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_verify(
 /* ======================================================================== */
 LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_sign(
     b_lean_obj_arg secretKey, b_lean_obj_arg root,
-    b_lean_obj_arg context, b_lean_obj_arg message
+    b_lean_obj_arg context, b_lean_obj_arg message,
+    uint32_t ringSize
 ) {
-    size_t ring_size = 1023;
+    size_t ring_size = (size_t)ringSize;
     uint8_t proof[784];
     jar_ffi_bandersnatch_ring_sign(
         lean_sarray_cptr(secretKey), lean_sarray_size(secretKey),
@@ -217,7 +217,7 @@ LEAN_EXPORT lean_obj_res jar_bandersnatch_ring_output(b_lean_obj_arg proof) {
 /* blsVerify(key : BlsPublicKey, message : ByteArray,                       */
 /*           sig : BlsSignature) : Bool                                     */
 /* ======================================================================== */
-LEAN_EXPORT lean_obj_res jar_bls_verify(
+LEAN_EXPORT uint8_t jar_bls_verify(
     b_lean_obj_arg key, b_lean_obj_arg message, b_lean_obj_arg sig
 ) {
     uint8_t r = jar_ffi_bls_verify(
@@ -225,7 +225,7 @@ LEAN_EXPORT lean_obj_res jar_bls_verify(
         lean_sarray_cptr(message), lean_sarray_size(message),
         octet_seq_data(sig)
     );
-    return lean_box(r ? 1 : 0);
+    return r ? 1 : 0;
 }
 
 /* ======================================================================== */

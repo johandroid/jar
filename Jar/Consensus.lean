@@ -104,10 +104,11 @@ def verifyEntropyVrf
 def verifyTicketProof
     (ringRoot : BandersnatchRingRoot)
     (entropy2 : Hash)
-    (tp : TicketProof) : Bool :=
+    (tp : TicketProof)
+    (ringSize : UInt32) : Bool :=
   let context := Crypto.ctxTicketSeal ++ entropy2.data
     ++ ByteArray.mk #[UInt8.ofNat tp.attempt.val]
-  Crypto.bandersnatchRingVerify ringRoot context ByteArray.empty tp.proof
+  Crypto.bandersnatchRingVerify ringRoot context ByteArray.empty tp.proof ringSize
 
 -- ============================================================================
 -- §6.7 — Ticket Accumulation
