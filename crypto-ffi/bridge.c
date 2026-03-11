@@ -9,7 +9,6 @@
 #include <lean/lean.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 /* Rust FFI declarations */
 extern void    jar_ffi_blake2b(const uint8_t* data, size_t len, uint8_t* out);
