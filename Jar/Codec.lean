@@ -116,9 +116,9 @@ def encodeWorkResult (r : Jar.WorkResult) : ByteArray :=
   | .err .outOfGas => ByteArray.mk #[1]
   | .err .panic => ByteArray.mk #[2]
   | .err .badExports => ByteArray.mk #[3]
-  | .err .oversize => ByteArray.mk #[4]
-  | .err .badCode => ByteArray.mk #[5]
-  | .err .bigCode => ByteArray.mk #[6]
+  | .err .badCode => ByteArray.mk #[4]      -- GP: ⊤
+  | .err .bigCode => ByteArray.mk #[5]      -- GP: BIG
+  | .err .oversize => ByteArray.mk #[5]     -- maps to BIG (not in GP as separate variant)
 
 -- ============================================================================
 -- §C.4 — Compound Serialization Helpers
@@ -132,9 +132,14 @@ def concatBytes (parts : Array ByteArray) : ByteArray :=
 def encodeArray (f : α → ByteArray) (xs : Array α) : ByteArray :=
   concatBytes (xs.map f)
 
-/-- Encode an array with length prefix. -/
+/-- Encode an array with byte-length prefix (for backward compat). -/
 def encodeLengthPrefixedArray (f : α → ByteArray) (xs : Array α) : ByteArray :=
   encodeLengthPrefixed (encodeArray f xs)
+
+/-- Encode a sequence with count prefix. GP eq (C.4):
+    𝓔([x₁, ..., xₙ]) ≡ 𝓔(n) ⌢ 𝓔(x₁) ⌢ ... ⌢ 𝓔(xₙ). -/
+def encodeCountPrefixedArray (f : α → ByteArray) (xs : Array α) : ByteArray :=
+  encodeNat xs.size ++ encodeArray f xs
 
 -- ============================================================================
 -- Block Serialization — §C.4 (eq C.16–C.35)
@@ -185,16 +190,15 @@ def encodeFault (f : Fault) : ByteArray :=
 open Jar in
 /-- Encode the disputes extrinsic. GP §C.4. -/
 def encodeDisputes (d : DisputesExtrinsic) : ByteArray :=
-  encodeLengthPrefixedArray encodeVerdict d.verdicts
-    ++ encodeLengthPrefixed (encodeArray encodeCulprit d.culprits)
-    ++ encodeLengthPrefixed (encodeArray encodeFault d.faults)
+  encodeCountPrefixedArray encodeVerdict d.verdicts
+    ++ encodeCountPrefixedArray encodeCulprit d.culprits
+    ++ encodeCountPrefixedArray encodeFault d.faults
 
 open Jar in
 /-- Encode the preimages extrinsic. GP §C.4. -/
 def encodePreimages (ps : PreimagesExtrinsic) : ByteArray :=
-  let inner := encodeArray (fun (sid, blob) =>
+  encodeCountPrefixedArray (fun (sid, blob) =>
     encodeFixedNat 4 sid.toNat ++ encodeLengthPrefixed blob) ps
-  encodeLengthPrefixed inner
 
 open Jar in
 /-- Encode an AvailabilitySpec. GP §C.4. -/
@@ -213,7 +217,7 @@ def encodeRefinementContext (c : RefinementContext) : ByteArray :=
     ++ c.anchorBeefyRoot.data
     ++ c.lookupAnchorHash.data
     ++ encodeFixedNat 4 c.lookupAnchorTimeslot.toNat
-    ++ encodeLengthPrefixed (encodeArray (fun h => h.data) c.prerequisites)
+    ++ encodeCountPrefixedArray (fun h => h.data) c.prerequisites
 
 open Jar in
 /-- Encode a WorkDigest. GP §C.4. -/
@@ -234,21 +238,21 @@ open Jar in
 def encodeWorkReport (wr : WorkReport) : ByteArray :=
   encodeAvailSpec wr.availSpec
     ++ encodeRefinementContext wr.context
-    ++ encodeFixedNat 2 wr.coreIndex.val
+    ++ encodeNat wr.coreIndex.val              -- GP: compact encoding
     ++ wr.authorizerHash.data
-    ++ encodeNat wr.authGasUsed.toNat
-    ++ encodeLengthPrefixed wr.authOutput
-    ++ encodeLengthPrefixed (encodeArray (fun (k, v) => k.data ++ v.data)
-        wr.segmentRootLookup.entries.toArray)
-    ++ encodeLengthPrefixedArray encodeWorkDigest wr.digests
+    ++ encodeNat wr.authGasUsed.toNat          -- GP: compact encoding
+    ++ encodeLengthPrefixed wr.authOutput      -- GP C.3: byte string
+    ++ encodeCountPrefixedArray (fun (k, v) => k.data ++ v.data)
+        wr.segmentRootLookup.entries.toArray   -- GP C.4: count prefix
+    ++ encodeCountPrefixedArray encodeWorkDigest wr.digests  -- GP C.4: count prefix
 
 open Jar in
 /-- Encode a Guarantee. GP §C.4. -/
 def encodeGuarantee (g : Guarantee) : ByteArray :=
   encodeWorkReport g.report
     ++ encodeFixedNat 4 g.timeslot.toNat
-    ++ encodeLengthPrefixed (encodeArray (fun (vi, sig) =>
-        encodeFixedNat 2 vi.val ++ sig.data) g.credentials)
+    ++ encodeCountPrefixedArray (fun (vi, sig) =>
+        encodeFixedNat 2 vi.val ++ sig.data) g.credentials
 
 open Jar in
 /-- Encode an EpochMarker. -/
@@ -265,10 +269,10 @@ def encodeUnsignedHeader (h : Header) : ByteArray :=
     ++ h.extrinsicHash.data
     ++ encodeFixedNat 4 h.timeslot.toNat
     ++ encodeOption encodeEpochMarker h.epochMarker
-    ++ encodeOption (encodeLengthPrefixedArray encodeTicket) h.ticketsMarker
+    ++ encodeOption (encodeCountPrefixedArray encodeTicket) h.ticketsMarker
     ++ encodeFixedNat 2 h.authorIndex.val
     ++ h.vrfSignature.data
-    ++ encodeLengthPrefixed (encodeArray (fun k => k.data) h.offenders)
+    ++ encodeCountPrefixedArray (fun k => k.data) h.offenders
 
 open Jar in
 /-- 𝓔(H) : Full header encoding (unsigned + seal). GP eq (C.25). -/
@@ -278,10 +282,10 @@ def encodeHeader (h : Header) : ByteArray :=
 open Jar in
 /-- 𝓔(E) : Extrinsic encoding. GP §C.4. -/
 def encodeExtrinsic (e : Extrinsic) : ByteArray :=
-  encodeLengthPrefixedArray encodeTicketProof e.tickets
+  encodeCountPrefixedArray encodeTicketProof e.tickets
     ++ encodePreimages e.preimages
-    ++ encodeLengthPrefixedArray encodeGuarantee e.guarantees
-    ++ encodeLengthPrefixedArray encodeAssurance e.assurances
+    ++ encodeCountPrefixedArray encodeGuarantee e.guarantees
+    ++ encodeCountPrefixedArray encodeAssurance e.assurances
     ++ encodeDisputes e.disputes
 
 open Jar in

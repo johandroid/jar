@@ -1,0 +1,103 @@
+import Jar.Json
+import Jar.Test.Preimages
+
+/-!
+# Preimages JSON Test Runner
+
+FromJson instances for preimages test-specific types and a JSON-based test runner.
+-/
+
+namespace Jar.Test.PreimagesJson
+
+open Lean (Json ToJson FromJson toJson fromJson?)
+open Jar Jar.Json Jar.Test.Preimages
+
+-- ============================================================================
+-- JSON instances for preimages test types
+-- ============================================================================
+
+private def parseTPServiceAccount (j : Json) : Except String TPServiceAccount := do
+  let serviceId ← (← j.getObjVal? "id").getNat?
+  let data ← j.getObjVal? "data"
+  -- Extract blob hashes from preimage_blobs
+  let blobsJson ← data.getObjVal? "preimage_blobs"
+  let blobHashes ← match blobsJson with
+    | Json.arr items => items.toList.mapM (fun (item : Json) => do
+        @fromJson? Hash _ (← item.getObjVal? "hash")) |>.map Array.mk
+    | _ => .error "expected array for preimage_blobs"
+  -- Extract requests from preimage_requests
+  let reqsJson ← data.getObjVal? "preimage_requests"
+  let requests ← match reqsJson with
+    | Json.arr items => items.toList.mapM (fun (item : Json) => do
+        let key ← item.getObjVal? "key"
+        let hash ← @fromJson? Hash _ (← key.getObjVal? "hash")
+        let length ← (← key.getObjVal? "length").getNat?
+        let value ← item.getObjVal? "value"
+        let timeslots ← match value with
+          | Json.arr ts => ts.toList.mapM (fun (t : Json) => t.getNat?) |>.map Array.mk
+          | _ => .error "expected array for timeslots"
+        return ({ hash, length, timeslots } : TPRequest)) |>.map Array.mk
+    | _ => .error "expected array for preimage_requests"
+  return { serviceId, blobHashes, requests }
+
+private def parseTPState (j : Json) : Except String TPState := do
+  let accountsJson ← j.getObjVal? "accounts"
+  let accounts ← match accountsJson with
+    | Json.arr items => items.toList.mapM parseTPServiceAccount |>.map Array.mk
+    | _ => .error "expected array for accounts"
+  return { accounts }
+
+instance : FromJson TPPreimage where
+  fromJson? j := do
+    let requester ← (← j.getObjVal? "requester").getNat?
+    let blob ← @fromJson? ByteArray _ (← j.getObjVal? "blob")
+    return { requester, blob }
+
+instance : FromJson TPInput where
+  fromJson? j := do
+    let preimagesJson ← j.getObjVal? "preimages"
+    let preimages ← match preimagesJson with
+      | Json.arr items => items.toList.mapM (fun item =>
+          @fromJson? TPPreimage _ item) |>.map Array.mk
+      | _ => .error "expected array for preimages"
+    let slot ← (← j.getObjVal? "slot").getNat?
+    return { preimages, slot }
+
+instance : FromJson TPResult where
+  fromJson? j := do
+    if let .ok _ := j.getObjVal? "ok" then
+      return .ok
+    else if let .ok (Json.str e) := j.getObjVal? "err" then
+      return .err e
+    else
+      .error "TPResult: expected 'ok' or 'err'"
+
+-- ============================================================================
+-- JSON Test Runner
+-- ============================================================================
+
+/-- Run a single preimages test from a JSON file. Returns true if passed. -/
+def runJsonTest (path : System.FilePath) : IO Bool := do
+  let content ← IO.FS.readFile path
+  let json ← IO.ofExcept (Json.parse content)
+  let pre ← IO.ofExcept (parseTPState (← IO.ofExcept (json.getObjVal? "pre_state")))
+  let input ← IO.ofExcept (@fromJson? TPInput _ (← IO.ofExcept (json.getObjVal? "input")))
+  let expectedResult ← IO.ofExcept (@fromJson? TPResult _ (← IO.ofExcept (json.getObjVal? "output")))
+  let expectedPost ← IO.ofExcept (parseTPState (← IO.ofExcept (json.getObjVal? "post_state")))
+  let name := path.fileName.getD (toString path)
+  Preimages.runTest name pre input expectedResult expectedPost
+
+/-- Run all JSON tests in a directory. -/
+def runJsonTestDir (dir : System.FilePath) : IO UInt32 := do
+  let entries ← dir.readDir
+  let jsonFiles := entries.filter (fun e => e.fileName.endsWith ".json")
+  let sorted := jsonFiles.qsort (fun a b => a.fileName < b.fileName)
+  let mut passed := 0
+  let mut failed := 0
+  for entry in sorted do
+    let ok ← runJsonTest entry.path
+    if ok then passed := passed + 1 else failed := failed + 1
+  IO.println s!"\nPreimages JSON tests: {passed} passed, {failed} failed, {passed + failed} total"
+  return if failed > 0 then 1 else 0
+
+end Jar.Test.PreimagesJson

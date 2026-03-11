@@ -1,0 +1,280 @@
+import Jar.Json
+import Jar.Codec
+import Jar.Crypto
+import Jar.Test.Reports
+
+/-!
+# Reports JSON Test Runner
+
+FromJson instances for reports test-specific types and a JSON-based test runner.
+-/
+
+namespace Jar.Test.ReportsJson
+
+open Lean (Json ToJson FromJson toJson fromJson?)
+open Jar Jar.Json Jar.Crypto Jar.Codec Jar.Test.Reports
+
+-- ============================================================================
+-- Work report encoding for reportHash computation
+-- Matches the JAM codec as used by Grey test vectors:
+--   core_index: compact, auth_gas_used: compact,
+--   prerequisites/segment_root_lookup/results: count-prefixed (not byte-length)
+-- ============================================================================
+
+/-- Encode TRWorkResult matching Codec.encodeWorkResult. -/
+private def encodeTRWorkResult (r : TRWorkResult) : ByteArray :=
+  match r with
+  | .ok data => ByteArray.mk #[0] ++ encodeLengthPrefixed data
+  | .outOfGas => ByteArray.mk #[1]
+  | .panic => ByteArray.mk #[2]
+  | .badExports => ByteArray.mk #[3]
+  | .badCode => ByteArray.mk #[4]
+  | .codeOversize => ByteArray.mk #[5]
+
+/-- Encode a count-prefixed sequence (count + concatenated items). -/
+private def encodeCountPrefixed (f : α → ByteArray) (xs : Array α) : ByteArray :=
+  encodeNat xs.size ++ concatBytes (xs.map f)
+
+/-- Encode TRWorkDigest. -/
+private def encodeTRWorkDigest (d : TRWorkDigest) : ByteArray :=
+  encodeFixedNat 4 d.serviceId
+    ++ d.codeHash.data
+    ++ d.payloadHash.data
+    ++ encodeFixedNat 8 d.accumulateGas
+    ++ encodeTRWorkResult d.result
+    ++ encodeNat d.gasUsed
+    ++ encodeNat d.imports
+    ++ encodeNat d.extrinsicCount
+    ++ encodeNat d.extrinsicSize
+    ++ encodeNat d.exports
+
+/-- Encode TRAvailSpec. -/
+private def encodeTRAvailSpec (a : TRAvailSpec) : ByteArray :=
+  a.packageHash.data
+    ++ encodeFixedNat 4 a.bundleLength
+    ++ a.erasureRoot.data
+    ++ a.exportsRoot.data
+    ++ encodeFixedNat 2 a.exportsCount
+
+/-- Encode TRContext. -/
+private def encodeTRContext (c : TRContext) : ByteArray :=
+  c.anchor.data
+    ++ c.stateRoot.data
+    ++ c.beefyRoot.data
+    ++ c.lookupAnchor.data
+    ++ encodeFixedNat 4 c.lookupAnchorSlot
+    ++ encodeCountPrefixed (fun h => h.data) c.prerequisites
+
+/-- Encode TRWorkReport matching the Grey JAM codec. -/
+private def encodeTRWorkReport (wr : TRWorkReport) : ByteArray :=
+  encodeTRAvailSpec wr.packageSpec
+    ++ encodeTRContext wr.context
+    ++ encodeNat wr.coreIndex       -- compact, not fixed 2-byte
+    ++ wr.authorizerHash.data
+    ++ encodeNat wr.authGasUsed     -- compact
+    ++ encodeLengthPrefixed wr.authOutput
+    ++ encodeCountPrefixed (fun (k, v) => k.data ++ v.data) wr.segmentRootLookup
+    ++ encodeCountPrefixed encodeTRWorkDigest wr.results
+
+/-- Compute reportHash = blake2b(encode(report)). -/
+private def computeReportHash (wr : TRWorkReport) : Hash :=
+  blake2b (encodeTRWorkReport wr)
+
+-- ============================================================================
+-- FromJson instances for TRWorkResult
+-- ============================================================================
+
+private def workResultFromJson (j : Json) : Except String TRWorkResult := do
+  if let .ok v := j.getObjVal? "ok" then
+    return .ok (← @fromJson? ByteArray _ v)
+  else if let .ok (Json.str s) := j.getObjVal? "err" then
+    match s with
+    | "out_of_gas" => return .outOfGas
+    | "panic" => return .panic
+    | "bad_exports" => return .badExports
+    | "bad_code" => return .badCode
+    | "code_oversize" => return .codeOversize
+    | other => .error s!"unknown work result error: {other}"
+  else
+    .error "TRWorkResult: expected 'ok' or 'err'"
+
+-- ============================================================================
+-- FromJson instances for test types
+-- ============================================================================
+
+instance : FromJson TRWorkDigest where
+  fromJson? j := do
+    let serviceId ← (← j.getObjVal? "service_id").getNat?
+    let codeHash ← @fromJson? Hash _ (← j.getObjVal? "code_hash")
+    let payloadHash ← @fromJson? Hash _ (← j.getObjVal? "payload_hash")
+    let accumulateGas ← (← j.getObjVal? "accumulate_gas").getNat?
+    let result ← workResultFromJson (← j.getObjVal? "result")
+    let refineLoad ← j.getObjVal? "refine_load"
+    let gasUsed ← (← refineLoad.getObjVal? "gas_used").getNat?
+    let imports ← (← refineLoad.getObjVal? "imports").getNat?
+    let extrinsicCount ← (← refineLoad.getObjVal? "extrinsic_count").getNat?
+    let extrinsicSize ← (← refineLoad.getObjVal? "extrinsic_size").getNat?
+    let exports ← (← refineLoad.getObjVal? "exports").getNat?
+    return { serviceId, codeHash, payloadHash, accumulateGas, result,
+             gasUsed, imports, extrinsicCount, extrinsicSize, exports }
+
+instance : FromJson TRAvailSpec where
+  fromJson? j := do
+    let packageHash ← @fromJson? Hash _ (← j.getObjVal? "hash")
+    let bundleLength ← (← j.getObjVal? "length").getNat?
+    let erasureRoot ← @fromJson? Hash _ (← j.getObjVal? "erasure_root")
+    let exportsRoot ← @fromJson? Hash _ (← j.getObjVal? "exports_root")
+    let exportsCount ← (← j.getObjVal? "exports_count").getNat?
+    return { packageHash, bundleLength, erasureRoot, exportsRoot, exportsCount }
+
+instance : FromJson TRContext where
+  fromJson? j := do
+    let anchor ← @fromJson? Hash _ (← j.getObjVal? "anchor")
+    let stateRoot ← @fromJson? Hash _ (← j.getObjVal? "state_root")
+    let beefyRoot ← @fromJson? Hash _ (← j.getObjVal? "beefy_root")
+    let lookupAnchor ← @fromJson? Hash _ (← j.getObjVal? "lookup_anchor")
+    let lookupAnchorSlot ← (← j.getObjVal? "lookup_anchor_slot").getNat?
+    let prerequisites ← @fromJson? (Array Hash) _ (← j.getObjVal? "prerequisites")
+    return { anchor, stateRoot, beefyRoot, lookupAnchor, lookupAnchorSlot, prerequisites }
+
+private def segmentRootLookupEntryFromJson (j : Json) : Except String (Hash × Hash) := do
+  let wph ← @fromJson? Hash _ (← j.getObjVal? "work_package_hash")
+  let str ← @fromJson? Hash _ (← j.getObjVal? "segment_tree_root")
+  return (wph, str)
+
+instance : FromJson TRWorkReport where
+  fromJson? j := do
+    let packageSpec ← @fromJson? TRAvailSpec _ (← j.getObjVal? "package_spec")
+    let context ← @fromJson? TRContext _ (← j.getObjVal? "context")
+    let coreIndex ← (← j.getObjVal? "core_index").getNat?
+    let authorizerHash ← @fromJson? Hash _ (← j.getObjVal? "authorizer_hash")
+    let authGasUsed ← (← j.getObjVal? "auth_gas_used").getNat?
+    let authOutput ← @fromJson? ByteArray _ (← j.getObjVal? "auth_output")
+    let srlJson ← j.getObjVal? "segment_root_lookup"
+    let segmentRootLookup ← match srlJson with
+      | Json.arr items => items.toList.mapM segmentRootLookupEntryFromJson |>.map Array.mk
+      | _ => .error "expected array for segment_root_lookup"
+    let results ← @fromJson? (Array TRWorkDigest) _ (← j.getObjVal? "results")
+    return { packageSpec, context, coreIndex, authorizerHash, authGasUsed,
+             authOutput, segmentRootLookup, results }
+
+instance : FromJson TRSignature where
+  fromJson? j := do
+    let validatorIndex ← (← j.getObjVal? "validator_index").getNat?
+    let signature ← @fromJson? Ed25519Signature _ (← j.getObjVal? "signature")
+    return { validatorIndex, signature }
+
+private def guaranteeFromJson (j : Json) : Except String TRGuarantee := do
+  let report ← @fromJson? TRWorkReport _ (← j.getObjVal? "report")
+  let slot ← (← j.getObjVal? "slot").getNat?
+  let signatures ← @fromJson? (Array TRSignature) _ (← j.getObjVal? "signatures")
+  let reportHash := computeReportHash report
+  return { report, slot, signatures, reportHash }
+
+private def recentBlockFromJson (j : Json) : Except String TRRecentBlock := do
+  let headerHash ← @fromJson? Hash _ (← j.getObjVal? "header_hash")
+  let stateRoot ← @fromJson? Hash _ (← j.getObjVal? "state_root")
+  let beefyRoot ← @fromJson? Hash _ (← j.getObjVal? "beefy_root")
+  let reportedJson ← j.getObjVal? "reported"
+  let reported ← match reportedJson with
+    | Json.arr items => items.toList.mapM (fun (rj : Json) => do
+        let h ← @fromJson? Hash _ (← rj.getObjVal? "hash")
+        let er ← @fromJson? Hash _ (← rj.getObjVal? "exports_root")
+        return (h, er)) |>.map Array.mk
+    | _ => .error "expected array for reported"
+  return { headerHash, stateRoot, beefyRoot, reported }
+
+private def serviceInfoFromJson (j : Json) : Except String TRServiceInfo := do
+  let serviceId ← (← j.getObjVal? "id").getNat?
+  let dataJson ← j.getObjVal? "data"
+  let serviceJson ← dataJson.getObjVal? "service"
+  let codeHash ← @fromJson? Hash _ (← serviceJson.getObjVal? "code_hash")
+  let minItemGas ← (← serviceJson.getObjVal? "min_item_gas").getNat?
+  return { serviceId, codeHash, minItemGas }
+
+private def availAssignmentFromJson (j : Json) : Except String (Option TRAvailAssignment) := do
+  match j with
+  | Json.null => return none
+  | _ =>
+    let reportJson ← j.getObjVal? "report"
+    let packageSpecJson ← reportJson.getObjVal? "package_spec"
+    let packageHash ← @fromJson? Hash _ (← packageSpecJson.getObjVal? "hash")
+    let timeout ← (← j.getObjVal? "timeout").getNat?
+    return some { packageHash, timeout }
+
+instance : FromJson TRState where
+  fromJson? j := do
+    let availJson ← j.getObjVal? "avail_assignments"
+    let availAssignments ← match availJson with
+      | Json.arr items => items.toList.mapM availAssignmentFromJson |>.map Array.mk
+      | _ => .error "expected array for avail_assignments"
+    let currValidators ← @fromJson? (Array ValidatorKey) _ (← j.getObjVal? "curr_validators")
+    let prevValidators ← @fromJson? (Array ValidatorKey) _ (← j.getObjVal? "prev_validators")
+    let entropy ← @fromJson? (Array Hash) _ (← j.getObjVal? "entropy")
+    let offenders ← @fromJson? (Array Ed25519PublicKey) _ (← j.getObjVal? "offenders")
+    let recentBlocksJson ← j.getObjVal? "recent_blocks"
+    let historyJson ← recentBlocksJson.getObjVal? "history"
+    let recentBlocks ← match historyJson with
+      | Json.arr items => items.toList.mapM recentBlockFromJson |>.map Array.mk
+      | _ => .error "expected array for recent_blocks.history"
+    let authPools ← @fromJson? (Array (Array Hash)) _ (← j.getObjVal? "auth_pools")
+    let accountsJson ← j.getObjVal? "accounts"
+    let accounts ← match accountsJson with
+      | Json.arr items => items.toList.mapM serviceInfoFromJson |>.map Array.mk
+      | _ => .error "expected array for accounts"
+    return { availAssignments, currValidators, prevValidators, entropy,
+             offenders, recentBlocks, authPools, accounts }
+
+instance : FromJson TRInput where
+  fromJson? j := do
+    let guaranteesJson ← j.getObjVal? "guarantees"
+    let guarantees ← match guaranteesJson with
+      | Json.arr items => items.toList.mapM guaranteeFromJson |>.map Array.mk
+      | _ => .error "expected array for guarantees"
+    let knownPackages ← @fromJson? (Array Hash) _ (← j.getObjVal? "known_packages")
+    let slot ← (← j.getObjVal? "slot").getNat?
+    return { guarantees, knownPackages, slot }
+
+instance : FromJson TRResult where
+  fromJson? j := do
+    if let .ok _ := j.getObjVal? "ok" then
+      return .ok
+    else if let .ok (Json.str e) := j.getObjVal? "err" then
+      return .err e
+    else
+      .error "TRResult: expected 'ok' or 'err'"
+
+-- ============================================================================
+-- JSON Test Runner
+-- ============================================================================
+
+/-- Run a single reports test from a JSON file. Returns true if passed. -/
+def runJsonTest (path : System.FilePath) : IO Bool := do
+  let content ← IO.FS.readFile path
+  let json ← IO.ofExcept (Json.parse content)
+  let pre ← IO.ofExcept (@fromJson? TRState _ (← IO.ofExcept (json.getObjVal? "pre_state")))
+  let input ← IO.ofExcept (@fromJson? TRInput _ (← IO.ofExcept (json.getObjVal? "input")))
+  let expectedResult ← IO.ofExcept (@fromJson? TRResult _ (← IO.ofExcept (json.getObjVal? "output")))
+  -- Extract post avail from post_state
+  let postStateJson ← IO.ofExcept (json.getObjVal? "post_state")
+  let postAvailJson ← IO.ofExcept (postStateJson.getObjVal? "avail_assignments")
+  let postAvail ← IO.ofExcept (match postAvailJson with
+    | Json.arr items => items.toList.mapM availAssignmentFromJson |>.map Array.mk
+    | _ => .error "expected array for post avail_assignments")
+  let name := path.fileName.getD (toString path)
+  Reports.runTest name pre input expectedResult postAvail
+
+/-- Run all JSON tests in a directory. -/
+def runJsonTestDir (dir : System.FilePath) : IO UInt32 := do
+  let entries ← dir.readDir
+  let jsonFiles := entries.filter (fun e => e.fileName.endsWith ".json")
+  let sorted := jsonFiles.qsort (fun a b => a.fileName < b.fileName)
+  let mut passed := 0
+  let mut failed := 0
+  for entry in sorted do
+    let ok ← runJsonTest entry.path
+    if ok then passed := passed + 1 else failed := failed + 1
+  IO.println s!"\nReports JSON tests: {passed} passed, {failed} failed, {passed + failed} total"
+  return if failed > 0 then 1 else 0
+
+end Jar.Test.ReportsJson

@@ -99,8 +99,78 @@ lean_exe reportstest where
     "-lpthread", "-ldl", "-lm"
   ]
 
+lean_exe safrolejsontest where
+  root := `Jar.Test.SafroleJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe historyjsontest where
+  root := `Jar.Test.HistoryJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe statisticsjsontest where
+  root := `Jar.Test.StatisticsJsonMain
+
+lean_exe authorizationsjsontest where
+  root := `Jar.Test.AuthorizationsJsonMain
+
+lean_exe disputesjsontest where
+  root := `Jar.Test.DisputesJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe preimagesjsontest where
+  root := `Jar.Test.PreimagesJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe assurancesjsontest where
+  root := `Jar.Test.AssurancesJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe reportsjsontest where
+  root := `Jar.Test.ReportsJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
 lean_exe accumulatetest where
   root := `Jar.Test.AccumulateVectors
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe accumulatejsontest where
+  root := `Jar.Test.AccumulateJsonMain
+  moreLinkArgs := #[
+    "-L", "crypto-ffi/target/release",
+    "-ljar_crypto_ffi",
+    "-lpthread", "-ldl", "-lm"
+  ]
+
+lean_exe propertytest where
+  root := `Jar.Test.PropertyMain
   moreLinkArgs := #[
     "-L", "crypto-ffi/target/release",
     "-ljar_crypto_ffi",

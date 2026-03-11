@@ -1,0 +1,105 @@
+import Jar.Json
+import Jar.Test.Assurances
+
+/-!
+# Assurances JSON Test Runner
+
+FromJson instances for assurances test-specific types and a JSON-based test runner.
+-/
+
+namespace Jar.Test.AssurancesJson
+
+open Lean (Json ToJson FromJson toJson fromJson?)
+open Jar Jar.Json Jar.Test.Assurances
+
+-- ============================================================================
+-- JSON instances for assurances test types
+-- ============================================================================
+
+instance : FromJson (Option TAAvailAssignment) where
+  fromJson?
+    | Json.null => .ok none
+    | j => do
+      let report ← j.getObjVal? "report"
+      let pkgSpec ← report.getObjVal? "package_spec"
+      let hash ← @fromJson? Hash _ (← pkgSpec.getObjVal? "hash")
+      let coreIndex ← (← report.getObjVal? "core_index").getNat?
+      let timeout ← (← j.getObjVal? "timeout").getNat?
+      return some { reportPackageHash := hash, coreIndex, timeout }
+
+instance : FromJson TAAssurance where
+  fromJson? j := do
+    let anchor ← @fromJson? Hash _ (← j.getObjVal? "anchor")
+    let bitfield ← @fromJson? ByteArray _ (← j.getObjVal? "bitfield")
+    let validatorIndex ← (← j.getObjVal? "validator_index").getNat?
+    let signature ← @fromJson? Ed25519Signature _ (← j.getObjVal? "signature")
+    return { anchor, bitfield, validatorIndex, signature }
+
+instance : FromJson TAState where
+  fromJson? j := do
+    let availArr ← j.getObjVal? "avail_assignments"
+    let availAssignments ← match availArr with
+      | Json.arr items => items.toList.mapM (fromJson? (α := Option TAAvailAssignment)) |>.map Array.mk
+      | _ => .error "expected array for avail_assignments"
+    let currValidators ← @fromJson? (Array ValidatorKey) _ (← j.getObjVal? "curr_validators")
+    return { availAssignments, currValidators }
+
+instance : FromJson TAInput where
+  fromJson? j := do
+    let assurancesArr ← j.getObjVal? "assurances"
+    let assurances ← match assurancesArr with
+      | Json.arr items => items.toList.mapM (fromJson? (α := TAAssurance)) |>.map Array.mk
+      | _ => .error "expected array for assurances"
+    let slot ← (← j.getObjVal? "slot").getNat?
+    let parent ← @fromJson? Hash _ (← j.getObjVal? "parent")
+    return { assurances, slot, parent }
+
+instance : FromJson TAResult where
+  fromJson? j := do
+    if let .ok v := j.getObjVal? "ok" then
+      let reportedArr ← v.getObjVal? "reported"
+      let cores ← match reportedArr with
+        | Json.arr items => items.toList.mapM (fun (wr : Json) => do
+            let cj ← wr.getObjVal? "core_index"
+            cj.getNat?) |>.map Array.mk
+        | _ => .error "expected array for reported"
+      return .ok cores
+    else if let .ok (Json.str e) := j.getObjVal? "err" then
+      return .err e
+    else
+      .error "TAResult: expected 'ok' or 'err'"
+
+-- ============================================================================
+-- JSON Test Runner
+-- ============================================================================
+
+/-- Run a single assurances test from a JSON file. Returns true if passed. -/
+def runJsonTest (path : System.FilePath) : IO Bool := do
+  let content ← IO.FS.readFile path
+  let json ← IO.ofExcept (Json.parse content)
+  let pre ← IO.ofExcept (@fromJson? TAState _ (← IO.ofExcept (json.getObjVal? "pre_state")))
+  let input ← IO.ofExcept (@fromJson? TAInput _ (← IO.ofExcept (json.getObjVal? "input")))
+  let expectedResult ← IO.ofExcept (@fromJson? TAResult _ (← IO.ofExcept (json.getObjVal? "output")))
+  -- post_state avail_assignments
+  let postAvailJson ← IO.ofExcept (json.getObjVal? "post_state")
+  let postAvailArr ← IO.ofExcept (postAvailJson.getObjVal? "avail_assignments")
+  let postAvail ← IO.ofExcept (match postAvailArr with
+    | Json.arr items => items.toList.mapM (fromJson? (α := Option TAAvailAssignment)) |>.map Array.mk
+    | _ => .error "expected array for post avail_assignments")
+  let name := path.fileName.getD (toString path)
+  Assurances.runTest name pre input expectedResult postAvail
+
+/-- Run all JSON tests in a directory. -/
+def runJsonTestDir (dir : System.FilePath) : IO UInt32 := do
+  let entries ← dir.readDir
+  let jsonFiles := entries.filter (fun e => e.fileName.endsWith ".json")
+  let sorted := jsonFiles.qsort (fun a b => a.fileName < b.fileName)
+  let mut passed := 0
+  let mut failed := 0
+  for entry in sorted do
+    let ok ← runJsonTest entry.path
+    if ok then passed := passed + 1 else failed := failed + 1
+  IO.println s!"\nAssurances JSON tests: {passed} passed, {failed} failed, {passed + failed} total"
+  return if failed > 0 then 1 else 0
+
+end Jar.Test.AssurancesJson

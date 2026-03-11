@@ -1,0 +1,84 @@
+import Jar.Json
+import Jar.Test.History
+
+/-!
+# History JSON Test Runner
+
+FromJson instances for history test-specific types and a JSON-based test runner.
+-/
+
+namespace Jar.Test.HistoryJson
+
+open Lean (Json ToJson FromJson toJson fromJson?)
+open Jar Jar.Json Jar.Test.History
+
+-- ============================================================================
+-- JSON instances for history test types
+-- ============================================================================
+
+instance : FromJson ReportedPackage where
+  fromJson? j := do
+    let hash ← @fromJson? Hash _ (← j.getObjVal? "hash")
+    let exportsRoot ← @fromJson? Hash _ (← j.getObjVal? "exports_root")
+    return { hash, exportsRoot }
+
+instance : FromJson HistoryEntry where
+  fromJson? j := do
+    let headerHash ← @fromJson? Hash _ (← j.getObjVal? "header_hash")
+    let beefyRoot ← @fromJson? Hash _ (← j.getObjVal? "beefy_root")
+    let stateRoot ← @fromJson? Hash _ (← j.getObjVal? "state_root")
+    let reported ← @fromJson? (Array ReportedPackage) _ (← j.getObjVal? "reported")
+    return { headerHash, beefyRoot, stateRoot, reported }
+
+instance : FromJson (Option Hash) where
+  fromJson?
+    | Json.null => .ok none
+    | j => do pure (some (← @fromJson? Hash _ j))
+
+instance : FromJson FlatHistoryState where
+  fromJson? j := do
+    let history ← @fromJson? (Array HistoryEntry) _ (← j.getObjVal? "history")
+    let mmrObj ← j.getObjVal? "mmr"
+    let mmrPeaks ← @fromJson? (Array (Option Hash)) _ (← mmrObj.getObjVal? "peaks")
+    return { history, mmrPeaks }
+
+instance : FromJson HistoryInput where
+  fromJson? j := do
+    let headerHash ← @fromJson? Hash _ (← j.getObjVal? "header_hash")
+    let parentStateRoot ← @fromJson? Hash _ (← j.getObjVal? "parent_state_root")
+    let accumulateRoot ← @fromJson? Hash _ (← j.getObjVal? "accumulate_root")
+    let workPackages ← @fromJson? (Array ReportedPackage) _ (← j.getObjVal? "work_packages")
+    return { headerHash, parentStateRoot, accumulateRoot, workPackages }
+
+-- ============================================================================
+-- JSON Test Runner
+-- ============================================================================
+
+/-- Run a single history test from a JSON file. Returns true if passed. -/
+def runJsonTest (path : System.FilePath) : IO Bool := do
+  let content ← IO.FS.readFile path
+  let json ← IO.ofExcept (Json.parse content)
+  let preStateJson ← IO.ofExcept (json.getObjVal? "pre_state")
+  let betaPre ← IO.ofExcept (preStateJson.getObjVal? "beta")
+  let pre ← IO.ofExcept (@fromJson? FlatHistoryState _ betaPre)
+  let input ← IO.ofExcept (@fromJson? HistoryInput _ (← IO.ofExcept (json.getObjVal? "input")))
+  let postStateJson ← IO.ofExcept (json.getObjVal? "post_state")
+  let betaPost ← IO.ofExcept (postStateJson.getObjVal? "beta")
+  let post ← IO.ofExcept (@fromJson? FlatHistoryState _ betaPost)
+  let name := path.fileName.getD (toString path)
+  History.runTest name pre input post
+
+/-- Run all JSON tests in a directory. -/
+def runJsonTestDir (dir : System.FilePath) : IO UInt32 := do
+  let entries ← dir.readDir
+  let jsonFiles := entries.filter (fun e => e.fileName.endsWith ".json")
+  let sorted := jsonFiles.qsort (fun a b => a.fileName < b.fileName)
+  let mut passed := 0
+  let mut failed := 0
+  for entry in sorted do
+    let ok ← runJsonTest entry.path
+    if ok then passed := passed + 1 else failed := failed + 1
+  IO.println s!"\nHistory JSON tests: {passed} passed, {failed} failed, {passed + failed} total"
+  return if failed > 0 then 1 else 0
+
+end Jar.Test.HistoryJson
