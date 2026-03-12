@@ -98,10 +98,12 @@ pub struct Compiler {
     block_labels: HashMap<u32, Label>,
     /// Label for the exit sequence.
     exit_label: Label,
-    /// Label for the out-of-gas exit.
+    /// Label for the shared out-of-gas exit (sets EXIT_OOG + jumps to exit).
     oog_label: Label,
     /// Label for panic exit.
     panic_label: Label,
+    /// Per-gas-block OOG stubs: (label, pvm_pc) — emitted as cold code after main body.
+    oog_stubs: Vec<(Label, u32)>,
     /// Helper function addresses.
     helpers: HelperFns,
     /// Entry points: every instruction start (for dispatch table / re-entry).
@@ -129,6 +131,7 @@ impl Compiler {
             exit_label,
             oog_label,
             panic_label,
+            oog_stubs: Vec::new(),
             helpers,
             basic_block_starts,
             gas_block_starts,
@@ -184,7 +187,6 @@ impl Compiler {
             // Gas metering at gas-block boundaries (actual control flow, not per-instruction)
             let is_gas_block = (pc < self.gas_block_starts.len()) && self.gas_block_starts[pc];
             if is_gas_block {
-                self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
                 self.emit_gas_check(pc, code, bitmask);
             }
 
@@ -193,6 +195,7 @@ impl Compiler {
             let opcode = match Opcode::from_byte(opcode_byte) {
                 Some(op) => op,
                 None => {
+                    self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
                     self.emit_exit(EXIT_PANIC, 0);
                     pc += 1;
                     continue;
@@ -352,10 +355,11 @@ impl Compiler {
     }
 
     /// Compile a single PVM instruction.
-    fn compile_instruction(&mut self, opcode: Opcode, args: &Args, _pc: u32, next_pc: u32) {
+    fn compile_instruction(&mut self, opcode: Opcode, args: &Args, pc: u32, next_pc: u32) {
         match opcode {
             // === A.5.1: No arguments ===
             Opcode::Trap => {
+                self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
                 self.emit_exit(EXIT_PANIC, 0);
             }
             Opcode::Fallthrough => {
@@ -385,6 +389,7 @@ impl Compiler {
                     let addr = *imm_x as u32;
                     // Low address check — unmapped pages yield PageFault, not Panic
                     if (addr as u64) < 0x10000 {
+                        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
                         self.emit_exit(EXIT_PAGE_FAULT, addr);
                         return;
                     }
@@ -426,14 +431,14 @@ impl Compiler {
             // === A.5.5: One offset (jump) ===
             Opcode::Jump => {
                 if let Args::Offset { offset } = args {
-                    self.emit_static_branch(*offset as u32, true, next_pc);
+                    self.emit_static_branch(*offset as u32, true, next_pc, pc);
                 }
             }
 
             // === A.5.6: One register + one immediate ===
             Opcode::JumpInd => {
                 if let Args::RegImm { ra, imm } = args {
-                    self.emit_dynamic_jump(*ra, *imm);
+                    self.emit_dynamic_jump(*ra, *imm, pc);
                 }
             }
             Opcode::LoadImm => {
@@ -461,6 +466,7 @@ impl Compiler {
                 if let Args::RegImm { ra, imm } = args {
                     let addr = *imm as u32;
                     if (addr as u64) < 0x10000 {
+                        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
                         self.emit_exit(EXIT_PAGE_FAULT, addr);
                         return;
                     }
@@ -513,57 +519,57 @@ impl Compiler {
             Opcode::LoadImmJump => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
                     self.asm.mov_ri64(REG_MAP[*ra], *imm);
-                    self.emit_static_branch(*offset as u32, true, next_pc);
+                    self.emit_static_branch(*offset as u32, true, next_pc, pc);
                 }
             }
             Opcode::BranchEqImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::E, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::E, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchNeImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::NE, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::NE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLtUImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::B, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::B, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLeUImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::BE, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::BE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGeUImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::AE, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::AE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGtUImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::A, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::A, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLtSImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::L, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::L, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLeSImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::LE, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::LE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGeSImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::GE, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::GE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGtSImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
-                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::G, *offset as u32, next_pc);
+                    self.emit_branch_imm(REG_MAP[*ra], *imm, Cc::G, *offset as u32, next_pc, pc);
                 }
             }
 
@@ -690,7 +696,13 @@ impl Compiler {
             Opcode::AddImm64 => {
                 if let Args::TwoRegImm { ra, rb, imm } = args {
                     if *ra != *rb { self.asm.mov_rr(REG_MAP[*ra], REG_MAP[*rb]); }
-                    self.asm.add_ri(REG_MAP[*ra], *imm as i32);
+                    if *imm as i32 == 1 {
+                        self.asm.inc64(REG_MAP[*ra]);
+                    } else if *imm as i32 == -1 {
+                        self.asm.dec64(REG_MAP[*ra]);
+                    } else {
+                        self.asm.add_ri(REG_MAP[*ra], *imm as i32);
+                    }
                 }
             }
             Opcode::AndImm => {
@@ -922,32 +934,32 @@ impl Compiler {
             // === A.5.11: Two registers + one offset ===
             Opcode::BranchEq => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::E, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::E, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchNe => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::NE, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::NE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLtU => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::B, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::B, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchLtS => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::L, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::L, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGeU => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::AE, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::AE, *offset as u32, next_pc, pc);
                 }
             }
             Opcode::BranchGeS => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
-                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::GE, *offset as u32, next_pc);
+                    self.emit_branch_reg(REG_MAP[*ra], REG_MAP[*rb], Cc::GE, *offset as u32, next_pc, pc);
                 }
             }
 
@@ -956,7 +968,7 @@ impl Compiler {
                 if let Args::TwoRegTwoImm { ra, rb, imm_x, imm_y } = args {
                     // GP: registers[ra] = imm_x, addr = registers[rb] + imm_y
                     self.asm.mov_ri64(REG_MAP[*ra], *imm_x);
-                    self.emit_dynamic_jump(*rb, *imm_y);
+                    self.emit_dynamic_jump(*rb, *imm_y, pc);
                 }
             }
 
@@ -1245,11 +1257,12 @@ impl Compiler {
     // === Helper emission methods ===
 
     /// Emit a static branch (validated at compile time).
-    fn emit_static_branch(&mut self, target: u32, condition: bool, _fallthrough: u32) {
+    fn emit_static_branch(&mut self, target: u32, condition: bool, _fallthrough: u32, pc: u32) {
         if !condition {
             return;
         }
         if !self.is_basic_block_start(target) {
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
             self.emit_exit(EXIT_PANIC, 0);
             return;
         }
@@ -1258,7 +1271,9 @@ impl Compiler {
     }
 
     /// Emit a dynamic jump (through jump table).
-    fn emit_dynamic_jump(&mut self, ra: usize, imm: u64) {
+    fn emit_dynamic_jump(&mut self, ra: usize, imm: u64, pc: u32) {
+        // Store PC for any exit path in the dynamic jump sequence
+        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
         // addr = (φ[ra] + imm) % 2^32
         self.asm.mov_rr(SCRATCH, REG_MAP[ra]);
         if imm as i32 != 0 {
@@ -1308,9 +1323,10 @@ impl Compiler {
     }
 
     /// Emit a branch comparing register against immediate.
-    fn emit_branch_imm(&mut self, reg: Reg, imm: u64, cc: Cc, target: u32, _fallthrough: u32) {
+    fn emit_branch_imm(&mut self, reg: Reg, imm: u64, cc: Cc, target: u32, _fallthrough: u32, pc: u32) {
         if !self.is_basic_block_start(target) {
-            // Target not valid → panic if condition true, else just fall through
+            // Target not valid → store PC and panic if condition true (cold path)
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
             self.asm.mov_ri64(SCRATCH, imm);
             self.asm.cmp_rr(reg, SCRATCH);
             self.asm.jcc_label(cc, self.panic_label);
@@ -1323,8 +1339,9 @@ impl Compiler {
     }
 
     /// Emit a branch comparing two registers.
-    fn emit_branch_reg(&mut self, a: Reg, b: Reg, cc: Cc, target: u32, _fallthrough: u32) {
+    fn emit_branch_reg(&mut self, a: Reg, b: Reg, cc: Cc, target: u32, _fallthrough: u32, pc: u32) {
         if !self.is_basic_block_start(target) {
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, pc as i32);
             self.asm.cmp_rr(a, b);
             self.asm.jcc_label(cc, self.panic_label);
             return;
@@ -1649,15 +1666,19 @@ impl Compiler {
     }
 
     /// Emit gas check at gas-block start.
+    /// Uses a per-block OOG stub (cold code) to store PC only on the OOG path,
+    /// keeping the hot path free of PC stores.
     fn emit_gas_check(&mut self, pc: usize, code: &[u8], bitmask: &[u8]) {
         // Count instructions in this gas block (until next gas block or terminator)
         let cost = compute_gas_block_cost(pc, code, bitmask, &self.gas_block_starts);
         if cost == 0 { return; }
 
         // sub qword [r15 + CTX_GAS], cost  — sets SF if result < 0
-        // js oog_label
+        // js oog_stub_N  (cold: stores PC then jumps to shared OOG exit)
+        let stub_label = self.asm.new_label();
         self.asm.sub_mem64_imm32(CTX, CTX_GAS, cost as i32);
-        self.asm.jcc_label(Cc::S, self.oog_label);
+        self.asm.jcc_label(Cc::S, stub_label);
+        self.oog_stubs.push((stub_label, pc as u32));
     }
 
     /// Emit an exit sequence that sets exit_reason and exit_arg.
@@ -1713,7 +1734,16 @@ impl Compiler {
 
     /// Emit exit sequences and epilogue.
     fn emit_exit_sequences(&mut self) {
-        // Out of gas exit
+        // Per-gas-block OOG stubs (cold code): each stores its PC then falls through
+        // to the shared OOG handler. These are never executed in normal flow.
+        let stubs = std::mem::take(&mut self.oog_stubs);
+        for (label, pvm_pc) in &stubs {
+            self.asm.bind_label(*label);
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, *pvm_pc as i32);
+            self.asm.jmp_label(self.oog_label);
+        }
+
+        // Shared out-of-gas exit
         self.asm.bind_label(self.oog_label);
         self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON as i32, EXIT_OOG as i32);
         self.asm.jmp_label(self.exit_label);

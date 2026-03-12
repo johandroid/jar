@@ -445,6 +445,22 @@ impl Assembler {
         self.emit(0x99);
     }
 
+    // -- INC/DEC --
+
+    /// inc r64
+    pub fn inc64(&mut self, dst: Reg) {
+        self.rex_w_b(dst);
+        self.emit(0xFF);
+        self.emit(0xC0 | dst.lo()); // /0
+    }
+
+    /// dec r64
+    pub fn dec64(&mut self, dst: Reg) {
+        self.rex_w_b(dst);
+        self.emit(0xFF);
+        self.emit(0xC8 | dst.lo()); // /1
+    }
+
     // -- NEG/NOT --
 
     /// neg r64
