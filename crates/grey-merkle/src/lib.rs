@@ -69,6 +69,48 @@ pub fn balanced_merkle_root(leaves: &[&[u8]], hash_fn: fn(&[u8]) -> Hash) -> Has
     Hash(hash)
 }
 
+/// Compute the constant-depth binary Merkle tree root M (eq E.4).
+///
+/// M(v, H) = N(C(v, H), H) where C is the constancy preprocessor:
+/// - Hash each item with "leaf" prefix: H("leaf" ⌢ v_i)
+/// - Pad to next power of 2 with zero hashes H_0
+///
+/// Used for segment-root (exports_root) computation.
+pub fn constant_depth_merkle_root(leaves: &[&[u8]], hash_fn: fn(&[u8]) -> Hash) -> Hash {
+    // Apply constancy preprocessor C
+    let preprocessed = constancy_preprocess(leaves, hash_fn);
+    let refs: Vec<&[u8]> = preprocessed.iter().map(|h| h.0.as_ref()).collect();
+    // Apply N (merkle_node) and convert to Hash
+    let result = merkle_node(&refs, hash_fn);
+    let mut hash = [0u8; 32];
+    let len = result.len().min(32);
+    hash[..len].copy_from_slice(&result[..len]);
+    Hash(hash)
+}
+
+/// Constancy preprocessor C (eq E.4):
+/// Hashes each leaf with "leaf" prefix, pads to next power of 2 with H_0.
+fn constancy_preprocess(leaves: &[&[u8]], hash_fn: fn(&[u8]) -> Hash) -> Vec<Hash> {
+    if leaves.is_empty() {
+        return vec![];
+    }
+    // Next power of 2
+    let n = leaves.len().next_power_of_two();
+    let mut result = Vec::with_capacity(n);
+    // Hash each leaf with "leaf" prefix
+    for leaf in leaves {
+        let mut input = Vec::with_capacity(4 + leaf.len());
+        input.extend_from_slice(b"leaf");
+        input.extend_from_slice(leaf);
+        result.push(hash_fn(&input));
+    }
+    // Pad with zero hashes
+    while result.len() < n {
+        result.push(Hash::ZERO);
+    }
+    result
+}
+
 /// State-key constructor C (eq D.1).
 ///
 /// Maps state component indices (and optionally service IDs) to 31-byte keys.
@@ -132,5 +174,90 @@ mod tests {
     fn test_balanced_merkle_root_empty() {
         let root = balanced_merkle_root(&[], grey_crypto::blake2b_256);
         assert_eq!(root, Hash::ZERO);
+    }
+
+    #[test]
+    fn test_constant_depth_merkle_root_empty() {
+        // Empty tree: M([], H) = N(C([], H), H) = N([], H) = H_0
+        let root = constant_depth_merkle_root(&[], grey_crypto::blake2b_256);
+        assert_eq!(root, Hash::ZERO);
+    }
+
+    #[test]
+    fn test_constant_depth_merkle_root_single() {
+        // Single leaf: C preprocesses to [H("leaf" ⌢ v_0)]
+        // N of single item = raw bytes (no hash)
+        // So M = Hash from the preprocessed single leaf hash
+        let leaf = b"segment_data";
+        let root = constant_depth_merkle_root(&[leaf.as_ref()], grey_crypto::blake2b_256);
+
+        // Expected: C([leaf]) = [H("leaf" ⌢ leaf)], padded to 1 (already power of 2)
+        // N of single = raw bytes of that hash
+        let expected = grey_crypto::blake2b_256(b"leafsegment_data");
+        assert_eq!(root, expected);
+    }
+
+    #[test]
+    fn test_constant_depth_merkle_root_two() {
+        let a = b"seg_a";
+        let b_data = b"seg_b";
+        let root = constant_depth_merkle_root(
+            &[a.as_ref(), b_data.as_ref()],
+            grey_crypto::blake2b_256,
+        );
+
+        // C([a,b]) = [H("leaf"⌢a), H("leaf"⌢b)] (already power of 2)
+        // N of 2 items = H("node" ⌢ N([left]) ⌢ N([right]))
+        // = H("node" ⌢ H("leaf"⌢a).bytes ⌢ H("leaf"⌢b).bytes)
+        let ha = grey_crypto::blake2b_256(b"leafseg_a");
+        let hb = grey_crypto::blake2b_256(b"leafseg_b");
+        let mut input = Vec::new();
+        input.extend_from_slice(b"node");
+        input.extend_from_slice(&ha.0);
+        input.extend_from_slice(&hb.0);
+        let expected = grey_crypto::blake2b_256(&input);
+        assert_eq!(root, expected);
+    }
+
+    #[test]
+    fn test_constant_depth_merkle_root_three_pads_to_four() {
+        // 3 leaves → padded to 4 (next power of 2)
+        let a = b"a";
+        let b_data = b"b";
+        let c = b"c";
+        let root = constant_depth_merkle_root(
+            &[a.as_ref(), b_data.as_ref(), c.as_ref()],
+            grey_crypto::blake2b_256,
+        );
+        assert_ne!(root, Hash::ZERO);
+
+        // Manually compute: C([a,b,c]) = [H("leaf"⌢a), H("leaf"⌢b), H("leaf"⌢c), H_0]
+        // N splits 4 items: ceil(4/2)=2, left=[0..2], right=[2..4]
+        let ha = grey_crypto::blake2b_256(b"leafa");
+        let hb = grey_crypto::blake2b_256(b"leafb");
+        let hc = grey_crypto::blake2b_256(b"leafc");
+        let h0 = Hash::ZERO;
+
+        // N([ha, hb]) = H("node" ⌢ ha.bytes ⌢ hb.bytes)
+        let mut left_input = Vec::new();
+        left_input.extend_from_slice(b"node");
+        left_input.extend_from_slice(&ha.0);
+        left_input.extend_from_slice(&hb.0);
+        let left = grey_crypto::blake2b_256(&left_input);
+
+        // N([hc, h0]) = H("node" ⌢ hc.bytes ⌢ h0.bytes)
+        let mut right_input = Vec::new();
+        right_input.extend_from_slice(b"node");
+        right_input.extend_from_slice(&hc.0);
+        right_input.extend_from_slice(&h0.0);
+        let right = grey_crypto::blake2b_256(&right_input);
+
+        // N([left_node, right_node]) = H("node" ⌢ left_hash ⌢ right_hash)
+        let mut root_input = Vec::new();
+        root_input.extend_from_slice(b"node");
+        root_input.extend_from_slice(&left.0);
+        root_input.extend_from_slice(&right.0);
+        let expected = grey_crypto::blake2b_256(&root_input);
+        assert_eq!(root, expected);
     }
 }

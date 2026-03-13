@@ -127,36 +127,47 @@ pub fn invoke_is_authorized(
     }
 }
 
+/// Result of a single refine invocation: the work digest plus exported segments.
+pub struct RefineResult {
+    pub digest: WorkDigest,
+    pub exported_segments: Vec<Vec<u8>>,
+}
+
 /// Run the Refine invocation Ψ_R for a single work item (GP eq B.3-B.5).
 ///
 /// Entry point: PC=0
 /// Arguments: payload
-/// Returns: WorkDigest with result
+/// Returns: RefineResult with work digest and exported segments
 pub fn invoke_refine(
     _config: &Config,
     code_blob: &[u8],
     item: &WorkItem,
-) -> WorkDigest {
+    export_offset: u16,
+) -> RefineResult {
     let mut pvm = match PvmInstance::initialize(code_blob, &item.payload, item.gas_limit) {
         Some(p) => p,
         None => {
-            return WorkDigest {
-                service_id: item.service_id,
-                code_hash: item.code_hash,
-                payload_hash: grey_crypto::blake2b_256(&item.payload),
-                accumulate_gas: item.accumulate_gas_limit,
-                result: WorkResult::BadCode,
-                gas_used: 0,
-                imports_count: 0,
-                extrinsics_count: 0,
-                extrinsics_size: 0,
-                exports_count: 0,
+            return RefineResult {
+                digest: WorkDigest {
+                    service_id: item.service_id,
+                    code_hash: item.code_hash,
+                    payload_hash: grey_crypto::blake2b_256(&item.payload),
+                    accumulate_gas: item.accumulate_gas_limit,
+                    result: WorkResult::BadCode,
+                    gas_used: 0,
+                    imports_count: 0,
+                    extrinsics_count: 0,
+                    extrinsics_size: 0,
+                    exports_count: 0,
+                },
+                exported_segments: vec![],
             };
         }
     };
 
     // Entry point for refine: PC=0 (default)
     let initial_gas = pvm.gas();
+    let mut exported_segments: Vec<Vec<u8>> = Vec::new();
 
     loop {
         let exit = pvm.run();
@@ -171,72 +182,92 @@ pub fn invoke_refine(
                 } else {
                     vec![]
                 };
+                let exports_count = exported_segments.len() as u16;
+                // Check exports_count matches declared count
+                let result = if item.exports_count != exports_count && item.exports_count > 0 {
+                    WorkResult::BadExports
+                } else {
+                    WorkResult::Ok(output)
+                };
                 tracing::debug!(
-                    "refine HALT: service={}, gas_used={}, output_len={}",
-                    item.service_id, gas_used, output.len()
+                    "refine HALT: service={}, gas_used={}, exports={}",
+                    item.service_id, gas_used, exports_count
                 );
-                return WorkDigest {
-                    service_id: item.service_id,
-                    code_hash: item.code_hash,
-                    payload_hash: grey_crypto::blake2b_256(&item.payload),
-                    accumulate_gas: item.accumulate_gas_limit,
-                    result: WorkResult::Ok(output),
-                    gas_used,
-                    imports_count: item.imports.len() as u16,
-                    extrinsics_count: item.extrinsics.len() as u16,
-                    extrinsics_size: 0,
-                    exports_count: item.exports_count,
+                return RefineResult {
+                    digest: WorkDigest {
+                        service_id: item.service_id,
+                        code_hash: item.code_hash,
+                        payload_hash: grey_crypto::blake2b_256(&item.payload),
+                        accumulate_gas: item.accumulate_gas_limit,
+                        result,
+                        gas_used,
+                        imports_count: item.imports.len() as u16,
+                        extrinsics_count: item.extrinsics.len() as u16,
+                        extrinsics_size: 0,
+                        exports_count,
+                    },
+                    exported_segments,
                 };
             }
             ExitReason::Panic => {
                 let gas_used = initial_gas - pvm.gas();
                 tracing::debug!("refine PANIC: service={}, gas_used={}", item.service_id, gas_used);
-                return WorkDigest {
-                    service_id: item.service_id,
-                    code_hash: item.code_hash,
-                    payload_hash: grey_crypto::blake2b_256(&item.payload),
-                    accumulate_gas: item.accumulate_gas_limit,
-                    result: WorkResult::Panic,
-                    gas_used,
-                    imports_count: 0,
-                    extrinsics_count: 0,
-                    extrinsics_size: 0,
-                    exports_count: 0,
+                return RefineResult {
+                    digest: WorkDigest {
+                        service_id: item.service_id,
+                        code_hash: item.code_hash,
+                        payload_hash: grey_crypto::blake2b_256(&item.payload),
+                        accumulate_gas: item.accumulate_gas_limit,
+                        result: WorkResult::Panic,
+                        gas_used,
+                        imports_count: 0,
+                        extrinsics_count: 0,
+                        extrinsics_size: 0,
+                        exports_count: 0,
+                    },
+                    exported_segments: vec![],
                 };
             }
             ExitReason::OutOfGas => {
                 tracing::debug!("refine OOG: service={}", item.service_id);
-                return WorkDigest {
-                    service_id: item.service_id,
-                    code_hash: item.code_hash,
-                    payload_hash: grey_crypto::blake2b_256(&item.payload),
-                    accumulate_gas: item.accumulate_gas_limit,
-                    result: WorkResult::OutOfGas,
-                    gas_used: initial_gas,
-                    imports_count: 0,
-                    extrinsics_count: 0,
-                    extrinsics_size: 0,
-                    exports_count: 0,
+                return RefineResult {
+                    digest: WorkDigest {
+                        service_id: item.service_id,
+                        code_hash: item.code_hash,
+                        payload_hash: grey_crypto::blake2b_256(&item.payload),
+                        accumulate_gas: item.accumulate_gas_limit,
+                        result: WorkResult::OutOfGas,
+                        gas_used: initial_gas,
+                        imports_count: 0,
+                        extrinsics_count: 0,
+                        extrinsics_size: 0,
+                        exports_count: 0,
+                    },
+                    exported_segments: vec![],
                 };
             }
             ExitReason::PageFault(_addr) => {
                 let gas_used = initial_gas - pvm.gas();
-                return WorkDigest {
-                    service_id: item.service_id,
-                    code_hash: item.code_hash,
-                    payload_hash: grey_crypto::blake2b_256(&item.payload),
-                    accumulate_gas: item.accumulate_gas_limit,
-                    result: WorkResult::Panic,
-                    gas_used,
-                    imports_count: 0,
-                    extrinsics_count: 0,
-                    extrinsics_size: 0,
-                    exports_count: 0,
+                return RefineResult {
+                    digest: WorkDigest {
+                        service_id: item.service_id,
+                        code_hash: item.code_hash,
+                        payload_hash: grey_crypto::blake2b_256(&item.payload),
+                        accumulate_gas: item.accumulate_gas_limit,
+                        result: WorkResult::Panic,
+                        gas_used,
+                        imports_count: 0,
+                        extrinsics_count: 0,
+                        extrinsics_size: 0,
+                        exports_count: 0,
+                    },
+                    exported_segments: vec![],
                 };
             }
             ExitReason::HostCall(id) => {
-                // Ψ_R has limited host calls: gas(0), info(5), and import/export
-                handle_refine_host_call(id, &mut pvm);
+                // Ψ_R host calls: gas(0), fetch(1), historical_lookup(2),
+                // export(3), machine(4), peek(5), poke(6), pages(7), invoke(8), expunge(9)
+                handle_refine_host_call(id, &mut pvm, &mut exported_segments, export_offset);
             }
         }
     }
@@ -271,25 +302,40 @@ pub fn process_work_package(
 
     // 3. Refine each work item (Ψ_R)
     let mut results = Vec::with_capacity(package.items.len());
+    let mut all_exported_segments: Vec<Vec<u8>> = Vec::new();
+    let mut export_offset: u16 = 0;
     for item in &package.items {
         let item_code = ctx
             .get_code(&item.code_hash)
             .ok_or_else(|| RefineError::CodeNotFound(item.code_hash))?;
 
-        let digest = invoke_refine(config, &item_code, item);
-        results.push(digest);
+        let refine_result = invoke_refine(config, &item_code, item, export_offset);
+        export_offset += refine_result.exported_segments.len() as u16;
+        all_exported_segments.extend(refine_result.exported_segments);
+        results.push(refine_result.digest);
     }
 
     // 4. Compute package hash
     let package_hash = grey_crypto::blake2b_256(&wp_encoding);
 
-    // 5. Assemble work report
+    // 5. Compute exports_root using constant-depth Merkle tree (eq E.4)
+    let exports_root = if all_exported_segments.is_empty() {
+        Hash::ZERO
+    } else {
+        let segment_refs: Vec<&[u8]> = all_exported_segments
+            .iter()
+            .map(|s| s.as_slice())
+            .collect();
+        grey_merkle::constant_depth_merkle_root(&segment_refs, grey_crypto::blake2b_256)
+    };
+
+    // 6. Assemble work report
     let report = WorkReport {
         package_spec: AvailabilitySpec {
             package_hash,
             bundle_length: wp_encoding.len() as u32,
-            erasure_root: Hash::ZERO, // TODO: compute from erasure coding
-            exports_root: Hash::ZERO, // TODO: compute from exports
+            erasure_root: Hash::ZERO, // Computed by guarantor after erasure coding
+            exports_root,
             exports_count: results.iter().map(|r| r.exports_count).sum(),
         },
         context: package.context.clone(),
@@ -327,11 +373,31 @@ fn handle_readonly_host_call(id: u32, pvm: &mut PvmInstance, _config: &Config) {
 }
 
 /// Handle host calls available during refinement (Ψ_R).
-fn handle_refine_host_call(id: u32, pvm: &mut PvmInstance) {
+fn handle_refine_host_call(
+    id: u32,
+    pvm: &mut PvmInstance,
+    exported_segments: &mut Vec<Vec<u8>>,
+    export_offset: u16,
+) {
     match id {
         0 => {
             // gas(): return remaining gas
             pvm.set_reg(7, pvm.gas());
+        }
+        3 => {
+            // export(ω_7 = ptr): read a WG-byte segment from memory and append to exports
+            let ptr = pvm.reg(7) as u32;
+            let segment_size = grey_types::constants::SEGMENT_SIZE;
+            match pvm.try_read_bytes(ptr, segment_size) {
+                Some(data) => {
+                    let index = export_offset as u64 + exported_segments.len() as u64;
+                    exported_segments.push(data);
+                    pvm.set_reg(7, index);
+                }
+                None => {
+                    pvm.set_reg(7, OOB);
+                }
+            }
         }
         _ => {
             // Other host calls not yet implemented → return NONE
