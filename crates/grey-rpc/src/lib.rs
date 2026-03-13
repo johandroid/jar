@@ -189,9 +189,17 @@ impl JamRpcServer for RpcImpl {
 pub async fn start_rpc_server(
     port: u16,
     state: Arc<RpcState>,
+    cors: bool,
 ) -> Result<(SocketAddr, tokio::task::JoinHandle<()>), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("0.0.0.0:{}", port);
-    let server = Server::builder().build(&addr).await?;
+    let cors_layer = if cors {
+        tracing::info!("RPC CORS enabled (permissive)");
+        tower_http::cors::CorsLayer::permissive()
+    } else {
+        tower_http::cors::CorsLayer::new()
+    };
+    let middleware = tower::ServiceBuilder::new().layer(cors_layer);
+    let server = Server::builder().set_http_middleware(middleware).build(&addr).await?;
     let bound_addr = server.local_addr()?;
 
     let rpc_impl = RpcImpl { state };

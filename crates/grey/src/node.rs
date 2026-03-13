@@ -42,6 +42,8 @@ pub struct NodeConfig {
     pub db_path: String,
     /// JSON-RPC server port (0 to disable).
     pub rpc_port: u16,
+    /// Enable CORS on the RPC server.
+    pub rpc_cors: bool,
     /// Optional pre-configured genesis state (with services installed, etc.).
     /// If None, the default genesis from create_genesis is used.
     pub genesis_state: Option<State>,
@@ -107,7 +109,7 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
         );
         rpc_state = Some(state_arc.clone());
         let (_addr, _handle) =
-            grey_rpc::start_rpc_server(config.rpc_port, state_arc).await?;
+            grey_rpc::start_rpc_server(config.rpc_port, state_arc, config.rpc_cors).await?;
         rpc_rx = Some(rx);
     } else {
         rpc_state = None;

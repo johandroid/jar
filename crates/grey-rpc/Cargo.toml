@@ -11,6 +11,8 @@ grey-codec = { workspace = true }
 grey-crypto = { workspace = true }
 grey-store = { workspace = true }
 jsonrpsee = { version = "0.24", features = ["server", "macros"] }
+tower-http = { version = "0.5", features = ["cors"] }
+tower = "0.4"
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

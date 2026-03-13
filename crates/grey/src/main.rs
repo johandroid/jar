@@ -61,6 +61,10 @@ struct Cli {
     /// JSON-RPC server port (0 to disable)
     #[arg(long, default_value_t = 9933)]
     rpc_port: u16,
+
+    /// Enable permissive CORS on the RPC server
+    #[arg(long)]
+    rpc_cors: bool,
 }
 
 #[tokio::main]
@@ -171,6 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         genesis_time,
         db_path: cli.db_path,
         rpc_port: cli.rpc_port,
+        rpc_cors: cli.rpc_cors,
         genesis_state: None,
     })
     .await
