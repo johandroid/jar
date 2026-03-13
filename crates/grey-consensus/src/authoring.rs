@@ -138,7 +138,7 @@ pub fn author_block_with_extrinsics(
         .unwrap_or(Hash::ZERO);
 
     // VRF signature for entropy (HV)
-    let vrf_input = build_entropy_vrf_input(timeslot);
+    let vrf_input = build_vrf_input(ENTROPY_CONTEXT, timeslot, &[]);
     let vrf_sig_bytes = secrets.bandersnatch.vrf_sign(&vrf_input, b"");
     let vrf_signature = BandersnatchSignature(vrf_sig_bytes);
 
@@ -204,40 +204,20 @@ pub fn author_block_with_extrinsics(
     // In ticket mode: input = X_T ⌢ E4(timeslot) ⌢ unsigned_header_hash
     let unsigned_hash = compute_unsigned_header_hash_bytes(&header);
     let is_ticket_mode = matches!(&state.safrole.seal_key_series, SealKeySeries::Tickets(_));
-    let seal_input = if is_ticket_mode {
-        build_ticket_seal_vrf_input(timeslot, &unsigned_hash)
-    } else {
-        build_seal_vrf_input(timeslot, &unsigned_hash)
-    };
+    let seal_context = if is_ticket_mode { TICKET_SEAL_CONTEXT } else { FALLBACK_SEAL_CONTEXT };
+    let seal_input = build_vrf_input(seal_context, timeslot, &unsigned_hash);
     let seal_bytes = secrets.bandersnatch.seal_sign(&seal_input, b"");
     header.seal = BandersnatchSignature(seal_bytes);
 
     Block { header, extrinsic }
 }
 
-/// Build VRF input for entropy contribution: X_E ++ E4(timeslot).
-fn build_entropy_vrf_input(timeslot: Timeslot) -> Vec<u8> {
-    let mut input = Vec::with_capacity(ENTROPY_CONTEXT.len() + 4);
-    input.extend_from_slice(ENTROPY_CONTEXT);
+/// Build VRF input: context ++ E4(timeslot) [++ suffix].
+fn build_vrf_input(context: &[u8], timeslot: Timeslot, suffix: &[u8]) -> Vec<u8> {
+    let mut input = Vec::with_capacity(context.len() + 4 + suffix.len());
+    input.extend_from_slice(context);
     input.extend_from_slice(&timeslot.to_le_bytes());
-    input
-}
-
-/// Build VRF input for fallback seal: X_F ++ E4(timeslot) ++ unsigned_header_hash.
-fn build_seal_vrf_input(timeslot: Timeslot, unsigned_header_hash: &[u8]) -> Vec<u8> {
-    let mut input = Vec::with_capacity(FALLBACK_SEAL_CONTEXT.len() + 4 + unsigned_header_hash.len());
-    input.extend_from_slice(FALLBACK_SEAL_CONTEXT);
-    input.extend_from_slice(&timeslot.to_le_bytes());
-    input.extend_from_slice(unsigned_header_hash);
-    input
-}
-
-/// Build VRF input for ticket-mode seal: X_T ++ E4(timeslot) ++ unsigned_header_hash.
-fn build_ticket_seal_vrf_input(timeslot: Timeslot, unsigned_header_hash: &[u8]) -> Vec<u8> {
-    let mut input = Vec::with_capacity(TICKET_SEAL_CONTEXT.len() + 4 + unsigned_header_hash.len());
-    input.extend_from_slice(TICKET_SEAL_CONTEXT);
-    input.extend_from_slice(&timeslot.to_le_bytes());
-    input.extend_from_slice(unsigned_header_hash);
+    input.extend_from_slice(suffix);
     input
 }
 
@@ -362,45 +342,45 @@ mod tests {
         panic!("No author found for timeslot 1");
     }
 
-    #[test]
-    fn test_ticket_mode_author_detection() {
-        let config = Config::tiny();
-        let (mut state, secrets) = genesis::create_genesis(&config);
-
-        // Compute ticket IDs for each validator and each attempt,
-        // then build a ticket-mode seal key series.
+    /// Compute ticket-mode seal key series from secrets and switch state to ticket mode.
+    fn setup_ticket_mode(
+        config: &Config,
+        state: &mut State,
+        secrets: &[ValidatorSecrets],
+    ) {
         let eta2 = &state.entropy[2];
-        let mut all_tickets: Vec<(Ticket, usize)> = Vec::new(); // (ticket, validator_idx)
+        let mut all_tickets: Vec<(Ticket, usize)> = Vec::new();
 
         for (vi, s) in secrets.iter().enumerate() {
             for attempt in 0..config.tickets_per_validator as u8 {
-                let mut vrf_input = Vec::new();
+                let mut vrf_input = Vec::with_capacity(48);
                 vrf_input.extend_from_slice(TICKET_SEAL_CONTEXT);
                 vrf_input.extend_from_slice(&eta2.0);
                 vrf_input.push(attempt);
 
                 if let Some(ticket_id) = s.bandersnatch.vrf_output_for_input(&vrf_input) {
-                    all_tickets.push((
-                        Ticket { id: Hash(ticket_id), attempt },
-                        vi,
-                    ));
+                    all_tickets.push((Ticket { id: Hash(ticket_id), attempt }, vi));
                 }
             }
         }
 
-        // Sort by ticket ID (as bytes) and take E tickets
         all_tickets.sort_by(|a, b| a.0.id.0.cmp(&b.0.id.0));
-        let epoch_tickets: Vec<Ticket> = all_tickets.iter()
+        let epoch_tickets: Vec<Ticket> = all_tickets
+            .iter()
             .take(config.epoch_length as usize)
             .map(|(t, _)| t.clone())
             .collect();
-
-        // Switch state to ticket mode
         state.safrole.seal_key_series = SealKeySeries::Tickets(epoch_tickets);
+    }
 
-        // Now check that each slot finds the correct author
+    #[test]
+    fn test_ticket_mode_author_detection() {
+        let config = Config::tiny();
+        let (mut state, secrets) = genesis::create_genesis(&config);
+        setup_ticket_mode(&config, &mut state, &secrets);
+
         let mut found_any = false;
-        for timeslot in 0..config.epoch_length.min(all_tickets.len() as u32) {
+        for timeslot in 0..config.epoch_length {
             for s in &secrets {
                 let pk = BandersnatchPublicKey(s.bandersnatch.public_key_bytes());
                 if let Some(idx) = is_slot_author_with_keypair(
@@ -419,35 +399,9 @@ mod tests {
     fn test_ticket_mode_block_authoring() {
         let config = Config::tiny();
         let (mut state, secrets) = genesis::create_genesis(&config);
+        setup_ticket_mode(&config, &mut state, &secrets);
 
-        // Build ticket-mode seal key series (same as above)
-        let eta2 = &state.entropy[2];
-        let mut all_tickets: Vec<(Ticket, usize)> = Vec::new();
-
-        for (vi, s) in secrets.iter().enumerate() {
-            for attempt in 0..config.tickets_per_validator as u8 {
-                let mut vrf_input = Vec::new();
-                vrf_input.extend_from_slice(TICKET_SEAL_CONTEXT);
-                vrf_input.extend_from_slice(&eta2.0);
-                vrf_input.push(attempt);
-
-                if let Some(ticket_id) = s.bandersnatch.vrf_output_for_input(&vrf_input) {
-                    all_tickets.push((
-                        Ticket { id: Hash(ticket_id), attempt },
-                        vi,
-                    ));
-                }
-            }
-        }
-        all_tickets.sort_by(|a, b| a.0.id.0.cmp(&b.0.id.0));
-        let epoch_tickets: Vec<Ticket> = all_tickets.iter()
-            .take(config.epoch_length as usize)
-            .map(|(t, _)| t.clone())
-            .collect();
-        state.safrole.seal_key_series = SealKeySeries::Tickets(epoch_tickets);
-
-        // Find the author for slot 0 and author a block
-        let timeslot = 1; // slot 1 to advance from genesis timeslot 0
+        let timeslot = 1;
         for s in &secrets {
             let pk = BandersnatchPublicKey(s.bandersnatch.public_key_bytes());
             if let Some(author_idx) = is_slot_author_with_keypair(
@@ -456,7 +410,6 @@ mod tests {
                 let block = author_block(&state, &config, timeslot, author_idx, s, Hash::ZERO);
                 assert_eq!(block.header.timeslot, timeslot);
                 assert_eq!(block.header.author_index, author_idx);
-                // The seal should be non-zero (a valid VRF signature)
                 assert_ne!(block.header.seal.0, [0u8; 96]);
                 return;
             }

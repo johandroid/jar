@@ -7,15 +7,40 @@
 
 use crate::pvm_backend::{ExitReason, PvmInstance};
 use grey_types::config::Config;
-use grey_types::constants::GAS_IS_AUTHORIZED;
+use grey_types::constants::{GAS_IS_AUTHORIZED, HOST_NONE, HOST_OOB};
 use grey_types::work::*;
 use grey_types::{Gas, Hash, ServiceId, Timeslot};
 use std::collections::BTreeMap;
 
-// Host-call return sentinels (same as accumulate)
-const OK: u64 = 0;
-const NONE: u64 = u64::MAX;
-const OOB: u64 = u64::MAX - 2;
+/// Build an error RefineResult for a work item (non-Ok exit).
+fn error_refine_result(item: &WorkItem, result: WorkResult, gas_used: Gas) -> RefineResult {
+    RefineResult {
+        digest: WorkDigest {
+            service_id: item.service_id,
+            code_hash: item.code_hash,
+            payload_hash: grey_crypto::blake2b_256(&item.payload),
+            accumulate_gas: item.accumulate_gas_limit,
+            result,
+            gas_used,
+            imports_count: 0,
+            extrinsics_count: 0,
+            extrinsics_size: 0,
+            exports_count: 0,
+        },
+        exported_segments: vec![],
+    }
+}
+
+/// Read output bytes from PVM registers ω[7] (ptr) and ω[8] (len).
+fn read_pvm_output(pvm: &PvmInstance) -> Vec<u8> {
+    let ptr = pvm.reg(7) as u32;
+    let len = pvm.reg(8) as u32;
+    if len > 0 {
+        pvm.try_read_bytes(ptr, len).unwrap_or_default()
+    } else {
+        vec![]
+    }
+}
 
 /// Errors from the refine pipeline.
 #[derive(Debug)]
@@ -97,14 +122,7 @@ pub fn invoke_is_authorized(
         match exit {
             ExitReason::Halt => {
                 let gas_used = initial_gas - pvm.gas();
-                // Read output from registers ω[7] (ptr) and ω[8] (len)
-                let out_ptr = pvm.reg(7) as u32;
-                let out_len = pvm.reg(8) as u32;
-                let output = if out_len > 0 {
-                    pvm.try_read_bytes(out_ptr, out_len).unwrap_or_default()
-                } else {
-                    vec![]
-                };
+                let output = read_pvm_output(&pvm);
                 tracing::debug!("is_authorized HALT: gas_used={}, output_len={}", gas_used, output.len());
                 return Ok((output, gas_used));
             }
@@ -146,23 +164,7 @@ pub fn invoke_refine(
 ) -> RefineResult {
     let mut pvm = match PvmInstance::initialize(code_blob, &item.payload, item.gas_limit) {
         Some(p) => p,
-        None => {
-            return RefineResult {
-                digest: WorkDigest {
-                    service_id: item.service_id,
-                    code_hash: item.code_hash,
-                    payload_hash: grey_crypto::blake2b_256(&item.payload),
-                    accumulate_gas: item.accumulate_gas_limit,
-                    result: WorkResult::BadCode,
-                    gas_used: 0,
-                    imports_count: 0,
-                    extrinsics_count: 0,
-                    extrinsics_size: 0,
-                    exports_count: 0,
-                },
-                exported_segments: vec![],
-            };
-        }
+        None => return error_refine_result(item, WorkResult::BadCode, 0),
     };
 
     // Entry point for refine: PC=0 (default)
@@ -174,16 +176,8 @@ pub fn invoke_refine(
         match exit {
             ExitReason::Halt => {
                 let gas_used = initial_gas - pvm.gas();
-                // Read output from ω[7] (ptr) and ω[8] (len)
-                let out_ptr = pvm.reg(7) as u32;
-                let out_len = pvm.reg(8) as u32;
-                let output = if out_len > 0 {
-                    pvm.try_read_bytes(out_ptr, out_len).unwrap_or_default()
-                } else {
-                    vec![]
-                };
+                let output = read_pvm_output(&pvm);
                 let exports_count = exported_segments.len() as u16;
-                // Check exports_count matches declared count
                 let result = if item.exports_count != exports_count && item.exports_count > 0 {
                     WorkResult::BadExports
                 } else {
@@ -212,57 +206,15 @@ pub fn invoke_refine(
             ExitReason::Panic => {
                 let gas_used = initial_gas - pvm.gas();
                 tracing::debug!("refine PANIC: service={}, gas_used={}", item.service_id, gas_used);
-                return RefineResult {
-                    digest: WorkDigest {
-                        service_id: item.service_id,
-                        code_hash: item.code_hash,
-                        payload_hash: grey_crypto::blake2b_256(&item.payload),
-                        accumulate_gas: item.accumulate_gas_limit,
-                        result: WorkResult::Panic,
-                        gas_used,
-                        imports_count: 0,
-                        extrinsics_count: 0,
-                        extrinsics_size: 0,
-                        exports_count: 0,
-                    },
-                    exported_segments: vec![],
-                };
+                return error_refine_result(item, WorkResult::Panic, gas_used);
             }
             ExitReason::OutOfGas => {
                 tracing::debug!("refine OOG: service={}", item.service_id);
-                return RefineResult {
-                    digest: WorkDigest {
-                        service_id: item.service_id,
-                        code_hash: item.code_hash,
-                        payload_hash: grey_crypto::blake2b_256(&item.payload),
-                        accumulate_gas: item.accumulate_gas_limit,
-                        result: WorkResult::OutOfGas,
-                        gas_used: initial_gas,
-                        imports_count: 0,
-                        extrinsics_count: 0,
-                        extrinsics_size: 0,
-                        exports_count: 0,
-                    },
-                    exported_segments: vec![],
-                };
+                return error_refine_result(item, WorkResult::OutOfGas, initial_gas);
             }
             ExitReason::PageFault(_addr) => {
                 let gas_used = initial_gas - pvm.gas();
-                return RefineResult {
-                    digest: WorkDigest {
-                        service_id: item.service_id,
-                        code_hash: item.code_hash,
-                        payload_hash: grey_crypto::blake2b_256(&item.payload),
-                        accumulate_gas: item.accumulate_gas_limit,
-                        result: WorkResult::Panic,
-                        gas_used,
-                        imports_count: 0,
-                        extrinsics_count: 0,
-                        extrinsics_size: 0,
-                        exports_count: 0,
-                    },
-                    exported_segments: vec![],
-                };
+                return error_refine_result(item, WorkResult::Panic, gas_used);
             }
             ExitReason::HostCall(id) => {
                 // Ψ_R host calls: gas(0), fetch(1), historical_lookup(2),
@@ -367,7 +319,7 @@ fn handle_readonly_host_call(id: u32, pvm: &mut PvmInstance, _config: &Config) {
         }
         _ => {
             // Unknown host call in read-only context → return WHAT
-            pvm.set_reg(7, NONE);
+            pvm.set_reg(7, HOST_NONE);
         }
     }
 }
@@ -395,13 +347,13 @@ fn handle_refine_host_call(
                     pvm.set_reg(7, index);
                 }
                 None => {
-                    pvm.set_reg(7, OOB);
+                    pvm.set_reg(7, HOST_OOB);
                 }
             }
         }
         _ => {
             // Other host calls not yet implemented → return NONE
-            pvm.set_reg(7, NONE);
+            pvm.set_reg(7, HOST_NONE);
         }
     }
 }

@@ -5,24 +5,13 @@
 
 use crate::pvm_backend::{ExitReason, PvmInstance};
 use grey_types::config::Config;
+use grey_types::constants::{
+    HOST_CASH, HOST_CORE, HOST_FULL, HOST_HUH, HOST_LOW, HOST_NONE, HOST_OOB, HOST_OK, HOST_WHAT,
+    HOST_WHO,
+};
 use grey_types::work::{WorkReport, WorkResult};
 use grey_types::{Gas, Hash, ServiceId, Timeslot};
 use std::collections::{BTreeMap, BTreeSet};
-
-// ---------------------------------------------------------------------------
-// Host-call return sentinels (GP Section B.4)
-// ---------------------------------------------------------------------------
-
-const OK: u64 = 0;
-const NONE: u64 = u64::MAX;       // 2^64 - 1
-const WHAT: u64 = u64::MAX - 1;   // 2^64 - 2
-const OOB: u64 = u64::MAX - 2;    // 2^64 - 3
-const WHO: u64 = u64::MAX - 3;    // 2^64 - 4
-const FULL: u64 = u64::MAX - 4;   // 2^64 - 5
-const CORE: u64 = u64::MAX - 5;   // 2^64 - 6
-const CASH: u64 = u64::MAX - 6;   // 2^64 - 7
-const LOW: u64 = u64::MAX - 7;    // 2^64 - 8
-const HUH: u64 = u64::MAX - 8;    // 2^64 - 9
 
 // ---------------------------------------------------------------------------
 // Types
@@ -795,12 +784,12 @@ fn handle_host_call(
         26 => host_provide(pvm, regular),
         100 => {
             // log (JIP-1): Return WHAT per JAM docs spec.
-            pvm.set_reg(7, WHAT);
+            pvm.set_reg(7, HOST_WHAT);
             true
         }
         _ => {
             // Unknown host call: return WHAT, cost g=10 (GP catch-all)
-            pvm.set_reg(7, WHAT);
+            pvm.set_reg(7, HOST_WHAT);
             true
         }
     };
@@ -1021,7 +1010,7 @@ fn host_write(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
             std::cmp::max(0, raw) as u64
         };
         if threshold > account.balance {
-            pvm.set_reg(7, FULL);
+            pvm.set_reg(7, HOST_FULL);
             return true;
         }
 
@@ -1138,20 +1127,20 @@ fn host_transfer(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     };
 
     if !ctx.accounts.contains_key(&dest) {
-        pvm.set_reg(7, WHO);
+        pvm.set_reg(7, HOST_WHO);
         return true;
     }
 
     if let Some(dest_acc) = ctx.accounts.get(&dest) {
         if gas_limit < dest_acc.min_memo_gas {
-            pvm.set_reg(7, LOW);
+            pvm.set_reg(7, HOST_LOW);
             return true;
         }
     }
 
     if let Some(account) = ctx.accounts.get(&ctx.service_id) {
         if account.balance < amount {
-            pvm.set_reg(7, CASH);
+            pvm.set_reg(7, HOST_CASH);
             return true;
         }
     }
@@ -1214,7 +1203,7 @@ fn host_eject(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, c
     let ejected = match ejected {
         Some(acc) if acc.code_hash == caller_id_encoded => acc,
         _ => {
-            pvm.set_reg(7, WHO);
+            pvm.set_reg(7, HOST_WHO);
             return true;
         }
     };
@@ -1224,7 +1213,7 @@ fn host_eject(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, c
 
     // Step 5: HUH if d.items ≠ 2 OR (h, l) ∉ d.preimage_info
     if ejected.items != 2 {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
         return true;
     }
 
@@ -1232,7 +1221,7 @@ fn host_eject(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, c
     let timeslots = match ejected.preimage_info.get(&info_key) {
         Some(ts) => ts,
         None => {
-            pvm.set_reg(7, HUH);
+            pvm.set_reg(7, HOST_HUH);
             return true;
         }
     };
@@ -1247,12 +1236,12 @@ fn host_eject(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, c
             if let Some(self_acc) = ctx.accounts.get_mut(&ctx.service_id) {
                 self_acc.balance = self_acc.balance.saturating_add(ejected_balance);
             }
-            pvm.set_reg(7, OK);
+            pvm.set_reg(7, HOST_OK);
             return true;
         }
     }
 
-    pvm.set_reg(7, HUH);
+    pvm.set_reg(7, HOST_HUH);
     true
 }
 
@@ -1277,12 +1266,12 @@ fn host_yield(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
 /// φ[7] = service_id (or NONE for self), φ[8] = hash_ptr, φ[9] = output_ptr,
 /// φ[10] = offset, φ[11] = max_len
 fn host_lookup(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
-    let service_id = if pvm.reg(7) == NONE || pvm.reg(7) as u32 as u64 == pvm.reg(7) && pvm.reg(7) as u32 == ctx.service_id {
+    let service_id = if pvm.reg(7) == HOST_NONE || pvm.reg(7) as u32 as u64 == pvm.reg(7) && pvm.reg(7) as u32 == ctx.service_id {
         ctx.service_id
     } else if pvm.reg(7) <= u32::MAX as u64 {
         pvm.reg(7) as ServiceId
     } else {
-        pvm.set_reg(7, NONE);
+        pvm.set_reg(7, HOST_NONE);
         return true;
     };
     let hash_ptr = pvm.reg(8) as u32;
@@ -1325,10 +1314,10 @@ fn host_lookup(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
             }
             pvm.set_reg(7, v_len);
         } else {
-            pvm.set_reg(7, NONE);
+            pvm.set_reg(7, HOST_NONE);
         }
     } else {
-        pvm.set_reg(7, NONE);
+        pvm.set_reg(7, HOST_NONE);
     }
     true
 }
@@ -1396,7 +1385,7 @@ fn host_bless(
 
     // Check (m, v, r) are valid service IDs (fit in u32)
     if m > u32::MAX as u64 || v > u32::MAX as u64 || r > u32::MAX as u64 {
-        pvm.set_reg(7, WHO);
+        pvm.set_reg(7, HOST_WHO);
         return true;
     }
 
@@ -1409,7 +1398,7 @@ fn host_bless(
         always_acc,
     };
 
-    pvm.set_reg(7, OK);
+    pvm.set_reg(7, HOST_OK);
     true
 }
 
@@ -1435,7 +1424,7 @@ fn host_assign(
     };
 
     if c >= config.core_count as u64 {
-        pvm.set_reg(7, CORE);
+        pvm.set_reg(7, HOST_CORE);
         return true;
     }
 
@@ -1444,16 +1433,16 @@ fn host_assign(
     // Check caller is the current assigner for this core
     if core < regular.privileges.assign.len() as u16 {
         if regular.service_id != regular.privileges.assign[core as usize] {
-            pvm.set_reg(7, HUH);
+            pvm.set_reg(7, HOST_HUH);
             return true;
         }
     } else {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
         return true;
     }
 
     if a > u32::MAX as u64 {
-        pvm.set_reg(7, WHO);
+        pvm.set_reg(7, HOST_WHO);
         return true;
     }
 
@@ -1475,7 +1464,7 @@ fn host_assign(
         .unwrap()
         .insert(core, (queue, a as ServiceId));
 
-    pvm.set_reg(7, OK);
+    pvm.set_reg(7, HOST_OK);
     true
 }
 
@@ -1502,7 +1491,7 @@ fn host_designate(
 
     // Check caller is the designator
     if regular.service_id != regular.privileges.designate {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
         return true;
     }
 
@@ -1512,7 +1501,7 @@ fn host_designate(
 
     regular.pending_validators = Some(keys);
 
-    pvm.set_reg(7, OK);
+    pvm.set_reg(7, HOST_OK);
     true
 }
 
@@ -1561,7 +1550,7 @@ fn host_new(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot) -> 
 
     // Check f ≠ 0 requires caller to be manager (GP: if f ≠ 0 ∧ x_s ≠ χ_M → HUH)
     if f != 0 && ctx.service_id != ctx.privileges.bless {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
         return true;
     }
 
@@ -1571,11 +1560,11 @@ fn host_new(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot) -> 
     if let Some(self_acc) = ctx.accounts.get(&ctx.service_id) {
         let caller_threshold = compute_account_threshold(self_acc);
         if self_acc.balance.saturating_sub(threshold) < caller_threshold {
-            pvm.set_reg(7, CASH);
+            pvm.set_reg(7, HOST_CASH);
             return true;
         }
     } else {
-        pvm.set_reg(7, CASH);
+        pvm.set_reg(7, HOST_CASH);
         return true;
     }
 
@@ -1585,7 +1574,7 @@ fn host_new(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot) -> 
         // Registrar can use IDs below S threshold
         let id = hint_i as u32;
         if ctx.accounts.contains_key(&id) {
-            pvm.set_reg(7, FULL);
+            pvm.set_reg(7, HOST_FULL);
             return true;
         }
         id
@@ -1593,7 +1582,7 @@ fn host_new(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot) -> 
         // Use next_service_id from context
         let id = ctx.next_service_id;
         if ctx.accounts.contains_key(&id) {
-            pvm.set_reg(7, FULL);
+            pvm.set_reg(7, HOST_FULL);
             return true;
         }
         id
@@ -1654,9 +1643,9 @@ fn host_upgrade(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
         account.code_hash = Hash(code_hash);
         account.min_item_gas = g;
         account.min_memo_gas = m;
-        pvm.set_reg(7, OK);
+        pvm.set_reg(7, HOST_OK);
     } else {
-        pvm.set_reg(7, NONE);
+        pvm.set_reg(7, HOST_NONE);
     }
     true
 }
@@ -1697,11 +1686,11 @@ fn host_query(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
                 }
             }
         } else {
-            pvm.set_reg(7, NONE);
+            pvm.set_reg(7, HOST_NONE);
             pvm.set_reg(8, 0);
         }
     } else {
-        pvm.set_reg(7, NONE);
+        pvm.set_reg(7, HOST_NONE);
         pvm.set_reg(8, 0);
     }
     true
@@ -1746,7 +1735,7 @@ fn host_solicit(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot)
                 account.preimage_info.insert(key, new_ts);
             } else {
                 // Already solicited with different state
-                pvm.set_reg(7, HUH);
+                pvm.set_reg(7, HOST_HUH);
                 return true;
             }
         } else {
@@ -1767,13 +1756,13 @@ fn host_solicit(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot)
                 account.items -= 2;
                 account.bytes -= 81 + z as u64;
             }
-            pvm.set_reg(7, FULL);
+            pvm.set_reg(7, HOST_FULL);
             return true;
         }
 
-        pvm.set_reg(7, OK);
+        pvm.set_reg(7, HOST_OK);
     } else {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
     }
     true
 }
@@ -1839,16 +1828,16 @@ fn host_forget(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, 
                     account.preimage_info.insert(key, vec![ts[2], timeslot]);
                 }
                 _ => {
-                    pvm.set_reg(7, HUH);
+                    pvm.set_reg(7, HOST_HUH);
                     return true;
                 }
             }
-            pvm.set_reg(7, OK);
+            pvm.set_reg(7, HOST_OK);
         } else {
-            pvm.set_reg(7, HUH);
+            pvm.set_reg(7, HOST_HUH);
         }
     } else {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
     }
     true
 }
@@ -1857,12 +1846,12 @@ fn host_forget(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot, 
 /// φ[7]=s (target service or NONE for self), φ[8]=o (data ptr), φ[9]=z (data len)
 /// Adds (service, data) to the preimage provisions set x_p.
 fn host_provide(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
-    let target = if pvm.reg(7) == NONE {
+    let target = if pvm.reg(7) == HOST_NONE {
         ctx.service_id
     } else if pvm.reg(7) <= u32::MAX as u64 {
         pvm.reg(7) as ServiceId
     } else {
-        pvm.set_reg(7, WHO);
+        pvm.set_reg(7, HOST_WHO);
         return true;
     };
     let o_ptr = pvm.reg(8) as u32;
@@ -1879,7 +1868,7 @@ fn host_provide(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     let account = match ctx.accounts.get_mut(&target) {
         Some(acc) => acc,
         None => {
-            pvm.set_reg(7, WHO);
+            pvm.set_reg(7, HOST_WHO);
             return true;
         }
     };
@@ -1902,20 +1891,20 @@ fn host_provide(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     // HUH if a_l[(H(i), z)] ≠ [] — preimage_info entry has non-empty timeslots
     if let Some(ts) = account.preimage_info.get(&key) {
         if !ts.is_empty() {
-            pvm.set_reg(7, HUH);
+            pvm.set_reg(7, HOST_HUH);
             return true;
         }
     }
 
     // HUH if (s, i) already in preimage provisions set
     if ctx._preimage_provisions.iter().any(|(sid, d)| *sid == target && *d == data) {
-        pvm.set_reg(7, HUH);
+        pvm.set_reg(7, HOST_HUH);
         return true;
     }
 
     // OK: add (s, i) to preimage provisions set
     ctx._preimage_provisions.push((target, data));
-    pvm.set_reg(7, OK);
+    pvm.set_reg(7, HOST_OK);
     true
 }
 
