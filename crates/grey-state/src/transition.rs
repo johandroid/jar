@@ -71,7 +71,6 @@ pub fn apply_with_config(state: &State, block: &Block, config: &Config, opaque_d
     );
 
     // Step 8: Update recent block history β' (Section 7)
-    tracing::info!("  transition step 8: timeslot={}, accumulate_root={}", header.timeslot, accumulate_root);
     {
         let header_hash = compute_header_hash(header);
         let work_packages: Vec<(Hash, Hash)> = extrinsic.guarantees.iter().map(|g| {
@@ -233,20 +232,8 @@ fn apply_safrole(
         extrinsic: vec![], // Ticket processing handled separately for now
     };
 
-    tracing::warn!(
-        "  safrole: slot={}, prior_tau={}, vrf_output={}, pre_eta0={}",
-        header.timeslot, prior_timeslot,
-        vrf_output,
-        state.entropy[0],
-    );
-
     match crate::safrole::process_safrole(config, &input, &safrole_pre, None) {
         Ok(output) => {
-            tracing::warn!(
-                "  safrole OK: eta0'={}, eta0_changed={}",
-                output.state.eta[0],
-                output.state.eta[0] != state.entropy[0],
-            );
             state.entropy = output.state.eta;
             state.previous_validators = output.state.lambda;
             state.current_validators = output.state.kappa;
@@ -255,14 +242,12 @@ fn apply_safrole(
             state.safrole.seal_key_series = output.state.gamma_s;
             state.safrole.ticket_accumulator = output.state.gamma_a;
         }
-        Err(e) => {
-            tracing::warn!("  safrole FAIL: {:?}", e);
+        Err(_e) => {
             // If Safrole fails, still update entropy: η₀' = H(η₀ ⌢ Y(H_V))
             let mut data = Vec::with_capacity(64);
             data.extend_from_slice(&state.entropy[0].0);
             data.extend_from_slice(&vrf_output.0);
             state.entropy[0] = grey_crypto::blake2b_256(&data);
-            tracing::warn!("  safrole FAIL: eta0'={}", state.entropy[0]);
         }
     }
 }
@@ -280,27 +265,6 @@ fn process_assurances(
     let num_cores = state.pending_reports.len();
     let mut assurance_counts = vec![0u32; num_cores];
 
-    // Log pending reports state before processing
-    if current_timeslot >= 58 {
-        for (core, slot) in state.pending_reports.iter().enumerate() {
-            if let Some(pending) = slot {
-                tracing::warn!(
-                    "  assurances slot={}: core {} has pending report from timeslot {}, pkg=0x{}",
-                    current_timeslot,
-                    core,
-                    pending.timeslot,
-                    pending.report.package_spec.package_hash.0[..8].iter().map(|b| format!("{:02x}", b)).collect::<String>()
-                );
-            } else {
-                tracing::warn!(
-                    "  assurances slot={}: core {} is empty",
-                    current_timeslot,
-                    core,
-                );
-            }
-        }
-    }
-
     for assurance in assurances {
         for core in 0..num_cores {
             let byte_idx = core / 8;
@@ -313,25 +277,9 @@ fn process_assurances(
         }
     }
 
-    if current_timeslot >= 58 {
-        tracing::warn!(
-            "  assurances slot={}: counts={:?}, threshold={}",
-            current_timeslot,
-            assurance_counts,
-            threshold,
-        );
-    }
-
     for (core, count) in assurance_counts.iter().enumerate() {
         if *count >= threshold {
             if let Some(pending) = &state.pending_reports[core] {
-                tracing::warn!(
-                    "  assurances slot={}: core {} report AVAILABLE (count={} >= threshold={})",
-                    current_timeslot,
-                    core,
-                    count,
-                    threshold,
-                );
                 available.push(pending.report.clone());
             }
         }
@@ -343,23 +291,10 @@ fn process_assurances(
             let is_timed_out = current_timeslot >= pending.timeslot + config.availability_timeout;
 
             if is_available || is_timed_out {
-                tracing::warn!(
-                    "  assurances slot={}: core {} CLEARED (available={}, timed_out={})",
-                    current_timeslot,
-                    core,
-                    is_available,
-                    is_timed_out,
-                );
                 *slot = None;
             }
         }
     }
-
-    tracing::warn!(
-        "  assurances slot={}: returning {} available reports",
-        current_timeslot,
-        available.len(),
-    );
 
     available
 }
@@ -400,14 +335,6 @@ fn process_guarantees(
         }
 
         // Place report in pending slot
-        if current_timeslot >= 58 {
-            tracing::warn!(
-                "  guarantees slot={}: placing report on core {}, pkg=0x{}",
-                current_timeslot,
-                core,
-                report.package_spec.package_hash.0[..8].iter().map(|b| format!("{:02x}", b)).collect::<String>(),
-            );
-        }
         state.pending_reports[core] = Some(PendingReport {
             report: report.clone(),
             timeslot: current_timeslot,

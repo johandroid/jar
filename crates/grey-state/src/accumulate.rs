@@ -166,17 +166,14 @@ fn partition_reports(reports: &[WorkReport]) -> (Vec<WorkReport>, Vec<ReadyRecor
     for r in reports {
         let deps = compute_dependencies(r);
         if deps.is_empty() {
-            tracing::warn!("  partition: pkg={} -> IMMEDIATE (no deps)", r.package_spec.package_hash);
             immediate.push(r.clone());
         } else {
-            tracing::warn!("  partition: pkg={} -> QUEUED ({} deps: {:?})", r.package_spec.package_hash, deps.len(), deps.iter().take(3).collect::<Vec<_>>());
             queued.push(ReadyRecord {
                 report: r.clone(),
                 dependencies: deps,
             });
         }
     }
-    tracing::warn!("  partition result: {} immediate, {} queued", immediate.len(), queued.len());
     (immediate, queued)
 }
 
@@ -255,14 +252,6 @@ fn compute_accumulatable_with_new(
 
     let mut result = immediate.to_vec();
     let queue_resolved = resolve_queue(&edited);
-    tracing::warn!("  accumulatable: {} immediate + {} queue_resolved = {} total",
-        immediate.len(), queue_resolved.len(), immediate.len() + queue_resolved.len());
-    for (i, r) in result.iter().enumerate() {
-        tracing::warn!("    R*[{}]: pkg={} (immediate)", i, r.package_spec.package_hash);
-    }
-    for (i, r) in queue_resolved.iter().enumerate() {
-        tracing::warn!("    R*[{}]: pkg={} (from queue)", immediate.len() + i, r.package_spec.package_hash);
-    }
     result.extend(queue_resolved);
     result
 }
@@ -361,8 +350,6 @@ fn accumulate_single_service(
         .sum();
     if let Some(acc) = initial_accounts.get_mut(&service_id) {
         if transfer_balance > 0 {
-            tracing::warn!("crediting transfer_balance={} to service={}, old_balance={}, new_balance={}",
-                transfer_balance, service_id, acc.balance, acc.balance.saturating_add(transfer_balance));
         }
         acc.balance = acc.balance.saturating_add(transfer_balance);
     }
@@ -376,15 +363,8 @@ fn accumulate_single_service(
     // E^{-1}_4(H(...)): first 4 bytes as LE u32
     let hash_val = u32::from_le_bytes([hash_bytes.0[0], hash_bytes.0[1], hash_bytes.0[2], hash_bytes.0[3]]);
     let next_service_id = s_threshold + (hash_val % range);
-    tracing::warn!(
-        "next_service_id: s={}, entropy_0_8={:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}, timeslot={}, hash_val={}, range={}, raw={}",
-        service_id, entropy.0[0], entropy.0[1], entropy.0[2], entropy.0[3],
-        entropy.0[4], entropy.0[5], entropy.0[6], entropy.0[7],
-        timeslot, hash_val, range, next_service_id
-    );
     // check(): ensure not already in use, advance if needed
     let next_service_id = find_free_service_id(next_service_id, &initial_accounts, s_threshold);
-    tracing::warn!("  -> final next_service_id={}", next_service_id);
 
     let regular = AccContext {
         service_id,
@@ -406,7 +386,6 @@ fn accumulate_single_service(
 
     // Encode minimal argument blob: varint(timeslot, service_id, item_count)
     let args = encode_accumulate_args(timeslot, service_id, item_count);
-    tracing::warn!("  args hex: {}", args.iter().map(|b| format!("{:02x}", b)).collect::<String>());
 
     // Build per-service fetch context with encoded items
     let items_blob = build_items_blob(transfers, service_id, reports);
@@ -428,11 +407,6 @@ fn accumulate_single_service(
     }
 
 
-    tracing::warn!("  items_blob for svc {}: {} bytes, {} individual items, args={} bytes",
-        service_id, items_blob.len(), individual_items.len(), args.len());
-    for (i, item) in individual_items.iter().enumerate() {
-        tracing::warn!("    item[{}]: disc={}, total_len={}", i, item[0], item.len());
-    }
     let service_fetch_ctx = FetchContext {
         config_blob: fetch_ctx.config_blob.clone(),
         entropy: fetch_ctx.entropy,
@@ -603,15 +577,10 @@ fn run_accumulate_pvm(
     entropy: &Hash,
     fetch_ctx: &FetchContext,
 ) -> (AccContext, Gas) {
-    tracing::info!(
-        "run_accumulate_pvm: service={}, code_blob={} bytes, gas={}, args={} bytes",
-        regular.service_id, code_blob.len(), gas, args.len()
-    );
     // Initialize PVM
     let mut pvm = match PvmInstance::initialize(code_blob, args, gas) {
         Some(p) => p,
         None => {
-            tracing::warn!("PVM initialization failed for service {}", regular.service_id);
             return (exceptional, 0);
         }
     };
@@ -621,15 +590,9 @@ fn run_accumulate_pvm(
 
     let initial_gas = pvm.gas();
     let mut host_call_count = 0u32;
-    let mut total_instruction_gas = 0u64;
-    let mut total_host_gas = 0u64;
 
     loop {
-        let gas_before_run = pvm.gas();
         let exit_reason = pvm.run();
-        let gas_after_run = pvm.gas();
-        let inst_gas = gas_before_run - gas_after_run;
-        total_instruction_gas += inst_gas;
 
         match exit_reason {
             ExitReason::Halt => {
@@ -658,45 +621,23 @@ fn run_accumulate_pvm(
                     }
                 }
 
-                tracing::info!(
-                    "PVM HALT: service={}, gas_used={}, remaining={}, host_calls={}, \
-                     total_inst_gas={}, total_host_gas={}, ω7=0x{:x}, ω8={}, output={:?}",
-                    regular.service_id, gas_used, pvm.gas(), host_call_count,
-                    total_instruction_gas, total_host_gas, out_ptr, out_len, regular.output
-                );
                 return (regular, gas_used);
             }
             ExitReason::Panic => {
                 let gas_used = initial_gas - pvm.gas();
-                tracing::warn!(
-                    "PVM PANIC: service={}, gas_used={}, pc={}",
-                    regular.service_id, gas_used, pvm.pc()
-                );
                 return (exceptional, gas_used);
             }
             ExitReason::OutOfGas => {
                 let gas_used = initial_gas;
-                tracing::warn!(
-                    "PVM OOG: service={}, gas_budget={}, pc={}",
-                    regular.service_id, initial_gas, pvm.pc()
-                );
                 return (exceptional, gas_used);
             }
             ExitReason::PageFault(addr) => {
                 let gas_used = initial_gas - pvm.gas();
-                tracing::warn!(
-                    "PVM PAGE_FAULT: service={}, addr=0x{:08x}, gas_used={}, pc={}",
-                    regular.service_id, addr, gas_used, pvm.pc()
-                );
                 return (exceptional, gas_used);
             }
             ExitReason::HostCall(id) => {
                 host_call_count += 1;
                 let gas_before_host = pvm.gas();
-                tracing::info!(
-                    "PVM host_call #{}: id={}, gas_before={}, inst_gas_this_segment={}, pc={}",
-                    host_call_count, id, gas_before_host, inst_gas, pvm.pc()
-                );
                 let ok = handle_host_call(
                     config,
                     id,
@@ -708,17 +649,8 @@ fn run_accumulate_pvm(
                     fetch_ctx,
                 );
                 let gas_after_host = pvm.gas();
-                let host_gas = gas_before_host - gas_after_host;
-                total_host_gas += host_gas;
-                tracing::info!(
-                    "  host_call #{} done: gas_cost={}, gas_remaining={}",
-                    host_call_count, host_gas, gas_after_host
-                );
                 if !ok {
                     let gas_used = initial_gas - pvm.gas();
-                    tracing::warn!(
-                        "PVM host_call {} failed, gas_used={}", id, gas_used
-                    );
                     return (exceptional, gas_used);
                 }
             }
@@ -757,10 +689,6 @@ fn handle_host_call(
         100 => "log",
         _ => "unknown",
     };
-    tracing::info!(
-        "  host_call {name}({id}): ω7={}, ω8={}, ω9={}, ω10={}, ω11={}, ω12={}, gas={}",
-        pvm.reg(7), pvm.reg(8), pvm.reg(9), pvm.reg(10), pvm.reg(11), pvm.reg(12), pvm.gas()
-    );
 
     let result = match id {
         0 => host_gas(pvm, regular),
@@ -793,10 +721,6 @@ fn handle_host_call(
             true
         }
     };
-    tracing::info!(
-        "    -> ω7={}, ω8={}, gas={}",
-        pvm.reg(7), pvm.reg(8), pvm.gas()
-    );
     result
 }
 
@@ -838,7 +762,6 @@ fn host_fetch(pvm: &mut PvmInstance, fetch_ctx: &FetchContext) -> bool {
     let data = match data {
         Some(d) => d,
         None => {
-            tracing::warn!("  fetch mode={} -> NONE (not available in accumulate context)", mode);
             pvm.set_reg(7, u64::MAX); // NONE
             return true;
         }
@@ -848,19 +771,13 @@ fn host_fetch(pvm: &mut PvmInstance, fetch_ctx: &FetchContext) -> bool {
     let f = offset.min(data_len);
     let l = max_len.min(data_len - f);
 
-    tracing::warn!("  fetch mode={} offset={} max_len={} data_len={} writing={} bytes", mode, f, max_len, data.len(), l);
 
     // Dump hex for debugging
     if mode == 0 {
-        tracing::warn!("  fetch config hex: {}", data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
     } else if mode == 1 {
-        tracing::warn!("  fetch entropy hex: {}", data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
     } else if mode == 14 && data.len() <= 512 {
-        tracing::warn!("  fetch items hex: {}", data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
     } else if mode == 15 && data.len() <= 512 {
-        tracing::warn!("  fetch item[{}] hex ({} bytes): {}", sub1, data.len(), data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
         if data.len() > 134 {
-            tracing::warn!("  fetch item[{}] bytes[130..]: {:?}", sub1, &data[130..data.len().min(145)]);
         }
     }
 
@@ -924,12 +841,8 @@ fn host_read(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
             let v_len = value.len() as u64;
             let f = offset.min(v_len) as usize;
             let l = max_len.min(v_len - f as u64) as usize;
-            tracing::warn!("    read svc={} key={} val_len={} offset={} out_len={}",
-                service_id, key.iter().map(|b| format!("{:02x}", b)).collect::<String>(), v_len, f, l);
             if v_len <= 64 {
-                tracing::warn!("    read value hex: {}", value.iter().map(|b| format!("{:02x}", b)).collect::<String>());
             } else {
-                tracing::warn!("    read value first 32 hex: {}", value[..32].iter().map(|b| format!("{:02x}", b)).collect::<String>());
             }
             if l > 0 {
                 if pvm.try_write_bytes(out_ptr, &value[f..f + l]).is_none() {
@@ -938,7 +851,6 @@ fn host_read(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
             }
             pvm.set_reg(7, v_len);
         } else {
-            tracing::warn!("    read svc={} key={} -> NONE", service_id, key.iter().map(|b| format!("{:02x}", b)).collect::<String>());
             pvm.set_reg(7, u64::MAX); // NONE
         }
     } else {
@@ -1025,8 +937,6 @@ fn host_write(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
                 account.items = new_items;
             }
         } else {
-            tracing::warn!("    write svc={} key={} val_len={} old_len={} items={}->{}  bytes={}->{}",
-                ctx.service_id, key.iter().map(|b| format!("{:02x}", b)).collect::<String>(), value.len(), old_len, account.items, new_items, account.bytes, new_bytes);
             account.storage.insert(key, value);
             account.bytes = new_bytes;
             account.items = new_items;
@@ -1080,11 +990,6 @@ fn host_info(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
         buf[88..92].copy_from_slice(&account.last_accumulation_slot.to_le_bytes()); // a_a
         buf[92..96].copy_from_slice(&account.parent_service.to_le_bytes()); // a_p
 
-        tracing::warn!("  info for svc {} (queried by {}): balance={}, threshold={}, items={}, bytes={}, min_item_gas={}, min_memo_gas={}, deposit_offset={}, creation_slot={}, last_acc_slot={}, parent_svc={}",
-            service_id, ctx.service_id, account.balance, threshold, account.items, account.bytes,
-            account.min_item_gas, account.min_memo_gas, account.deposit_offset, account.creation_slot,
-            account.last_accumulation_slot, account.parent_service);
-        tracing::warn!("  info hex: {}", buf.iter().map(|b| format!("{:02x}", b)).collect::<String>());
 
         let v_len = buf.len() as u64;
         let f = offset.min(v_len);
@@ -1616,9 +1521,6 @@ fn host_new(pvm: &mut PvmInstance, ctx: &mut AccContext, timeslot: Timeslot) -> 
         opaque_data: BTreeMap::new(),
     };
 
-    tracing::warn!("host_new: svc={} new_id={} (0x{:08x}) l={} g={} m={} f={} items={} bytes={} threshold={} balance_after_debit={}",
-        ctx.service_id, new_id, new_id, l, g, m, f, items_count, footprint, threshold,
-        ctx.accounts.get(&ctx.service_id).map(|a| a.balance).unwrap_or(0));
     ctx.accounts.insert(new_id, new_account);
 
     // Advance next_service_id: i* = check(S + (x_i - S + 42) mod (2^32 - S - 2^8)) (GP eq 24.62)
@@ -1990,10 +1892,6 @@ fn accumulate_batch(
         involved.insert(t.destination);
     }
 
-    tracing::warn!(
-        "accumulate_batch: {} involved services {:?}, manager={}, designate={}, assign={:?}",
-        involved.len(), involved, privileges.bless, privileges.designate, privileges.assign
-    );
     let mut current_accounts = accounts.clone();
     let mut all_transfers = Vec::new();
     let mut outputs = Vec::new();
@@ -2041,11 +1939,6 @@ fn accumulate_batch(
         }
 
         if result.privileges.designate != prev_designate || result.privileges.bless != prev_bless {
-            tracing::warn!(
-                "PRIVILEGE CHANGE after svc {}: designate {} -> {}, bless {} -> {}",
-                sid, prev_designate, result.privileges.designate,
-                prev_bless, result.privileges.bless
-            );
         }
         current_privileges = result.privileges;
 
@@ -2125,10 +2018,7 @@ fn accumulate_all(
 
     // GP: n = |t| + i + |f| — total items to process
     let n = transfers.len() + max_reports + privileges.always_acc.len();
-    tracing::warn!("accumulate_all: n={} (transfers={}, reports={}, always_acc={}), gas_budget={}",
-        n, transfers.len(), max_reports, privileges.always_acc.len(), gas_budget);
     for t in &transfers {
-        tracing::warn!("  transfer: sender={} dest={} amount={} gas={}", t.sender, t.destination, t.amount, t.gas_limit);
     }
     if n == 0 {
         return (0, accounts.clone(), vec![], vec![], privileges.clone(), None, None);
@@ -2318,10 +2208,7 @@ pub fn process_accumulate(
     accum_stats.retain(|_, (g, n)| *g + *n as u64 != 0);
 
     // Step 13: Compute output hash (Keccak Merkle root of outputs)
-    tracing::info!("  accumulate outputs count: {}, sids: {:?}", outputs.len(),
-        outputs.iter().map(|(s, _)| *s).collect::<Vec<_>>());
     for (sid, hash) in &outputs {
-        tracing::info!("    yield: sid={}, hash={}", sid, hash);
     }
     let output_hash = compute_output_hash(&outputs);
     // Sort outputs by service ID (GP eq 12.17: θ is a sorted sequence)
@@ -2547,10 +2434,6 @@ fn service_to_acc(
         let code_key =
             grey_merkle::state_serial::compute_preimage_lookup_state_key(sid, &a.code_hash);
         if let Some(code_blob) = per_service_opaque.remove(&code_key) {
-            tracing::info!(
-                "Found code blob for service {} in opaque data: {} bytes",
-                sid, code_blob.len()
-            );
             preimage_lookup.insert(a.code_hash, code_blob);
         }
     }
@@ -2678,10 +2561,6 @@ pub fn run_accumulation(
 ) -> (Hash, BTreeMap<ServiceId, (Gas, u32)>, Vec<([u8; 31], Vec<u8>)>) {
     let epoch_length = config.epoch_length as usize;
 
-    tracing::debug!(
-        "run_accumulation: {} available reports, timeslot={}, prev={}",
-        available_reports.len(), state.timeslot, prev_timeslot
-    );
 
     // GP eq 12.22-12.24: Δ+ is always called, even with no available reports.
     // Always-accumulate services (χ_Z) must run every block.
@@ -2708,13 +2587,6 @@ pub fn run_accumulation(
     };
 
     let acc_output = process_accumulate(config, &mut acc_state, &input);
-    tracing::info!("  accumulate output_hash: {}", acc_output.hash);
-    tracing::info!(
-        "  accumulate privileges: bless={}, designate={}, register={}, assign={:?}, always_acc={}",
-        acc_state.privileges.bless, acc_state.privileges.designate,
-        acc_state.privileges.register, acc_state.privileges.assign,
-        acc_state.privileges.always_acc.len()
-    );
 
     // Build set of accumulated service IDs from accumulation_stats
     let accumulated_sids: std::collections::BTreeSet<ServiceId> =
@@ -2741,7 +2613,6 @@ pub fn run_accumulation(
     // Log new service IDs being written back
     for (&sid, _) in &new_services {
         if !state.services.contains_key(&sid) {
-            tracing::warn!("run_accumulation: NEW service_id={} (0x{:08x}) being added to state", sid, sid);
         }
     }
     state.services = new_services;
@@ -2755,10 +2626,6 @@ pub fn run_accumulation(
     if let Some(ref aq) = acc_state.auth_queues {
         for (&core, (queue_hashes, _assigner)) in aq {
             let c = core as usize;
-            tracing::info!(
-                "run_accumulation: applying auth_queue update for core {}: {} queue entries",
-                c, queue_hashes.len()
-            );
             for (slot_idx, hash) in queue_hashes.iter().enumerate() {
                 if slot_idx < state.auth_queue.len() {
                     // Ensure the core dimension exists
@@ -2773,10 +2640,6 @@ pub fn run_accumulation(
 
     // Apply pending validator changes from designate host call (GP: ι' from Δ*).
     if let Some(ref pv) = acc_state.pending_validators {
-        tracing::info!(
-            "run_accumulation: applying pending_validators update: {} validators",
-            pv.len()
-        );
         state.pending_validators = pv
             .iter()
             .map(|bytes| {
@@ -2784,7 +2647,6 @@ pub fn run_accumulation(
                     let arr: &[u8; 336] = bytes.as_slice().try_into().unwrap();
                     grey_types::validator::ValidatorKey::from_bytes(arr)
                 } else {
-                    tracing::warn!("pending_validators: unexpected key length {}", bytes.len());
                     grey_types::validator::ValidatorKey::null()
                 }
             })

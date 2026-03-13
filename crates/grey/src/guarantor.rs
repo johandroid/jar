@@ -46,6 +46,11 @@ impl GuarantorState {
         std::mem::take(&mut self.pending_guarantees)
     }
 
+    /// Return a guarantee that couldn't be included (e.g., core occupied).
+    pub fn return_guarantee(&mut self, guarantee: Guarantee) {
+        self.pending_guarantees.push(guarantee);
+    }
+
     /// Generate an assurance bitfield for cores where we hold chunks.
     pub fn generate_assurance(
         &self,

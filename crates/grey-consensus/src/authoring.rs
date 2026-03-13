@@ -72,7 +72,10 @@ pub fn is_slot_author_with_keypair(
                 return None;
             }
             let ticket = &tickets[slot_in_epoch as usize];
-            let eta2 = &state.entropy[2];
+            // Ticket IDs were computed with η_2 from the epoch when tickets were
+            // accumulated. After the epoch rotation that installs them as seal keys,
+            // that η_2 is preserved in η_3 (GP eq 6.23: η'_3 = η_2 on epoch change).
+            let eta2 = &state.entropy[3];
 
             // For each attempt (0..N), compute VRF output and check against ticket ID
             for attempt in 0..config.tickets_per_validator as u8 {
@@ -371,6 +374,9 @@ mod tests {
             .map(|(t, _)| t.clone())
             .collect();
         state.safrole.seal_key_series = SealKeySeries::Tickets(epoch_tickets);
+        // Simulate the epoch rotation that happens when tickets become the seal
+        // keys: η'_3 = η_2 (GP eq 6.23).  The ownership check now reads entropy[3].
+        state.entropy[3] = state.entropy[2];
     }
 
     #[test]

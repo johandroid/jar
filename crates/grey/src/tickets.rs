@@ -58,6 +58,7 @@ impl TicketState {
         config: &Config,
         state: &State,
         secrets: &ValidatorSecrets,
+        validator_index: u16,
     ) -> Vec<TicketProof> {
         if self.generated_this_epoch {
             return vec![];
@@ -74,13 +75,27 @@ impl TicketState {
 
         self.generated_this_epoch = true;
 
-        // Generate N ticket attempts using VRF
+        // Extract Bandersnatch public keys from current validator set for the ring
+        let ring_keys: Vec<[u8; 32]> = state
+            .current_validators
+            .iter()
+            .map(|v| v.bandersnatch.0)
+            .collect();
+
+        // Generate N ticket attempts using Ring VRF
         let eta2 = &state.entropy[2]; // η₂
         let mut tickets = Vec::new();
 
         for attempt in 0..TICKET_ATTEMPTS {
-            let proof = generate_ticket_proof(secrets, eta2, attempt);
-            tickets.push(proof);
+            if let Some(proof) = generate_ticket_proof(
+                secrets,
+                eta2,
+                attempt,
+                &ring_keys,
+                validator_index as usize,
+            ) {
+                tickets.push(proof);
+            }
         }
 
         tickets
@@ -124,24 +139,25 @@ impl TicketState {
 /// Generate a ticket Ring VRF proof for a given attempt.
 ///
 /// VRF input: X_T ⌢ η₂ ⌢ E₁(attempt) (eq 6.29).
+/// Uses Ring VRF to anonymize the submitter (784-byte proof).
 fn generate_ticket_proof(
     secrets: &ValidatorSecrets,
     eta2: &Hash,
     attempt: u8,
-) -> TicketProof {
+    ring_keys: &[[u8; 32]],
+    key_index: usize,
+) -> Option<TicketProof> {
     let mut vrf_input = Vec::with_capacity(15 + 32 + 1);
     vrf_input.extend_from_slice(grey_crypto::bandersnatch::TICKET_SEAL_CONTEXT);
     vrf_input.extend_from_slice(&eta2.0);
     vrf_input.push(attempt);
 
-    // Generate VRF signature (this is a regular VRF, not a Ring VRF proof here;
-    // a full implementation would generate a Ring VRF proof using the ring prover)
-    let sig = secrets.bandersnatch.vrf_sign(&vrf_input, &[]);
+    // Generate Ring VRF proof (784 bytes: 32-byte output + 752-byte ring proof)
+    let proof = secrets
+        .bandersnatch
+        .ring_vrf_sign(ring_keys, key_index, &vrf_input, &[])?;
 
-    TicketProof {
-        attempt,
-        proof: sig.to_vec(),
-    }
+    Some(TicketProof { attempt, proof })
 }
 
 /// Derive a ticket ID from a ticket proof by hashing the proof data.
@@ -212,14 +228,19 @@ mod tests {
         let (chain_state, secrets) = grey_consensus::genesis::create_genesis(&config);
 
         let mut ticket_state = TicketState::new();
-        let tickets = ticket_state.generate_tickets(&config, &chain_state, &secrets[0]);
+        let tickets = ticket_state.generate_tickets(&config, &chain_state, &secrets[0], 0);
 
         // Should generate TICKET_ATTEMPTS tickets
         assert_eq!(tickets.len(), TICKET_ATTEMPTS as usize);
         assert!(ticket_state.generated_this_epoch);
 
+        // Verify proof is 784 bytes (Ring VRF)
+        for t in &tickets {
+            assert_eq!(t.proof.len(), 784, "Ring VRF proof must be 784 bytes");
+        }
+
         // Second call should return empty (already generated)
-        let tickets2 = ticket_state.generate_tickets(&config, &chain_state, &secrets[0]);
+        let tickets2 = ticket_state.generate_tickets(&config, &chain_state, &secrets[0], 0);
         assert!(tickets2.is_empty());
     }
 

@@ -132,6 +132,11 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
     let mut ticket_state = TicketState::new();
     // Track last slot where we submitted a work package (for pacing)
     let mut last_wp_slot: Timeslot = 0;
+    // Buffer for blocks received out of order (keyed by timeslot).
+    // When we receive a block at slot X but our state is at slot < X-1,
+    // we may be missing intermediate blocks. Buffer the block and try
+    // to apply it after the missing ones arrive.
+    let mut pending_blocks: std::collections::BTreeMap<Timeslot, (Block, Hash)> = std::collections::BTreeMap::new();
 
     tracing::info!(
         "Validator {} node started, genesis_time={}",
@@ -183,7 +188,8 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
 
                 // Only attempt authoring if this is a new slot we haven't authored yet
                 if current_slot > state.timeslot && current_slot > last_authored_slot {
-                    // Generate our own assurance before authoring
+                    // Generate our own assurance at the START of the slot (first tick).
+                    // Broadcast it immediately so other validators receive it before authoring.
                     let parent_hash = state
                         .recent_blocks
                         .headers
@@ -211,6 +217,16 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                         collected_assurances.push(my_assurance);
                     }
 
+                    // Delay block authoring by 2 seconds into the slot to allow
+                    // assurances from other validators to arrive via gossip.
+                    // Without this delay, the author only has its own assurance,
+                    // which is insufficient for super-majority (need 4 of 6).
+                    let slot_start_time = genesis_time + (current_slot as u64 - 1) * 6;
+                    let time_into_slot = now - slot_start_time;
+                    if time_into_slot < 2 {
+                        continue; // Wait for next tick (500ms later)
+                    }
+
                     // Generate and broadcast tickets if in submission window
                     ticket_state.check_epoch(current_slot, protocol);
                     if tickets::is_ticket_submission_window(current_slot, protocol) {
@@ -218,6 +234,7 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                             protocol,
                             &state,
                             my_secrets,
+                            config.validator_index,
                         );
                         for ticket in &new_tickets {
                             let ticket_data = tickets::encode_ticket_proof(ticket);
@@ -270,7 +287,9 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                                     msg.extend_from_slice(b"jam_guarantee");
                                     msg.extend_from_slice(&report_hash.0);
                                     let co_sig = co_secrets.ed25519.sign(&msg);
-                                    for g in &mut guarantor_state.pending_guarantees {
+                                    // Only co-sign the newly created guarantee (the last one),
+                                    // not all pending guarantees — they have different report hashes.
+                                    if let Some(g) = guarantor_state.pending_guarantees.last_mut() {
                                         g.credentials.push((co_signer_idx, co_sig));
                                     }
 
@@ -279,8 +298,8 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                                         config.validator_index,
                                         hex::encode(&report_hash.0[..8])
                                     );
-                                    // Broadcast guarantee to peers
-                                    for g in &guarantor_state.pending_guarantees {
+                                    // Broadcast only the new guarantee to peers
+                                    if let Some(g) = guarantor_state.pending_guarantees.last() {
                                         let g_data = guarantor::encode_guarantee(g);
                                         let _ = net_commands.send(NetworkCommand::BroadcastGuarantee {
                                             data: g_data,
@@ -314,8 +333,117 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                         );
 
                         // Collect guarantees and assurances for this block
-                        let guarantees = guarantor_state.take_guarantees();
-                        let assurances = std::mem::take(&mut collected_assurances);
+                        let all_guarantees = guarantor_state.take_guarantees();
+                        let all_assurances = std::mem::take(&mut collected_assurances);
+
+                        // Filter assurances: only include those whose anchor matches
+                        // the current parent hash. Assurances with stale anchors would
+                        // cause BadAttestationParent during state transition.
+                        let block_parent = state
+                            .recent_blocks
+                            .headers
+                            .last()
+                            .map(|h| h.header_hash)
+                            .unwrap_or(Hash::ZERO);
+                        let mut assurances = Vec::new();
+                        for a in all_assurances {
+                            if a.anchor == block_parent {
+                                assurances.push(a);
+                            } else {
+                                // Return stale assurances — they're useless now
+                                tracing::debug!(
+                                    "Dropping stale assurance from validator {} (anchor mismatch)",
+                                    a.validator_index,
+                                );
+                            }
+                        }
+
+                        // Deduplicate assurances by validator index (keep first occurrence)
+                        {
+                            let mut seen = std::collections::HashSet::new();
+                            assurances.retain(|a| seen.insert(a.validator_index));
+                        }
+
+                        // Sort assurances by validator index (required by state transition)
+                        assurances.sort_by_key(|a| a.validator_index);
+
+                        // Prune stale guarantees whose anchor is no longer in recent_blocks
+                        let recent_hashes: std::collections::HashSet<_> = state
+                            .recent_blocks
+                            .headers
+                            .iter()
+                            .map(|h| h.header_hash)
+                            .collect();
+                        let all_guarantees: Vec<_> = all_guarantees
+                            .into_iter()
+                            .filter(|g| {
+                                let fresh = recent_hashes.contains(&g.report.context.anchor);
+                                if !fresh {
+                                    tracing::warn!(
+                                        "Pruning stale guarantee: anchor=0x{} not in recent blocks",
+                                        hex::encode(&g.report.context.anchor.0[..8])
+                                    );
+                                }
+                                fresh
+                            })
+                            .collect();
+
+                        // Predict which cores will be cleared by the included assurances.
+                        // The transition processes assurances BEFORE guarantees, so a core
+                        // that reaches super-majority assurance count will be free for a
+                        // new guarantee in the same block.
+                        let num_cores = state.pending_reports.len();
+                        let threshold = config.protocol_config.super_majority() as u32;
+                        let mut assurance_counts = vec![0u32; num_cores];
+                        for a in &assurances {
+                            for core in 0..num_cores {
+                                let byte_idx = core / 8;
+                                let bit_idx = core % 8;
+                                if byte_idx < a.bitfield.len()
+                                    && (a.bitfield[byte_idx] >> bit_idx) & 1 == 1
+                                {
+                                    assurance_counts[core] += 1;
+                                }
+                            }
+                        }
+                        let mut cores_will_clear = std::collections::HashSet::new();
+                        for (core, &count) in assurance_counts.iter().enumerate() {
+                            if count >= threshold && state.pending_reports[core].is_some() {
+                                cores_will_clear.insert(core);
+                            }
+                        }
+
+                        // Also check for availability timeout: cores that have timed out
+                        // will be cleared even without assurances.
+                        for (core, slot) in state.pending_reports.iter().enumerate() {
+                            if let Some(pending) = slot {
+                                if current_slot >= pending.timeslot + config.protocol_config.availability_timeout {
+                                    cores_will_clear.insert(core);
+                                }
+                            }
+                        }
+
+                        // Filter out guarantees for cores that are occupied AND won't be
+                        // cleared by the assurances in this block.
+                        let mut guarantees = Vec::new();
+                        let mut deferred_guarantees = Vec::new();
+                        let mut included_cores = std::collections::HashSet::new();
+                        for g in all_guarantees {
+                            let core = g.report.core_index as usize;
+                            let core_occupied = core < state.pending_reports.len()
+                                && state.pending_reports[core].is_some()
+                                && !cores_will_clear.contains(&core);
+                            let core_duplicate = !included_cores.insert(g.report.core_index);
+                            if core_occupied || core_duplicate {
+                                deferred_guarantees.push(g);
+                            } else {
+                                guarantees.push(g);
+                            }
+                        }
+                        // Return deferred guarantees for later inclusion
+                        for g in deferred_guarantees {
+                            guarantor_state.return_guarantee(g);
+                        }
 
                         if !guarantees.is_empty() {
                             tracing::info!(
@@ -451,6 +579,10 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                                     current_slot,
                                     e
                                 );
+                                // Return assurances so they aren't lost on failed authoring
+                                for a in block.extrinsic.assurances {
+                                    collected_assurances.push(a);
+                                }
                             }
                         }
                     }
@@ -520,92 +652,12 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                             Some((block, _hash)) => {
                                 let slot = block.header.timeslot;
                                 if slot > state.timeslot {
-                                    match grey_state::transition::apply_with_config(
-                                        &state,
-                                        &block,
-                                        protocol,
-                                        &[],
-                                    ) {
-                                        Ok((new_state, _)) => {
-                                            let import_hash = compute_header_hash(&block.header);
-                                            state = new_state;
-                                            blocks_imported += 1;
-
-                                            // Persist imported block, state, and metadata
-                                            if let Err(e) = store.put_block(&block) {
-                                                tracing::error!("Failed to persist imported block: {}", e);
-                                            }
-                                            if let Err(e) = store.put_state(&import_hash, &state, protocol) {
-                                                tracing::error!("Failed to persist state: {}", e);
-                                            }
-                                            if let Err(e) = store.set_head(&import_hash, slot) {
-                                                tracing::error!("Failed to update head: {}", e);
-                                            }
-
-                                            // Register guarantees from imported block for auditing
-                                            // and mark cores as available for assurance generation
-                                            for guarantee in &block.extrinsic.guarantees {
-                                                let report_hash = grey_crypto::blake2b_256(
-                                                    &grey_codec::header_codec::encode_header(&block.header),
-                                                );
-                                                let our_tranche = audit::compute_audit_tranche(
-                                                    &state.entropy[0],
-                                                    &report_hash,
-                                                    config.validator_index,
-                                                    30,
-                                                );
-                                                audit_state.add_pending(
-                                                    report_hash,
-                                                    guarantee.report.clone(),
-                                                    guarantee.report.core_index,
-                                                    slot,
-                                                    Some(our_tranche),
-                                                );
-                                                // Mark core as available so we generate assurances
-                                                guarantor_state.available_cores.insert(
-                                                    guarantee.report.core_index,
-                                                    report_hash,
-                                                );
-                                            }
-
-                                            tracing::info!(
-                                                "Validator {} imported block at slot {} from peer {} (total imported: {})",
-                                                config.validator_index,
-                                                slot,
-                                                source,
-                                                blocks_imported
-                                            );
-
-                                            // Update GRANDPA and vote on imported block
-                                            grandpa.update_best_block(import_hash, slot);
-                                            if let Some(prevote_msg) = grandpa.create_prevote(
-                                                config.validator_index,
-                                                my_secrets,
-                                            ) {
-                                                let vote_data = finality::encode_vote_message(&prevote_msg);
-                                                let _ = net_commands.send(NetworkCommand::BroadcastFinalityVote {
-                                                    data: vote_data,
-                                                });
-                                            }
-                                            if let Some(precommit_msg) = grandpa.create_precommit(
-                                                config.validator_index,
-                                                my_secrets,
-                                            ) {
-                                                let vote_data = finality::encode_vote_message(&precommit_msg);
-                                                let _ = net_commands.send(NetworkCommand::BroadcastFinalityVote {
-                                                    data: vote_data,
-                                                });
-                                            }
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!(
-                                                "Validator {} rejected block at slot {}: {}",
-                                                config.validator_index,
-                                                slot,
-                                                e
-                                            );
-                                        }
-                                    }
+                                    // Buffer this block for ordered import.
+                                    // Only keep the first block per slot (no forks).
+                                    pending_blocks.entry(slot).or_insert_with(|| {
+                                        let h = compute_header_hash(&block.header);
+                                        (block, h)
+                                    });
                                 }
                             }
                             None => {
@@ -614,6 +666,138 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                                     config.validator_index,
                                     source
                                 );
+                            }
+                        }
+
+                        // Drain pending blocks in timeslot order.
+                        // Apply each block whose slot > current state timeslot.
+                        while let Some((&next_slot, _)) = pending_blocks.iter().next() {
+                            if next_slot <= state.timeslot {
+                                // Already at or past this slot — discard
+                                pending_blocks.remove(&next_slot);
+                                continue;
+                            }
+                            let (block, import_hash) = pending_blocks.remove(&next_slot).unwrap();
+                            let slot = block.header.timeslot;
+                            match grey_state::transition::apply_with_config(
+                                &state,
+                                &block,
+                                protocol,
+                                &[],
+                            ) {
+                                Ok((new_state, _)) => {
+                                    state = new_state;
+                                    blocks_imported += 1;
+
+                                    // Persist imported block, state, and metadata
+                                    if let Err(e) = store.put_block(&block) {
+                                        tracing::error!("Failed to persist imported block: {}", e);
+                                    }
+                                    if let Err(e) = store.put_state(&import_hash, &state, protocol) {
+                                        tracing::error!("Failed to persist state: {}", e);
+                                    }
+                                    if let Err(e) = store.set_head(&import_hash, slot) {
+                                        tracing::error!("Failed to update head: {}", e);
+                                    }
+
+                                    // Register guarantees from imported block for auditing,
+                                    // mark cores as available for assurance generation,
+                                    // and remove matching guarantees from our pending list
+                                    // (prevents zombie guarantees that block future work).
+                                    for guarantee in &block.extrinsic.guarantees {
+                                        let report_hash = grey_crypto::blake2b_256(
+                                            &grey_codec::header_codec::encode_header(&block.header),
+                                        );
+                                        let our_tranche = audit::compute_audit_tranche(
+                                            &state.entropy[0],
+                                            &report_hash,
+                                            config.validator_index,
+                                            30,
+                                        );
+                                        audit_state.add_pending(
+                                            report_hash,
+                                            guarantee.report.clone(),
+                                            guarantee.report.core_index,
+                                            slot,
+                                            Some(our_tranche),
+                                        );
+                                        // Mark core as available so we generate assurances
+                                        guarantor_state.available_cores.insert(
+                                            guarantee.report.core_index,
+                                            report_hash,
+                                        );
+                                    }
+
+                                    // Clean up pending guarantees that were included in the
+                                    // imported block — otherwise they become zombies that
+                                    // endlessly defer and block new work package processing.
+                                    if !block.extrinsic.guarantees.is_empty() {
+                                        use grey_codec::Encode;
+                                        let included_hashes: std::collections::HashSet<_> =
+                                            block.extrinsic.guarantees.iter().map(|g| {
+                                                grey_crypto::blake2b_256(&g.report.encode())
+                                            }).collect();
+                                        let before = guarantor_state.pending_guarantees.len();
+                                        guarantor_state.pending_guarantees.retain(|g| {
+                                            let h = grey_crypto::blake2b_256(&g.report.encode());
+                                            !included_hashes.contains(&h)
+                                        });
+                                        let removed = before - guarantor_state.pending_guarantees.len();
+                                        if removed > 0 {
+                                            tracing::info!(
+                                                "Validator {} cleaned up {} zombie guarantee(s) after importing slot {}",
+                                                config.validator_index, removed, slot
+                                            );
+                                        }
+                                    }
+
+                                    tracing::info!(
+                                        "Validator {} imported block at slot {} (total imported: {})",
+                                        config.validator_index,
+                                        slot,
+                                        blocks_imported
+                                    );
+
+                                    // Update GRANDPA and vote on imported block
+                                    grandpa.update_best_block(import_hash, slot);
+                                    if let Some(prevote_msg) = grandpa.create_prevote(
+                                        config.validator_index,
+                                        my_secrets,
+                                    ) {
+                                        let vote_data = finality::encode_vote_message(&prevote_msg);
+                                        let _ = net_commands.send(NetworkCommand::BroadcastFinalityVote {
+                                            data: vote_data,
+                                        });
+                                    }
+                                    if let Some(precommit_msg) = grandpa.create_precommit(
+                                        config.validator_index,
+                                        my_secrets,
+                                    ) {
+                                        let vote_data = finality::encode_vote_message(&precommit_msg);
+                                        let _ = net_commands.send(NetworkCommand::BroadcastFinalityVote {
+                                            data: vote_data,
+                                        });
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Validator {} rejected block at slot {}: {}",
+                                        config.validator_index,
+                                        slot,
+                                        e
+                                    );
+                                    // Stop draining — later blocks may depend on this one
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Prune stale buffered blocks (already behind our state)
+                        while let Some((&oldest_slot, _)) = pending_blocks.iter().next() {
+                            if oldest_slot <= state.timeslot {
+                                pending_blocks.remove(&oldest_slot);
+                            } else {
+                                break;
                             }
                         }
                     }
@@ -802,11 +986,13 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                                             msg.extend_from_slice(b"jam_guarantee");
                                             msg.extend_from_slice(&report_hash.0);
                                             let co_sig = co_secrets.ed25519.sign(&msg);
-                                            for g in &mut guarantor_state.pending_guarantees {
+                                            // Only co-sign the newly created guarantee (the last one),
+                                            // not all pending guarantees — they have different report hashes.
+                                            if let Some(g) = guarantor_state.pending_guarantees.last_mut() {
                                                 g.credentials.push((co_idx, co_sig));
                                             }
-                                            // Broadcast to peers
-                                            for g in &guarantor_state.pending_guarantees {
+                                            // Broadcast only the new guarantee to peers
+                                            if let Some(g) = guarantor_state.pending_guarantees.last() {
                                                 let g_data = guarantor::encode_guarantee(g);
                                                 let _ = net_commands.send(NetworkCommand::BroadcastGuarantee {
                                                     data: g_data,
