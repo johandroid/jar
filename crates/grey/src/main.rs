@@ -50,7 +50,7 @@ struct Cli {
     #[arg(long, default_value_t = 20)]
     test_blocks: u32,
 
-    /// Run a networked testnet for this many seconds
+    /// Run a networked testnet for this many seconds (0 = run until Ctrl+C)
     #[arg(long)]
     testnet: Option<u64>,
 

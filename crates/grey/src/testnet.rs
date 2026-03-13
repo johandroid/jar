@@ -84,11 +84,12 @@ pub async fn run_testnet(
         .unwrap()
         .as_secs();
 
+    let unlimited = duration_secs == 0;
     tracing::info!(
-        "Starting local testnet with {} validators, genesis_time={}, duration={}s",
+        "Starting local testnet with {} validators, genesis_time={}, duration={}",
         v,
         genesis_time,
-        duration_secs
+        if unlimited { "unlimited (Ctrl+C to stop)".to_string() } else { format!("{}s", duration_secs) }
     );
 
     // Build boot peer list: each validator connects to the first validator
@@ -127,17 +128,21 @@ pub async fn run_testnet(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    tracing::info!("All {} validators started, waiting {}s for block production...", v, duration_secs);
-
-    // Wait for the specified duration
-    tokio::time::sleep(Duration::from_secs(duration_secs)).await;
+    if unlimited {
+        tracing::info!("All {} validators started, running until Ctrl+C...", v);
+        tokio::signal::ctrl_c().await.ok();
+        tracing::info!("Received Ctrl+C, shutting down testnet...");
+    } else {
+        tracing::info!("All {} validators started, waiting {}s for block production...", v, duration_secs);
+        tokio::time::sleep(Duration::from_secs(duration_secs)).await;
+    }
 
     // Cancel all validator tasks
     for handle in &handles {
         handle.abort();
     }
 
-    tracing::info!("Testnet stopped after {}s", duration_secs);
+    tracing::info!("Testnet stopped");
 
     // Clean up temp database files
     let db_dir = format!("/tmp/grey-testnet-{}", genesis_time);
