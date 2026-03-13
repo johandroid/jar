@@ -414,9 +414,11 @@ impl TranslationContext {
             }
         };
 
+        // ThreeReg encoding: byte1 = rA | (rB << 4), byte2 = rD
+        // where rA=rs1 (source1), rB=rs2 (source2), rD=rd (destination)
         self.emit_inst(pvm_opcode);
-        self.emit_data(pvm_rd | (pvm_rs1 << 4));
-        self.emit_data(pvm_rs2);
+        self.emit_data(pvm_rs1 | (pvm_rs2 << 4));
+        self.emit_data(pvm_rd);
 
         Ok(())
     }
@@ -490,9 +492,10 @@ impl TranslationContext {
             }
         };
 
+        // ThreeReg encoding: byte1 = rA | (rB << 4), byte2 = rD
         self.emit_inst(pvm_opcode);
-        self.emit_data(pvm_rd | (pvm_rs1 << 4));
-        self.emit_data(pvm_rs2);
+        self.emit_data(pvm_rs1 | (pvm_rs2 << 4));
+        self.emit_data(pvm_rd);
 
         Ok(())
     }

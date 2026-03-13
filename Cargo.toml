@@ -19,6 +19,8 @@ members = [
 ]
 exclude = [
     "services/sample-service",
+    "services/pixels-service",
+    "services/pixels-authorizer",
 ]
 
 [workspace.package]

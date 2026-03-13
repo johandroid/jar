@@ -209,6 +209,50 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
         hex::encode(&code_hash.0[..8])
     );
 
+    // --- Install the pixels service (ID 2000) ---
+    let pixels_service_id: ServiceId = 2000;
+    let pixels_pvm_blob = match std::fs::read(grey_transpiler::PIXELS_SERVICE_ELF_PATH) {
+        Ok(elf_data) => {
+            tracing::info!("Using transpiled pixels RISC-V service");
+            grey_transpiler::transpile_elf_service(&elf_data)
+                .expect("failed to transpile pixels service ELF")
+        }
+        Err(_) => {
+            tracing::warn!("Pixels service ELF not found — skipping pixels test");
+            Vec::new()
+        }
+    };
+    let pixels_installed = !pixels_pvm_blob.is_empty();
+    let pixels_code_hash = if pixels_installed {
+        let h = grey_crypto::blake2b_256(&pixels_pvm_blob);
+        let mut pixels_preimage_lookup = BTreeMap::new();
+        pixels_preimage_lookup.insert(h, pixels_pvm_blob);
+
+        state.services.insert(pixels_service_id, ServiceAccount {
+            code_hash: h,
+            balance: 1_000_000_000,
+            min_accumulate_gas: 100_000,
+            min_on_transfer_gas: 0,
+            storage: BTreeMap::new(),
+            preimage_lookup: pixels_preimage_lookup,
+            preimage_info: BTreeMap::new(),
+            free_storage_offset: 0,
+            total_footprint: 0,
+            accumulation_counter: 0,
+            last_accumulation: 0,
+            last_activity: 0,
+            preimage_count: 0,
+        });
+        tracing::info!(
+            "Installed pixels service {} with code_hash=0x{}",
+            pixels_service_id,
+            hex::encode(&h.0[..8])
+        );
+        h
+    } else {
+        Hash::ZERO
+    };
+
     // Populate auth_pool so guarantees pass the authorizer check.
     // Auth pool starts empty; fill core 0 with Hash::ZERO (matches our authorizer_hash).
     for core in 0..config.core_count as usize {
@@ -227,7 +271,7 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
     // Track work package pipeline state
     // Phase: None → GuaranteeSubmitted(slot) → AssuranceSubmitted(slot)
     #[derive(Clone, Debug)]
-    enum WpState {
+    enum WpPhase {
         /// Ready to submit a new work package guarantee
         Idle,
         /// Guarantee submitted at this slot; next block should include assurances
@@ -235,7 +279,17 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
         /// Assurances submitted; waiting for accumulation (happens in same block)
         Done,
     }
-    let mut wp_state = WpState::Idle;
+
+    /// Which service to test next.
+    #[derive(Clone, Debug)]
+    enum WpTarget {
+        SampleService,
+        PixelsService,
+        AllDone,
+    }
+
+    let mut wp_phase = WpPhase::Idle;
+    let mut wp_target = WpTarget::SampleService;
 
     for slot in 1..=num_blocks * 3 {
         // Find the author for this slot
@@ -254,17 +308,24 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
                 };
 
                 // Determine extrinsics based on pipeline state
-                let (guarantees, assurances) = match &wp_state {
-                    WpState::Idle if blocks_produced >= 2 => {
-                        // Submit a work package guarantee after a few blocks
-                        let (guarantee, pkg_hash) = build_test_guarantee(
-                            &state, &config, &secrets, service_id, code_hash, slot, 0,
+                let (guarantees, assurances) = match &wp_phase {
+                    WpPhase::Idle if blocks_produced >= 2 && !matches!(wp_target, WpTarget::AllDone) => {
+                        // Pick service, code_hash, and payload based on current target
+                        let (target_svc, target_code, target_label, payload) = match &wp_target {
+                            WpTarget::SampleService => (service_id, code_hash, "sample", b"test-payload".to_vec()),
+                            // Pixel (50,50) = red (255,0,0)
+                            WpTarget::PixelsService => (pixels_service_id, pixels_code_hash, "pixels", vec![50, 50, 255, 0, 0]),
+                            WpTarget::AllDone => unreachable!(),
+                        };
+
+                        let (guarantee, pkg_hash) = build_test_guarantee_with_payload(
+                            &state, &config, &secrets, target_svc, target_code, slot, 0, payload,
                         );
                         tracing::info!(
-                            "  [WP] Submitting guarantee at slot {}, core=0, pkg=0x{}",
-                            slot, hex::encode(&pkg_hash.0[..8])
+                            "  [WP] Submitting {} guarantee at slot {}, core=0, pkg=0x{}",
+                            target_label, slot, hex::encode(&pkg_hash.0[..8])
                         );
-                        wp_state = WpState::GuaranteeSubmitted {
+                        wp_phase = WpPhase::GuaranteeSubmitted {
                             slot,
                             parent_hash: state.recent_blocks.headers.last()
                                 .map(|h| h.header_hash).unwrap_or(Hash::ZERO),
@@ -272,7 +333,7 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
                         work_packages_submitted += 1;
                         (vec![guarantee], vec![])
                     }
-                    WpState::GuaranteeSubmitted { parent_hash, .. } => {
+                    WpPhase::GuaranteeSubmitted { parent_hash, .. } => {
                         // Submit assurances from a super-majority of validators
                         let parent = *parent_hash;
                         let assurances = build_test_assurances(
@@ -282,7 +343,7 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
                             "  [WP] Submitting {} assurances at slot {}, core=0",
                             assurances.len(), slot
                         );
-                        wp_state = WpState::Done;
+                        wp_phase = WpPhase::Done;
                         (vec![], assurances)
                     }
                     _ => (vec![], vec![]),
@@ -298,18 +359,51 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
                         let header_hash = grey_codec::header_codec::compute_header_hash(&block.header);
 
                         // Check if accumulation happened (service storage changed)
-                        if matches!(wp_state, WpState::Done) {
-                            if let Some(svc) = new_state.services.get(&service_id) {
-                                if !svc.storage.is_empty() {
-                                    tracing::info!(
-                                        "  [WP] ACCUMULATED! Service {} has {} storage entries",
-                                        service_id, svc.storage.len()
-                                    );
-                                    work_packages_accumulated += 1;
+                        if matches!(wp_phase, WpPhase::Done) {
+                            match &wp_target {
+                                WpTarget::SampleService => {
+                                    if let Some(svc) = new_state.services.get(&service_id) {
+                                        if !svc.storage.is_empty() {
+                                            tracing::info!(
+                                                "  [WP] SAMPLE ACCUMULATED! Service {} has {} storage entries",
+                                                service_id, svc.storage.len()
+                                            );
+                                            work_packages_accumulated += 1;
+                                        }
+                                    }
+                                    // Advance to pixels service if installed
+                                    wp_target = if pixels_installed {
+                                        WpTarget::PixelsService
+                                    } else {
+                                        WpTarget::AllDone
+                                    };
                                 }
+                                WpTarget::PixelsService => {
+                                    if let Some(svc) = new_state.services.get(&pixels_service_id) {
+                                        if let Some(canvas) = svc.storage.get(&vec![0x00u8]) {
+                                            let offset = (50 * 100 + 50) * 3;
+                                            if canvas.len() >= offset + 3 {
+                                                tracing::info!(
+                                                    "  [WP] PIXELS ACCUMULATED! Pixel (50,50) = ({},{},{}), canvas={} bytes",
+                                                    canvas[offset], canvas[offset + 1], canvas[offset + 2],
+                                                    canvas.len()
+                                                );
+                                            }
+                                            work_packages_accumulated += 1;
+                                        } else if !svc.storage.is_empty() {
+                                            tracing::info!(
+                                                "  [WP] PIXELS ACCUMULATED! Service {} has {} storage entries (no canvas key)",
+                                                pixels_service_id, svc.storage.len()
+                                            );
+                                            work_packages_accumulated += 1;
+                                        }
+                                    }
+                                    wp_target = WpTarget::AllDone;
+                                }
+                                WpTarget::AllDone => {}
                             }
                             // Reset pipeline for next work package
-                            wp_state = WpState::Idle;
+                            wp_phase = WpPhase::Idle;
                         }
 
                         state = new_state;
@@ -402,11 +496,27 @@ fn build_test_guarantee(
     timeslot: Timeslot,
     core: u16,
 ) -> (Guarantee, Hash) {
+    build_test_guarantee_with_payload(
+        state, config, secrets, service_id, code_hash, timeslot, core,
+        b"test-payload".to_vec(),
+    )
+}
+
+/// Build a test guarantee with a specific payload/result.
+fn build_test_guarantee_with_payload(
+    state: &grey_types::state::State,
+    config: &Config,
+    secrets: &[grey_consensus::genesis::ValidatorSecrets],
+    service_id: ServiceId,
+    code_hash: Hash,
+    timeslot: Timeslot,
+    core: u16,
+    payload: Vec<u8>,
+) -> (Guarantee, Hash) {
     // Build a minimal work report
-    let payload = b"test-payload".to_vec();
     let payload_hash = grey_crypto::blake2b_256(&payload);
 
-    // Refinement result: the sample service echoes payload as output
+    // Refinement result: the service echoes payload as output
     let refine_output = payload.clone();
 
     let work_digest = WorkDigest {

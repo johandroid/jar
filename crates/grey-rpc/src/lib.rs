@@ -72,6 +72,14 @@ pub trait JamRpc {
     /// Get finalized block info.
     #[method(name = "jam_getFinalized")]
     async fn get_finalized(&self) -> Result<serde_json::Value, ErrorObjectOwned>;
+
+    /// Read a value from a service's storage.
+    #[method(name = "jam_readStorage")]
+    async fn read_storage(
+        &self,
+        service_id: u32,
+        key_hex: String,
+    ) -> Result<serde_json::Value, ErrorObjectOwned>;
 }
 
 struct RpcImpl {
@@ -180,6 +188,49 @@ impl JamRpcServer for RpcImpl {
             Err(_) => Ok(serde_json::json!({
                 "hash": null,
                 "slot": 0,
+            })),
+        }
+    }
+
+    async fn read_storage(
+        &self,
+        service_id: u32,
+        key_hex: String,
+    ) -> Result<serde_json::Value, ErrorObjectOwned> {
+        let (head_hash, head_slot) = self
+            .state
+            .store
+            .get_head()
+            .map_err(|e| internal_error(e.to_string()))?;
+
+        let state = self
+            .state
+            .store
+            .get_state(&head_hash, &self.state.config)
+            .map_err(|e| internal_error(e.to_string()))?;
+
+        let account = state
+            .services
+            .get(&service_id)
+            .ok_or_else(|| not_found(format!("service {} not found", service_id)))?;
+
+        let key_bytes = hex::decode(key_hex.trim_start_matches("0x"))
+            .map_err(|e| internal_error(format!("invalid hex key: {}", e)))?;
+
+        match account.storage.get(&key_bytes) {
+            Some(value) => Ok(serde_json::json!({
+                "service_id": service_id,
+                "key": hex::encode(&key_bytes),
+                "value": hex::encode(value),
+                "length": value.len(),
+                "slot": head_slot,
+            })),
+            None => Ok(serde_json::json!({
+                "service_id": service_id,
+                "key": hex::encode(&key_bytes),
+                "value": null,
+                "length": 0,
+                "slot": head_slot,
             })),
         }
     }

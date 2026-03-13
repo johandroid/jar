@@ -34,6 +34,18 @@ pub const SAMPLE_SERVICE_ELF_PATH: &str = concat!(
     "/../../services/sample-service/target/riscv32im-unknown-none-elf/release/sample-service"
 );
 
+/// Path to the pre-compiled pixels service ELF.
+pub const PIXELS_SERVICE_ELF_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../services/pixels-service/target/riscv32im-unknown-none-elf/release/pixels-service"
+);
+
+/// Path to the pre-compiled pixels authorizer ELF.
+pub const PIXELS_AUTHORIZER_ELF_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../services/pixels-authorizer/target/riscv32im-unknown-none-elf/release/pixels-authorizer"
+);
+
 /// Transpile a RISC-V ELF binary into a PVM standard program blob.
 ///
 /// The ELF must target rv32em or rv64em with no_std.

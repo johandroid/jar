@@ -857,6 +857,11 @@ fn host_fetch(pvm: &mut PvmInstance, fetch_ctx: &FetchContext) -> bool {
         tracing::warn!("  fetch entropy hex: {}", data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
     } else if mode == 14 && data.len() <= 512 {
         tracing::warn!("  fetch items hex: {}", data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+    } else if mode == 15 && data.len() <= 512 {
+        tracing::warn!("  fetch item[{}] hex ({} bytes): {}", sub1, data.len(), data.iter().map(|b| format!("{:02x}", b)).collect::<String>());
+        if data.len() > 134 {
+            tracing::warn!("  fetch item[{}] bytes[130..]: {:?}", sub1, &data[130..data.len().min(145)]);
+        }
     }
 
     // Write data[f..f+l] to memory at buf_ptr

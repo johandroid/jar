@@ -647,6 +647,20 @@ pub fn build_sample_service_precise() -> Vec<u8> {
     )
 }
 
+/// Build a trivial authorizer PVM blob that just halts immediately.
+///
+/// Used as a fallback when the pixels-authorizer ELF is not available.
+/// The sequential test doesn't exercise Ψ_I, so the authorizer code
+/// never actually runs — we only need a deterministic blob for hashing.
+pub fn build_trivial_authorizer() -> Vec<u8> {
+    let mut asm = Assembler::new();
+    asm.set_heap_pages(0);
+    asm.set_stack_size(4096);
+    // Emit trap instruction (opcode 0) at PC=0
+    asm.emit_raw(0, true);
+    asm.build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

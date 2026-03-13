@@ -88,9 +88,11 @@ impl Elf {
         let sh_strndx = u16::from_le_bytes([data[50], data[51]]) as usize;
 
         let mut code_sections = Vec::new();
-        let mut ro_data = Vec::new();
-        let mut rw_data = Vec::new();
         let mut symbols = Vec::new();
+
+        // Collect data section info: (virtual_addr, size, section_data_or_zeros)
+        let mut ro_sections: Vec<(u64, usize, Option<Vec<u8>>)> = Vec::new();
+        let mut rw_sections: Vec<(u64, usize, Option<Vec<u8>>)> = Vec::new();
 
         // Get section-name string table
         let strtab = if sh_strndx < sh_count {
@@ -139,18 +141,25 @@ impl Elf {
                     address: sh_addr,
                     data: data[sh_off..sh_off + sh_sz].to_vec(),
                 });
-            } else if !is_write && !is_exec && sh_off + sh_sz <= data.len() {
+            } else if !is_write && !is_exec {
                 if name.starts_with(".rodata") || name == ".srodata" {
-                    ro_data.extend_from_slice(&data[sh_off..sh_off + sh_sz]);
+                    if sh_off + sh_sz <= data.len() {
+                        ro_sections.push((sh_addr, sh_sz, Some(data[sh_off..sh_off + sh_sz].to_vec())));
+                    }
                 }
-            } else if is_write && sh_off + sh_sz <= data.len() {
-                if sh_type == 8 { // SHT_NOBITS (.bss)
-                    rw_data.extend(std::iter::repeat(0).take(sh_sz));
-                } else {
-                    rw_data.extend_from_slice(&data[sh_off..sh_off + sh_sz]);
+            } else if is_write {
+                if sh_type == 8 { // SHT_NOBITS (.bss) — no file data, just virtual size
+                    rw_sections.push((sh_addr, sh_sz, None)); // None = zero-filled
+                } else if sh_off + sh_sz <= data.len() {
+                    rw_sections.push((sh_addr, sh_sz, Some(data[sh_off..sh_off + sh_sz].to_vec())));
                 }
             }
         }
+
+        // Build address-aware data blobs: place sections at correct offsets
+        // relative to the PVM base address (ZZ=0x10000 for RO, computed for RW).
+        let ro_data = build_data_blob(&ro_sections, 0x10000); // PVM RO base = ZZ
+        let rw_data = build_data_blob_rw(&rw_sections, ro_data.len());
 
         // Parse symbol table
         if symtab_sz > 0 && symtab_link < sh_count {
@@ -210,9 +219,11 @@ impl Elf {
         let sh_strndx = u16::from_le_bytes([data[62], data[63]]) as usize;
 
         let mut code_sections = Vec::new();
-        let mut ro_data = Vec::new();
-        let mut rw_data = Vec::new();
         let mut symbols = Vec::new();
+
+        // Collect data section info: (virtual_addr, size, section_data_or_zeros)
+        let mut ro_sections: Vec<(u64, usize, Option<Vec<u8>>)> = Vec::new();
+        let mut rw_sections: Vec<(u64, usize, Option<Vec<u8>>)> = Vec::new();
 
         // Track symtab for symbol parsing
         let mut symtab_off = 0usize;
@@ -265,18 +276,23 @@ impl Elf {
                     address: sh_addr,
                     data: data[sh_off..sh_off + sh_sz].to_vec(),
                 });
-            } else if !is_write && !is_exec && sh_off + sh_sz <= data.len() {
+            } else if !is_write && !is_exec {
                 if name.starts_with(".rodata") || name == ".srodata" {
-                    ro_data.extend_from_slice(&data[sh_off..sh_off + sh_sz]);
+                    if sh_off + sh_sz <= data.len() {
+                        ro_sections.push((sh_addr, sh_sz, Some(data[sh_off..sh_off + sh_sz].to_vec())));
+                    }
                 }
-            } else if is_write && sh_off + sh_sz <= data.len() {
-                if sh_type == 8 {
-                    rw_data.extend(std::iter::repeat(0).take(sh_sz));
-                } else {
-                    rw_data.extend_from_slice(&data[sh_off..sh_off + sh_sz]);
+            } else if is_write {
+                if sh_type == 8 { // SHT_NOBITS (.bss)
+                    rw_sections.push((sh_addr, sh_sz, None));
+                } else if sh_off + sh_sz <= data.len() {
+                    rw_sections.push((sh_addr, sh_sz, Some(data[sh_off..sh_off + sh_sz].to_vec())));
                 }
             }
         }
+
+        let ro_data = build_data_blob(&ro_sections, 0x10000);
+        let rw_data = build_data_blob_rw(&rw_sections, ro_data.len());
 
         // Parse ELF64 symbol table (24-byte entries)
         if symtab_sz > 0 && symtab_link < sh_count {
@@ -333,4 +349,55 @@ fn get_string(strtab: &[u8], offset: usize) -> &str {
     }
     let end = strtab[offset..].iter().position(|&b| b == 0).unwrap_or(strtab.len() - offset);
     std::str::from_utf8(&strtab[offset..offset + end]).unwrap_or("")
+}
+
+/// PVM zone size (ZZ = 2^16 = 65536).
+const PVM_ZONE_SIZE: u64 = 1 << 16;
+
+/// Zone-round: round up to next multiple of ZZ.
+fn zone_round(x: u64) -> u64 {
+    ((x + PVM_ZONE_SIZE - 1) / PVM_ZONE_SIZE) * PVM_ZONE_SIZE
+}
+
+/// Build a data blob for RO sections, placed at correct offsets relative to PVM base.
+///
+/// The PVM places RO data at ZZ (0x10000). Each section's virtual address in the ELF
+/// must map to the same address in PVM. We build a byte array where index 0 corresponds
+/// to PVM address `pvm_base`, and each section is placed at `section_addr - pvm_base`.
+fn build_data_blob(sections: &[(u64, usize, Option<Vec<u8>>)], pvm_base: u64) -> Vec<u8> {
+    if sections.is_empty() {
+        return Vec::new();
+    }
+
+    // Find the address range spanned by all sections
+    let min_addr = sections.iter().map(|(a, _, _)| *a).min().unwrap();
+    let max_end = sections.iter().map(|(a, sz, _)| *a + *sz as u64).max().unwrap();
+
+    // The blob covers [pvm_base .. max_end], but sections may start above pvm_base
+    let blob_start = pvm_base.min(min_addr);
+    let blob_size = (max_end - blob_start) as usize;
+    let mut blob = vec![0u8; blob_size];
+
+    for (addr, sz, data) in sections {
+        let offset = (*addr - blob_start) as usize;
+        match data {
+            Some(d) => blob[offset..offset + sz].copy_from_slice(d),
+            None => {} // BSS: already zero
+        }
+    }
+
+    blob
+}
+
+/// Build a data blob for RW sections, placed at correct offsets relative to PVM RW base.
+///
+/// The PVM places RW data at `2*ZZ + Z(ro_size)`. We compute this base and place
+/// sections relative to it.
+fn build_data_blob_rw(sections: &[(u64, usize, Option<Vec<u8>>)], ro_size: usize) -> Vec<u8> {
+    if sections.is_empty() {
+        return Vec::new();
+    }
+
+    let rw_base = 2 * PVM_ZONE_SIZE + zone_round(ro_size as u64);
+    build_data_blob(sections, rw_base)
 }
