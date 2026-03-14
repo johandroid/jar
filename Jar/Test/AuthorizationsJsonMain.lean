@@ -3,12 +3,12 @@ import Jar.Variant
 
 open Jar Jar.Test.AuthorizationsJson
 
-def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
+def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig, JamVariant.gp072_full.toJamConfig]
 
 def main (args : List String) : IO UInt32 := do
   let dir := match args with
     | [d] => d
-    | _ => "tests/vectors/authorizations/tiny"
+    | _ => "tests/vectors/authorizations"
   let mut exitCode : UInt32 := 0
   for v in testVariants do
     letI := v

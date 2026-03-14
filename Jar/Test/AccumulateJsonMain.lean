@@ -3,7 +3,7 @@ import Jar.Variant
 
 open Jar Jar.Test.AccumulateJson
 
-def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
+def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig, JamVariant.gp072_full.toJamConfig]
 
 def main (args : List String) : IO UInt32 := do
   let (verbose, rest) := match args with
@@ -11,7 +11,7 @@ def main (args : List String) : IO UInt32 := do
     | r => (false, r)
   let dir := match rest with
     | [d] => d
-    | _ => "tests/vectors/accumulate/tiny"
+    | _ => "tests/vectors/accumulate"
   let mut exitCode : UInt32 := 0
   for v in testVariants do
     letI := v

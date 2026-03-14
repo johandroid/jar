@@ -339,7 +339,7 @@ def runJsonTest (inputPath : System.FilePath) (verbose := false) : IO Bool := do
   let t0 ← IO.monoMsNow
   let inputContent ← IO.FS.readFile inputPath
   let inputJson ← IO.ofExcept (Json.parse inputContent)
-  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" s!".output.{JamConfig.name}.json")
+  let outputPath := System.FilePath.mk (inputPath.toString.replace s!".input.{JamConfig.name}.json" s!".output.{JamConfig.name}.json")
   let outputContent ← IO.FS.readFile outputPath
   let outputJson ← IO.ofExcept (Json.parse outputContent)
   let t1 ← IO.monoMsNow
@@ -365,7 +365,7 @@ def runJsonTest (inputPath : System.FilePath) (verbose := false) : IO Bool := do
 /-- Run all JSON tests in a directory (in parallel). -/
 def runJsonTestDir (dir : System.FilePath) (verbose := false) : IO UInt32 := do
   let entries ← dir.readDir
-  let jsonFiles := entries.filter (fun e => e.fileName.endsWith ".input.json")
+  let jsonFiles := entries.filter (fun e => e.fileName.endsWith s!".input.{JamConfig.name}.json")
   let sorted := jsonFiles.qsort (fun a b => a.fileName < b.fileName)
   -- Launch all tests in parallel
   let tasks ← sorted.mapM fun entry => IO.asTask (runJsonTest entry.path verbose)
