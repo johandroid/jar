@@ -249,6 +249,14 @@ impl Assembler {
         self
     }
 
+    /// Opcode 128: load_ind_u32 (load u32 from [rA + imm] into rD)
+    pub fn load_ind_u32(&mut self, rd: Reg, ra: Reg, imm: i32) -> &mut Self {
+        self.emit_byte(128, true);
+        self.emit_byte((rd as u8) | ((ra as u8) << 4), false);
+        self.emit_imm(imm as i64, 4);
+        self
+    }
+
     /// Opcode 130: load_ind_u64 (load u64 from [rA + imm] into rD)
     pub fn load_ind_u64(&mut self, rd: Reg, ra: Reg, imm: i32) -> &mut Self {
         self.emit_byte(130, true);
@@ -260,6 +268,14 @@ impl Assembler {
     /// Opcode 120: store_ind_u8 (store u8 from rD to [rA + imm])
     pub fn store_ind_u8(&mut self, rd: Reg, ra: Reg, imm: i32) -> &mut Self {
         self.emit_byte(120, true);
+        self.emit_byte((rd as u8) | ((ra as u8) << 4), false);
+        self.emit_imm(imm as i64, 4);
+        self
+    }
+
+    /// Opcode 122: store_ind_u32 (store u32 from rD to [rA + imm])
+    pub fn store_ind_u32(&mut self, rd: Reg, ra: Reg, imm: i32) -> &mut Self {
+        self.emit_byte(122, true);
         self.emit_byte((rd as u8) | ((ra as u8) << 4), false);
         self.emit_imm(imm as i64, 4);
         self

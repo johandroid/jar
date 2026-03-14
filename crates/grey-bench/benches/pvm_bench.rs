@@ -1,8 +1,9 @@
 //! PVM benchmark: grey interpreter/recompiler vs polkavm interpreter/compiler.
 //!
-//! Two workloads:
+//! Three workloads:
 //!   - fib: compute-intensive iterative Fibonacci (1M iterations)
 //!   - hostcall: host-call-heavy (100K ecalli invocations)
+//!   - sort: insertion sort of 1K u32 elements (compute + memory interleaved)
 //!
 //! ## Benchmark fairness
 //!
@@ -97,6 +98,7 @@ fn run_polkavm_module(module: &Module) -> (u64, i64) {
         inst.set_next_program_counter(export.program_counter());
     }
     inst.set_reg(PReg::RA, 0xFFFF0000u64);
+    inst.set_reg(PReg::SP, module.default_sp());
     loop {
         match inst.run().unwrap() {
             InterruptKind::Finished => break,
@@ -222,5 +224,41 @@ fn bench_hostcall(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_fib, bench_hostcall);
+fn bench_sort(c: &mut Criterion) {
+    let grey_blob = grey_sort_blob(SORT_N);
+    let pvm_blob = polkavm_sort_blob(SORT_N);
+
+    validate("sort", &grey_blob, &pvm_blob);
+
+    let (_, pvm_interp_mod) = try_make_polkavm_module(&pvm_blob, BackendKind::Interpreter)
+        .expect("polkavm interpreter should always work");
+    let pvm_compiler = try_make_polkavm_module(&pvm_blob, BackendKind::Compiler);
+
+    let mut group = c.benchmark_group("sort");
+
+    group.bench_function("grey-interpreter", |b| {
+        b.iter(|| run_grey_interpreter(&grey_blob))
+    });
+
+    group.bench_function("grey-recompiler", |b| {
+        b.iter(|| run_grey_recompiler(&grey_blob))
+    });
+
+    group.bench_function("polkavm-interpreter", |b| {
+        b.iter(|| run_polkavm_module(&pvm_interp_mod))
+    });
+
+    if let Some((ref engine, ref pvm_mod)) = pvm_compiler {
+        group.bench_function("polkavm-compiler-exec", |b| {
+            b.iter(|| run_polkavm_module(pvm_mod))
+        });
+        group.bench_function("polkavm-compiler-full", |b| {
+            b.iter(|| run_polkavm_compile_and_run(&pvm_blob, engine))
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_fib, bench_hostcall, bench_sort);
 criterion_main!(benches);

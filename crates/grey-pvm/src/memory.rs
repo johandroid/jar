@@ -236,6 +236,21 @@ impl Memory {
     pub fn write_u64_le(&mut self, addr: u32, value: u64) -> MemoryAccess {
         self.write_bytes(addr, &value.to_le_bytes())
     }
+
+    /// Iterate over all mapped pages: yields (page_index, access, data_slice).
+    pub fn pages_iter(&self) -> impl Iterator<Item = (u32, PageAccess, &[u8])> {
+        self.pages.iter().map(|(&idx, pd)| (idx, pd.access, pd.data.as_slice()))
+    }
+
+    /// Get page data mutably by page index.
+    pub fn page_data_mut(&mut self, page: u32) -> Option<&mut [u8]> {
+        self.pages.get_mut(&page).map(|pd| pd.data.as_mut_slice())
+    }
+
+    /// Get the access mode for a page.
+    pub fn page_access(&self, page: u32) -> PageAccess {
+        self.pages.get(&page).map_or(PageAccess::Inaccessible, |pd| pd.access)
+    }
 }
 
 impl Default for Memory {

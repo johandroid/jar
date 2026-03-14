@@ -69,6 +69,8 @@ pub const CTX_ENTRY_PC: i32 = 168;  // u32 (entry PC for re-entry)
 pub const CTX_PC: i32 = 172;        // u32 (current PC on exit)
 pub const CTX_DISPATCH_TABLE: i32 = 176; // *const i32 (PVM PC → native offset)
 pub const CTX_CODE_BASE: i32 = 184; // u64 (base address of native code)
+pub const CTX_FLAT_BUF: i32 = 192;  // *mut u8 (flat guest memory buffer)
+pub const CTX_FLAT_PERMS: i32 = 200; // *const u8 (permission table)
 
 /// Exit reason codes (matching ExitReason enum).
 pub const EXIT_HALT: u32 = 0;
@@ -272,70 +274,217 @@ impl Compiler {
         self.asm.jcc_label(Cc::NE, fault_label);
     }
 
-    /// Emit a memory read. Address should be in SCRATCH (RDX).
-    /// Result goes into the specified destination register.
-    fn emit_mem_read(&mut self, dst: Reg, addr_reg: Reg, fn_addr: u64) {
-        // Set up args: RDI = ctx (R15), RSI = addr
-        // Save caller-saved first because RDI and RSI are PVM regs
+    /// Emit a memory read via helper function call (slow path).
+    /// Address should be in SCRATCH (RDX). Result goes into dst.
+    fn emit_mem_read_helper(&mut self, dst: Reg, addr_reg: Reg, fn_addr: u64) {
         self.save_caller_saved();
-
-        // RDI = ctx pointer (R15 is callee-saved, still valid)
         self.asm.mov_rr(Reg::RDI, CTX);
-        // addr_reg should be SCRATCH which isn't a PVM register, so it's not on the stack.
         self.asm.mov_rr(Reg::RSI, addr_reg);
-
         self.asm.mov_ri64(Reg::RAX, fn_addr);
         self.asm.call_reg(Reg::RAX);
-        // Result in RAX, save to SCRATCH before restore
         self.asm.mov_rr(SCRATCH, Reg::RAX);
         self.restore_caller_saved();
-
-        // Check fault: load only exit_reason (32-bit) to avoid reading stale exit_arg
-        self.asm.push(SCRATCH); // save result
-        self.asm.mov_load32(SCRATCH, CTX, CTX_EXIT_REASON);
-        self.asm.cmp_ri(SCRATCH, 0);
-        self.asm.pop(SCRATCH); // restore result
-        self.asm.jcc_label(Cc::NE, self.exit_label);
-
-        // Move result to destination
-        if dst != SCRATCH {
-            self.asm.mov_rr(dst, SCRATCH);
-        }
-    }
-
-    /// Emit a memory write. Address in SCRATCH, value prepared by caller.
-    /// value_reg: register holding the value (will be moved to RDX/R8 for the call).
-    fn emit_mem_write(&mut self, _addr_in_scratch: bool, val_reg: Reg, fn_addr: u64) {
-        // We need: RDI = memory ptr, RSI = addr, RDX = value
-        // addr is in SCRATCH (RDX), value in val_reg
-        // Save addr and value to stack first, then save caller-saved, then set up args
-
-        // Push value (might be a PVM register that'll be saved)
-        self.asm.push(SCRATCH);    // addr on stack
-        self.asm.push(val_reg);    // value on stack
-
-        self.save_caller_saved();
-
-        // Load args from stack (above the 8 saved registers)
-        // Stack layout: [8 caller-saved regs] [value] [addr] ...
-        // Offset from RSP: value = 8*8, addr = 8*8 + 8
-        self.asm.mov_load64(Reg::RDX, Reg::RSP, 64);   // value
-        self.asm.mov_load64(Reg::RSI, Reg::RSP, 72);    // addr
-        self.asm.mov_rr(Reg::RDI, CTX);                 // ctx pointer
-
-        self.asm.mov_ri64(Reg::RAX, fn_addr);
-        self.asm.call_reg(Reg::RAX);
-
-        self.restore_caller_saved();
-        self.asm.pop(SCRATCH);  // discard saved value
-        self.asm.pop(SCRATCH);  // discard saved addr
-
-        // Check fault
         self.asm.push(SCRATCH);
         self.asm.mov_load32(SCRATCH, CTX, CTX_EXIT_REASON);
         self.asm.cmp_ri(SCRATCH, 0);
         self.asm.pop(SCRATCH);
         self.asm.jcc_label(Cc::NE, self.exit_label);
+        if dst != SCRATCH {
+            self.asm.mov_rr(dst, SCRATCH);
+        }
+    }
+
+    /// Emit a memory write via helper function call (slow path).
+    fn emit_mem_write_helper(&mut self, val_reg: Reg, fn_addr: u64) {
+        self.asm.push(SCRATCH);
+        self.asm.push(val_reg);
+        self.save_caller_saved();
+        self.asm.mov_load64(Reg::RDX, Reg::RSP, 64);
+        self.asm.mov_load64(Reg::RSI, Reg::RSP, 72);
+        self.asm.mov_rr(Reg::RDI, CTX);
+        self.asm.mov_ri64(Reg::RAX, fn_addr);
+        self.asm.call_reg(Reg::RAX);
+        self.restore_caller_saved();
+        self.asm.pop(SCRATCH);
+        self.asm.pop(SCRATCH);
+        self.asm.push(SCRATCH);
+        self.asm.mov_load32(SCRATCH, CTX, CTX_EXIT_REASON);
+        self.asm.cmp_ri(SCRATCH, 0);
+        self.asm.pop(SCRATCH);
+        self.asm.jcc_label(Cc::NE, self.exit_label);
+    }
+
+    /// Emit memory read. Address in SCRATCH (RDX). Result in dst.
+    /// Uses inline flat buffer access with helper fallback for cross-page.
+    fn emit_mem_read(&mut self, dst: Reg, _addr_reg: Reg, fn_addr: u64) {
+        self.emit_mem_read_sized(dst, fn_addr, 0);
+    }
+
+    /// Emit inline memory read with explicit width.
+    /// width_bytes: 1=u8, 2=u16, 4=u32, 8=u64. 0=auto (use fn_addr to detect).
+    fn emit_mem_read_sized(&mut self, dst: Reg, fn_addr: u64, width_bytes: u32) {
+        let w = if width_bytes > 0 { width_bytes } else {
+            // Detect from helper function pointer
+            if fn_addr == self.helpers.mem_read_u8 { 1 }
+            else if fn_addr == self.helpers.mem_read_u16 { 2 }
+            else if fn_addr == self.helpers.mem_read_u32 { 4 }
+            else { 8 }
+        };
+
+        // SCRATCH (RDX) = guest address (32-bit clean)
+        let slow_label = self.asm.new_label();
+        let done_label = self.asm.new_label();
+        let fault_label = self.asm.new_label();
+
+        // Always push RAX (phi[11]) — we use it as scratch.
+        self.asm.push(Reg::RAX);
+
+        // Cross-page check (skip for single-byte accesses)
+        if w > 1 {
+            self.asm.mov_rr(Reg::RAX, SCRATCH);
+            self.asm.and_ri(Reg::RAX, 0xFFF);
+            self.asm.cmp_ri32(Reg::RAX, 4096 - w as i32 + 1);
+            self.asm.jcc_label(Cc::AE, slow_label);
+        }
+
+        // Permission check: page_index = addr >> 12
+        self.asm.mov_rr(Reg::RAX, SCRATCH);
+        self.asm.shr_ri32(Reg::RAX, 12);
+        self.asm.add_r64_mem(Reg::RAX, CTX, CTX_FLAT_PERMS);
+        self.asm.movzx_load8_deref(Reg::RAX, Reg::RAX);
+        self.asm.cmp_ri32(Reg::RAX, 1);
+        self.asm.jcc_label(Cc::B, fault_label);
+
+        // Direct load from flat buffer
+        self.asm.mov_load64(Reg::RAX, CTX, CTX_FLAT_BUF);
+        match w {
+            1 => self.asm.movzx_load8_sib(Reg::RAX, Reg::RAX, SCRATCH),
+            2 => self.asm.movzx_load16_sib(Reg::RAX, Reg::RAX, SCRATCH),
+            4 => self.asm.mov_load32_sib(Reg::RAX, Reg::RAX, SCRATCH),
+            8 => self.asm.mov_load64_sib(Reg::RAX, Reg::RAX, SCRATCH),
+            _ => unreachable!(),
+        }
+
+        // Move result to dst, restore RAX
+        if dst == Reg::RAX {
+            // Result is already in RAX, but we need to "restore" the original RAX.
+            // Pop the saved value into SCRATCH, then swap: save result, restore original,
+            // but actually we DON'T need to restore the original because the PVM
+            // instruction is overwriting phi[11]. So just discard the saved value.
+            self.asm.add_ri(Reg::RSP, 8); // discard saved RAX
+        } else {
+            self.asm.mov_rr(dst, Reg::RAX);
+            self.asm.pop(Reg::RAX);
+        }
+        self.asm.jmp_label(done_label);
+
+        // === Slow path: cross-page or fallback ===
+        self.asm.bind_label(slow_label);
+        self.asm.pop(Reg::RAX);
+        self.emit_mem_read_helper(dst, SCRATCH, fn_addr);
+        self.asm.jmp_label(done_label);
+
+        // === Fault path: inaccessible page ===
+        self.asm.bind_label(fault_label);
+        self.asm.pop(Reg::RAX);
+        self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
+        self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
+        self.asm.jmp_label(self.exit_label);
+
+        self.asm.bind_label(done_label);
+    }
+
+    /// Emit memory write. Address in SCRATCH, value in val_reg.
+    fn emit_mem_write(&mut self, _addr_in_scratch: bool, val_reg: Reg, fn_addr: u64) {
+        // Use helper path for writes — the inline write path has correctness issues
+        // with val_reg aliasing and sync. The helper functions write to both Memory
+        // AND the flat buffer, keeping them in sync.
+        self.emit_mem_write_helper(val_reg, fn_addr);
+        return;
+
+        #[allow(unreachable_code)]
+        let w = if fn_addr == self.helpers.mem_write_u8 { 1u32 }
+            else if fn_addr == self.helpers.mem_write_u16 { 2 }
+            else if fn_addr == self.helpers.mem_write_u32 { 4 }
+            else { 8 };
+
+        let slow_label = self.asm.new_label();
+        let done_label = self.asm.new_label();
+        let fault_label = self.asm.new_label();
+
+        // Save RAX (phi[11]) — we use it as scratch for permission check
+        // and buffer base. If val_reg IS RAX, we must save it BEFORE clobbering.
+        self.asm.push(Reg::RAX);
+
+        // If val_reg is RAX, also push the value so we can reload it after
+        // clobbering RAX with the buffer base.
+        let val_on_stack = val_reg == Reg::RAX;
+        if val_on_stack {
+            // The pushed RAX already has the value, it's on the stack.
+            // We'll reload it later via stack access.
+        }
+
+        // Cross-page check
+        if w > 1 {
+            self.asm.mov_rr(Reg::RAX, SCRATCH);
+            self.asm.and_ri(Reg::RAX, 0xFFF);
+            self.asm.cmp_ri32(Reg::RAX, 4096 - w as i32 + 1);
+            self.asm.jcc_label(Cc::AE, slow_label);
+        }
+
+        // Permission check (>= 2 for write)
+        self.asm.mov_rr(Reg::RAX, SCRATCH);
+        self.asm.shr_ri32(Reg::RAX, 12);
+        self.asm.add_r64_mem(Reg::RAX, CTX, CTX_FLAT_PERMS);
+        self.asm.movzx_load8_deref(Reg::RAX, Reg::RAX);
+        self.asm.cmp_ri32(Reg::RAX, 2);
+        self.asm.jcc_label(Cc::B, fault_label);
+
+        // Direct store to flat buffer
+        if val_on_stack {
+            // val_reg is RAX which we're about to clobber. Reload the original
+            // value from the stack into RAX, then use a different approach.
+            // Stack: [saved RAX (= phi[11] = value)]
+            // We need both the buffer base AND the value. Use RCX temporarily.
+            self.asm.push(Reg::RCX); // save phi[12]
+            self.asm.mov_load64(Reg::RCX, CTX, CTX_FLAT_BUF); // rcx = buf base
+            self.asm.mov_load64(Reg::RAX, Reg::RSP, 8); // rax = saved value (past pushed RCX)
+            match w {
+                1 => self.asm.mov_store8_sib(Reg::RCX, SCRATCH, Reg::RAX),
+                2 => self.asm.mov_store16_sib(Reg::RCX, SCRATCH, Reg::RAX),
+                4 => self.asm.mov_store32_sib(Reg::RCX, SCRATCH, Reg::RAX),
+                8 => self.asm.mov_store64_sib(Reg::RCX, SCRATCH, Reg::RAX),
+                _ => unreachable!(),
+            }
+            self.asm.pop(Reg::RCX); // restore phi[12]
+        } else {
+            self.asm.mov_load64(Reg::RAX, CTX, CTX_FLAT_BUF);
+            match w {
+                1 => self.asm.mov_store8_sib(Reg::RAX, SCRATCH, val_reg),
+                2 => self.asm.mov_store16_sib(Reg::RAX, SCRATCH, val_reg),
+                4 => self.asm.mov_store32_sib(Reg::RAX, SCRATCH, val_reg),
+                8 => self.asm.mov_store64_sib(Reg::RAX, SCRATCH, val_reg),
+                _ => unreachable!(),
+            }
+        }
+
+        self.asm.pop(Reg::RAX);
+        self.asm.jmp_label(done_label);
+
+        // Slow path
+        self.asm.bind_label(slow_label);
+        self.asm.pop(Reg::RAX);
+        self.emit_mem_write_helper(val_reg, fn_addr);
+        self.asm.jmp_label(done_label);
+
+        // Fault path
+        self.asm.bind_label(fault_label);
+        self.asm.pop(Reg::RAX);
+        self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
+        self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
+        self.asm.jmp_label(self.exit_label);
+
+        self.asm.bind_label(done_label);
     }
 
     /// Compile a single PVM instruction.

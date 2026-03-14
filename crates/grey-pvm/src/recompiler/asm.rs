@@ -293,6 +293,113 @@ impl Assembler {
         self.emit_i32(imm);
     }
 
+    // -- SIB-based memory access [base + index] --
+
+    /// Emit ModR/M + SIB for [base + index] addressing (scale=1, no displacement).
+    /// Special case: base=RBP/R13 requires mod=01 with disp8=0.
+    fn modrm_sib_base_index(&mut self, reg: u8, base: Reg, index: Reg) {
+        if base.lo() == 5 {
+            // RBP/R13: mod=01, rm=100 (SIB), disp8=0
+            self.emit(0x44 | (reg << 3)); // ModR/M: mod=01, reg, rm=100
+            self.emit((index.lo() << 3) | base.lo()); // SIB: scale=00, index, base
+            self.emit(0); // disp8 = 0
+        } else {
+            // mod=00, rm=100 (SIB)
+            self.emit((reg << 3) | 4); // ModR/M
+            self.emit((index.lo() << 3) | base.lo()); // SIB: scale=00, index, base
+        }
+    }
+
+    /// movzx r64, byte [base + index] — zero-extending u8 load
+    pub fn movzx_load8_sib(&mut self, dst: Reg, base: Reg, index: Reg) {
+        self.emit(0x48 | (dst.hi() << 2) | (index.hi() << 1) | base.hi());
+        self.emit(0x0F);
+        self.emit(0xB6);
+        self.modrm_sib_base_index(dst.lo(), base, index);
+    }
+
+    /// movzx r32, word [base + index] — zero-extending u16 load
+    pub fn movzx_load16_sib(&mut self, dst: Reg, base: Reg, index: Reg) {
+        let rex = 0x40 | (dst.hi() << 2) | (index.hi() << 1) | base.hi();
+        if rex != 0x40 { self.emit(rex); }
+        self.emit(0x0F);
+        self.emit(0xB7);
+        self.modrm_sib_base_index(dst.lo(), base, index);
+    }
+
+    /// mov r32, dword [base + index] — zero-extending u32 load
+    pub fn mov_load32_sib(&mut self, dst: Reg, base: Reg, index: Reg) {
+        let rex = 0x40 | (dst.hi() << 2) | (index.hi() << 1) | base.hi();
+        if rex != 0x40 { self.emit(rex); }
+        self.emit(0x8B);
+        self.modrm_sib_base_index(dst.lo(), base, index);
+    }
+
+    /// mov r64, qword [base + index]
+    pub fn mov_load64_sib(&mut self, dst: Reg, base: Reg, index: Reg) {
+        self.emit(0x48 | (dst.hi() << 2) | (index.hi() << 1) | base.hi());
+        self.emit(0x8B);
+        self.modrm_sib_base_index(dst.lo(), base, index);
+    }
+
+    /// mov byte [base + index], r8
+    pub fn mov_store8_sib(&mut self, base: Reg, index: Reg, src: Reg) {
+        // Need REX for uniform byte reg access (SPL etc)
+        self.emit(0x40 | (src.hi() << 2) | (index.hi() << 1) | base.hi());
+        self.emit(0x88);
+        self.modrm_sib_base_index(src.lo(), base, index);
+    }
+
+    /// mov word [base + index], r16
+    pub fn mov_store16_sib(&mut self, base: Reg, index: Reg, src: Reg) {
+        self.emit(0x66); // operand size prefix
+        let rex = 0x40 | (src.hi() << 2) | (index.hi() << 1) | base.hi();
+        if rex != 0x40 { self.emit(rex); }
+        self.emit(0x89);
+        self.modrm_sib_base_index(src.lo(), base, index);
+    }
+
+    /// mov dword [base + index], r32
+    pub fn mov_store32_sib(&mut self, base: Reg, index: Reg, src: Reg) {
+        let rex = 0x40 | (src.hi() << 2) | (index.hi() << 1) | base.hi();
+        if rex != 0x40 { self.emit(rex); }
+        self.emit(0x89);
+        self.modrm_sib_base_index(src.lo(), base, index);
+    }
+
+    /// mov qword [base + index], r64
+    pub fn mov_store64_sib(&mut self, base: Reg, index: Reg, src: Reg) {
+        self.emit(0x48 | (src.hi() << 2) | (index.hi() << 1) | base.hi());
+        self.emit(0x89);
+        self.modrm_sib_base_index(src.lo(), base, index);
+    }
+
+    /// add r64, qword [base + disp32]
+    pub fn add_r64_mem(&mut self, dst: Reg, base: Reg, disp: i32) {
+        self.rex_w(dst, base);
+        self.emit(0x03);
+        self.modrm_mem_disp32(dst, base);
+        self.emit_i32(disp);
+    }
+
+    /// movzx r64, byte [rax] (simple deref, no SIB needed) — for perm table lookup
+    pub fn movzx_load8_deref(&mut self, dst: Reg, base: Reg) {
+        self.emit(0x48 | (dst.hi() << 2) | base.hi());
+        self.emit(0x0F);
+        self.emit(0xB6);
+        if base.lo() == 5 {
+            // RBP/R13: need mod=01, disp8=0
+            self.emit((dst.lo() << 3) | base.lo() | 0x40);
+            self.emit(0);
+        } else if base.lo() == 4 {
+            // RSP/R12: need SIB
+            self.emit((dst.lo() << 3) | 4);
+            self.emit(0x24);
+        } else {
+            self.emit((dst.lo() << 3) | base.lo());
+        }
+    }
+
     // -- ALU reg,reg (64-bit) --
 
     fn alu_rr64(&mut self, op: u8, dst: Reg, src: Reg) {

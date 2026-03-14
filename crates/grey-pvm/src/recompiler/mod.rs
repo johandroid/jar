@@ -58,6 +58,11 @@ pub struct JitContext {
     pub dispatch_table: *const i32,
     /// Base address of native code (offset 184).
     pub code_base: u64,
+    /// Flat guest memory buffer base pointer (offset 192).
+    pub flat_buf: *mut u8,
+    /// Permission table base pointer (offset 200).
+    /// 1 byte per 4KB page: 0=inaccessible, 1=read-only, 2=read-write.
+    pub flat_perms: *const u8,
 }
 
 /// Compiled native code buffer (mmap'd as executable).
@@ -108,6 +113,119 @@ impl Drop for NativeCode {
     fn drop(&mut self) {
         unsafe {
             libc::munmap(self.ptr as *mut libc::c_void, self.len);
+        }
+    }
+}
+
+/// Flat memory backing buffer for inline JIT memory access.
+///
+/// Maps the entire 32-bit guest address space into a contiguous virtual region
+/// using MAP_NORESERVE (lazy physical allocation). A separate permission table
+/// tracks per-page access modes for inline bounds checking.
+struct FlatMemory {
+    /// mmap'd 4GB backing buffer.
+    buf: *mut u8,
+    /// Permission table: 1 byte per 4KB page (2^20 = 1,048,576 entries).
+    /// 0=inaccessible, 1=read-only, 2=read-write.
+    perms: Vec<u8>,
+}
+
+const FLAT_BUF_SIZE: usize = 1 << 32; // 4GB virtual
+const NUM_PAGES: usize = 1 << 20;     // 2^20 = 1M pages
+
+impl FlatMemory {
+    /// Create a flat memory from the interpreter's Memory struct.
+    fn new(memory: &Memory) -> Option<Self> {
+        let buf = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                FLAT_BUF_SIZE,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_ANONYMOUS | libc::MAP_PRIVATE | libc::MAP_NORESERVE,
+                -1,
+                0,
+            )
+        };
+        if buf == libc::MAP_FAILED {
+            return None;
+        }
+        let buf = buf as *mut u8;
+
+        let mut perms = vec![0u8; NUM_PAGES];
+
+        // Copy page data and permissions from Memory
+        for (page_idx, access, data) in memory.pages_iter() {
+            let perm = match access {
+                crate::memory::PageAccess::Inaccessible => 0,
+                crate::memory::PageAccess::ReadOnly => 1,
+                crate::memory::PageAccess::ReadWrite => 2,
+            };
+            if (page_idx as usize) < NUM_PAGES {
+                perms[page_idx as usize] = perm;
+            }
+            // Copy data into flat buffer
+            let offset = (page_idx as usize) * 4096;
+            if offset + data.len() <= FLAT_BUF_SIZE {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(data.as_ptr(), buf.add(offset), data.len());
+                }
+            }
+        }
+
+        Some(Self { buf, perms })
+    }
+
+    /// Sync from flat buffer back to Memory (after JIT execution).
+    fn write_back(&self, memory: &mut Memory) {
+        let page_indices: Vec<u32> = memory.pages_iter().map(|(idx, _, _)| idx).collect();
+        for page_idx in page_indices {
+            let offset = (page_idx as usize) * 4096;
+            if offset + 4096 <= FLAT_BUF_SIZE {
+                if let Some(page_data) = memory.page_data_mut(page_idx) {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            self.buf.add(offset),
+                            page_data.as_mut_ptr(),
+                            4096,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Sync from Memory to flat buffer (before JIT re-entry after host call).
+    fn sync_from(&mut self, memory: &Memory) {
+        for (page_idx, access, data) in memory.pages_iter() {
+            let perm = match access {
+                crate::memory::PageAccess::Inaccessible => 0,
+                crate::memory::PageAccess::ReadOnly => 1,
+                crate::memory::PageAccess::ReadWrite => 2,
+            };
+            if (page_idx as usize) < NUM_PAGES {
+                self.perms[page_idx as usize] = perm;
+            }
+            let offset = (page_idx as usize) * 4096;
+            if offset + data.len() <= FLAT_BUF_SIZE {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(data.as_ptr(), self.buf.add(offset), data.len());
+                }
+            }
+        }
+    }
+
+    /// Update permission for a page (called from sbrk_helper).
+    fn set_perm(&mut self, page: u32, perm: u8) {
+        if (page as usize) < NUM_PAGES {
+            self.perms[page as usize] = perm;
+        }
+    }
+}
+
+impl Drop for FlatMemory {
+    fn drop(&mut self) {
+        unsafe {
+            libc::munmap(self.buf as *mut libc::c_void, FLAT_BUF_SIZE);
         }
     }
 }
@@ -200,12 +318,23 @@ extern "sysv64" fn mem_read_u64_fn(ctx: *mut JitContext, addr: u32) -> u64 {
     }
 }
 
+/// Write to both Memory and flat buffer (if available).
+unsafe fn sync_write_to_flat(ctx: &JitContext, addr: u32, bytes: &[u8]) {
+    if !ctx.flat_buf.is_null() {
+        let offset = addr as usize;
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), ctx.flat_buf.add(offset), bytes.len());
+    }
+}
+
 /// Memory write helper — writes value via ctx. Sets exit_reason on page fault.
 extern "sysv64" fn mem_write_u8(ctx: *mut JitContext, addr: u32, value: u64) -> u64 {
     let ctx = unsafe { &mut *ctx };
     let mem = unsafe { &mut *ctx.memory };
     match mem.write_u8(addr, value as u8) {
-        crate::memory::MemoryAccess::Ok => 0,
+        crate::memory::MemoryAccess::Ok => {
+            unsafe { sync_write_to_flat(ctx, addr, &[value as u8]); }
+            0
+        }
         crate::memory::MemoryAccess::PageFault(a) => {
             ctx.exit_reason = 3;
             ctx.exit_arg = a;
@@ -215,13 +344,13 @@ extern "sysv64" fn mem_write_u8(ctx: *mut JitContext, addr: u32, value: u64) -> 
 }
 
 extern "sysv64" fn mem_write_u16(ctx: *mut JitContext, addr: u32, value: u64) -> u64 {
-    if std::env::var("GREY_PVM_DEBUG").is_ok() {
-        eprintln!("  mem_write_u16: addr=0x{:08x}", addr);
-    }
     let ctx = unsafe { &mut *ctx };
     let mem = unsafe { &mut *ctx.memory };
     match mem.write_u16_le(addr, value as u16) {
-        crate::memory::MemoryAccess::Ok => 0,
+        crate::memory::MemoryAccess::Ok => {
+            unsafe { sync_write_to_flat(ctx, addr, &(value as u16).to_le_bytes()); }
+            0
+        }
         crate::memory::MemoryAccess::PageFault(a) => {
             ctx.exit_reason = 3;
             ctx.exit_arg = a;
@@ -231,13 +360,13 @@ extern "sysv64" fn mem_write_u16(ctx: *mut JitContext, addr: u32, value: u64) ->
 }
 
 extern "sysv64" fn mem_write_u32(ctx: *mut JitContext, addr: u32, value: u64) -> u64 {
-    if std::env::var("GREY_PVM_DEBUG").is_ok() {
-        eprintln!("  mem_write_u32: addr=0x{:08x}", addr);
-    }
     let ctx = unsafe { &mut *ctx };
     let mem = unsafe { &mut *ctx.memory };
     match mem.write_u32_le(addr, value as u32) {
-        crate::memory::MemoryAccess::Ok => 0,
+        crate::memory::MemoryAccess::Ok => {
+            unsafe { sync_write_to_flat(ctx, addr, &(value as u32).to_le_bytes()); }
+            0
+        }
         crate::memory::MemoryAccess::PageFault(a) => {
             ctx.exit_reason = 3;
             ctx.exit_arg = a;
@@ -247,13 +376,13 @@ extern "sysv64" fn mem_write_u32(ctx: *mut JitContext, addr: u32, value: u64) ->
 }
 
 extern "sysv64" fn mem_write_u64_fn(ctx: *mut JitContext, addr: u32, value: u64) -> u64 {
-    if std::env::var("GREY_PVM_DEBUG").is_ok() {
-        eprintln!("  mem_write_u64: addr=0x{:08x}", addr);
-    }
     let ctx = unsafe { &mut *ctx };
     let mem = unsafe { &mut *ctx.memory };
     match mem.write_u64_le(addr, value) {
-        crate::memory::MemoryAccess::Ok => 0,
+        crate::memory::MemoryAccess::Ok => {
+            unsafe { sync_write_to_flat(ctx, addr, &value.to_le_bytes()); }
+            0
+        }
         crate::memory::MemoryAccess::PageFault(a) => {
             ctx.exit_reason = 3;
             ctx.exit_arg = a;
@@ -291,6 +420,13 @@ extern "sysv64" fn sbrk_helper(ctx: *mut JitContext, size: u64) -> u64 {
     for p in start_page..=end_page {
         if !mem.is_page_mapped(p) {
             mem.map_page(p, crate::memory::PageAccess::ReadWrite);
+            // Update flat memory permission table
+            if !ctx.flat_perms.is_null() {
+                let perms = ctx.flat_perms as *mut u8;
+                unsafe {
+                    *perms.add(p as usize) = 2; // read-write
+                }
+            }
         }
     }
 
@@ -318,6 +454,10 @@ pub struct RecompiledPvm {
     dispatch_table: Vec<i32>,
     /// Cached debug flag.
     debug: bool,
+    /// Flat memory for inline JIT access.
+    flat_memory: Option<FlatMemory>,
+    /// Whether flat buffer needs re-sync from Memory on next run().
+    needs_flat_sync: bool,
 }
 
 impl RecompiledPvm {
@@ -362,6 +502,8 @@ impl RecompiledPvm {
             pc: 0,
             dispatch_table: std::ptr::null(),
             code_base: 0,
+            flat_buf: std::ptr::null_mut(),
+            flat_perms: std::ptr::null(),
         });
 
         // Set up pointers (will be updated after Box stabilizes)
@@ -406,6 +548,13 @@ impl RecompiledPvm {
         // Set dispatch table pointer and code base in context
         ctx.code_base = native_code.ptr as u64;
 
+        // Initialize flat memory for inline JIT access
+        let flat_memory = FlatMemory::new(unsafe { &*memory_ptr });
+        if let Some(ref fm) = flat_memory {
+            ctx.flat_buf = fm.buf;
+            ctx.flat_perms = fm.perms.as_ptr();
+        }
+
         let mut result = Self {
             native_code,
             ctx,
@@ -416,6 +565,8 @@ impl RecompiledPvm {
             initial_gas: gas,
             dispatch_table,
             debug,
+            flat_memory,
+            needs_flat_sync: false,
         };
 
         // Set dispatch_table pointer (must point to the Vec's data in Self)
@@ -429,6 +580,17 @@ impl RecompiledPvm {
     /// modify registers/memory as needed, then call run() again (entry_pc is set
     /// automatically for re-entry).
     pub fn run(&mut self) -> ExitReason {
+        // Sync Memory → flat buffer on entry. This is needed when the caller
+        // (host call handler) modifies Memory directly between run() calls.
+        // We use a dirty flag to avoid unnecessary syncs.
+        if self.needs_flat_sync {
+            if let Some(ref mut fm) = self.flat_memory {
+                fm.sync_from(unsafe { &*self.ctx.memory });
+                self.ctx.flat_perms = fm.perms.as_ptr();
+            }
+            self.needs_flat_sync = false;
+        }
+
         loop {
             if self.debug {
                 eprintln!("recompiler::run() entry_pc={} gas={} heap_base=0x{:08x} heap_top=0x{:08x}",
@@ -458,7 +620,10 @@ impl RecompiledPvm {
                 }
                 3 => return ExitReason::PageFault(self.ctx.exit_arg),
                 4 => {
-                    // Host call — set entry_pc for re-entry at the next instruction
+                    // Host call — helpers write to both Memory and flat buffer,
+                    // so both are already in sync. No write_back needed.
+                    // The caller may modify Memory via memory_mut(), which
+                    // sets needs_flat_sync for the next run() call.
                     self.ctx.entry_pc = self.ctx.pc;
                     return ExitReason::HostCall(self.ctx.exit_arg);
                 }
@@ -507,11 +672,15 @@ impl RecompiledPvm {
     }
 
     /// Access memory.
+    /// Note: after run() returns for a host call, flat buffer has already been
+    /// synced to Memory. Direct Memory modifications between run() calls are
+    /// synced back to flat buffer at the start of the next run().
     pub fn memory(&self) -> &Memory {
         unsafe { &*self.ctx.memory }
     }
 
     pub fn memory_mut(&mut self) -> &mut Memory {
+        self.needs_flat_sync = true;
         unsafe { &mut *self.ctx.memory }
     }
 
@@ -577,7 +746,7 @@ mod tests {
     use super::*;
     use crate::memory::PageAccess;
     use codegen::{CTX_REGS, CTX_GAS, CTX_EXIT_REASON, CTX_EXIT_ARG, CTX_ENTRY_PC, CTX_PC,
-                  CTX_DISPATCH_TABLE, CTX_CODE_BASE};
+                  CTX_DISPATCH_TABLE, CTX_CODE_BASE, CTX_FLAT_BUF, CTX_FLAT_PERMS};
 
     #[test]
     fn test_jit_context_layout() {
@@ -600,6 +769,8 @@ mod tests {
             pc: 0,
             dispatch_table: std::ptr::null(),
             code_base: 0,
+            flat_buf: std::ptr::null_mut(),
+            flat_perms: std::ptr::null(),
         };
         let base = &ctx as *const JitContext as usize;
 
@@ -611,6 +782,8 @@ mod tests {
         assert_eq!(&ctx.pc as *const _ as usize - base, CTX_PC as usize);
         assert_eq!(&ctx.dispatch_table as *const _ as usize - base, CTX_DISPATCH_TABLE as usize);
         assert_eq!(&ctx.code_base as *const _ as usize - base, CTX_CODE_BASE as usize);
+        assert_eq!(&ctx.flat_buf as *const _ as usize - base, CTX_FLAT_BUF as usize);
+        assert_eq!(&ctx.flat_perms as *const _ as usize - base, CTX_FLAT_PERMS as usize);
     }
 
     #[test]
