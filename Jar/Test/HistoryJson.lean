@@ -12,9 +12,7 @@ namespace Jar.Test.HistoryJson
 open Lean (Json ToJson FromJson toJson fromJson?)
 open Jar Jar.Json Jar.Test.History
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- JSON instances for history test types
@@ -88,7 +86,7 @@ instance : ToJson FlatHistoryState where
 def runJsonTest (inputPath : System.FilePath) : IO Bool := do
   let inputContent ← IO.FS.readFile inputPath
   let inputJson ← IO.ofExcept (Json.parse inputContent)
-  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" ".output.json")
+  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" s!".output.{JamConfig.name}.json")
   let outputContent ← IO.FS.readFile outputPath
   let outputJson ← IO.ofExcept (Json.parse outputContent)
   let preStateJson ← IO.ofExcept (inputJson.getObjVal? "pre_state")

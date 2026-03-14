@@ -1,10 +1,18 @@
 import Jar.Test.SafroleJson
+import Jar.Variant
 
-open Jar.Test.SafroleJson
+open Jar Jar.Test.SafroleJson
+
+def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
 
 def main (args : List String) : IO UInt32 := do
   let dir := match args with
     | [d] => d
     | _ => "tests/vectors/safrole/tiny"
-  IO.println s!"Running safrole JSON tests from: {dir}"
-  runJsonTestDir dir
+  let mut exitCode : UInt32 := 0
+  for v in testVariants do
+    letI := v
+    IO.println s!"Running safrole JSON tests ({v.name}) from: {dir}"
+    let code ← runJsonTestDir dir
+    if code != 0 then exitCode := code
+  return exitCode

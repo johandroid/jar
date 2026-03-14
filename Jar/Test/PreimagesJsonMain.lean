@@ -1,10 +1,18 @@
 import Jar.Test.PreimagesJson
+import Jar.Variant
 
-open Jar.Test.PreimagesJson
+open Jar Jar.Test.PreimagesJson
+
+def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
 
 def main (args : List String) : IO UInt32 := do
   let dir := match args with
     | [d] => d
     | _ => "tests/vectors/preimages/tiny"
-  IO.println s!"Running preimages JSON tests from: {dir}"
-  runJsonTestDir dir
+  let mut exitCode : UInt32 := 0
+  for v in testVariants do
+    letI := v
+    IO.println s!"Running preimages JSON tests ({v.name}) from: {dir}"
+    let code ← runJsonTestDir dir
+    if code != 0 then exitCode := code
+  return exitCode

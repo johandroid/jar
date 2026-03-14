@@ -13,9 +13,7 @@ namespace Jar.Test.Assurances
 
 open Jar Jar.Crypto
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 /-- Super-majority threshold: (V * 2 / 3) + 1 -/
 def ASSURANCE_THRESHOLD : Nat := (V * 2 / 3) + 1

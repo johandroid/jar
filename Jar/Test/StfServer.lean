@@ -23,9 +23,7 @@ namespace Jar.Test.StfServer
 open Lean (Json ToJson FromJson toJson fromJson?)
 open Jar Jar.Json
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- Safrole
@@ -175,7 +173,7 @@ private def blessFile (subTransition : String) (inputPath : System.FilePath) : I
   -- Run transition on pre_state + input
   let result ← runSubTransition subTransition json
   -- Write computed output/post_state to the output file only
-  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" ".output.json")
+  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" s!".output.{JamConfig.name}.json")
   IO.FS.writeFile outputPath (result.pretty ++ "\n")
   IO.println s!"  blessed: {inputPath.fileName.getD (toString inputPath)}"
 

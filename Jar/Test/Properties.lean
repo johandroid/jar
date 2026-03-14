@@ -15,9 +15,7 @@ open Lean (Json ToJson FromJson toJson fromJson?)
 open Plausible Plausible.Arbitrary Plausible.Gen
 open Jar Jar.Json Jar.Codec
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- Test harness: run N random instances and check a property

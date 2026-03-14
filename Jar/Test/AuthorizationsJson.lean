@@ -12,9 +12,7 @@ namespace Jar.Test.AuthorizationsJson
 open Lean (Json ToJson FromJson toJson fromJson?)
 open Jar Jar.Json Jar.Test.Authorizations
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- JSON instances for authorization test types
@@ -55,7 +53,7 @@ instance : ToJson FlatAuthState where
 def runJsonTest (inputPath : System.FilePath) : IO Bool := do
   let inputContent ← IO.FS.readFile inputPath
   let inputJson ← IO.ofExcept (Json.parse inputContent)
-  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" ".output.json")
+  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" s!".output.{JamConfig.name}.json")
   let outputContent ← IO.FS.readFile outputPath
   let outputJson ← IO.ofExcept (Json.parse outputContent)
   let pre ← IO.ofExcept (@fromJson? FlatAuthState _ (← IO.ofExcept (inputJson.getObjVal? "pre_state")))

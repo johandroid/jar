@@ -13,9 +13,7 @@ namespace Jar.Test.Arb
 open Jar
 open Plausible Plausible.Arbitrary Plausible.Gen
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- ByteArray
@@ -76,8 +74,7 @@ instance {α β : Type} [BEq α] : Shrinkable (Dict α β) where
 instance : Arbitrary CoreIndex where
   arbitrary := do
     let n ← Gen.chooseNat
-    have : 0 < Jar.C := by decide
-    return ⟨n % Jar.C, Nat.mod_lt _ this⟩
+    return ⟨n % Jar.C, Nat.mod_lt _ JamConfig.valid.hC⟩
 
 instance : Shrinkable CoreIndex where
   shrink _ := []
@@ -85,8 +82,7 @@ instance : Shrinkable CoreIndex where
 instance : Arbitrary ValidatorIndex where
   arbitrary := do
     let n ← Gen.chooseNat
-    have : 0 < Jar.V := by decide
-    return ⟨n % Jar.V, Nat.mod_lt _ this⟩
+    return ⟨n % Jar.V, Nat.mod_lt _ JamConfig.valid.hV⟩
 
 instance : Shrinkable ValidatorIndex where
   shrink _ := []
@@ -199,8 +195,7 @@ instance : Arbitrary Ticket where
   arbitrary := do
     let id ← arbitrary
     let n ← (arbitrary : Gen UInt8)
-    have : 0 < Jar.N_TICKETS := by decide
-    return { id, attempt := ⟨n.toNat % Jar.N_TICKETS, Nat.mod_lt _ this⟩ }
+    return { id, attempt := ⟨n.toNat % Jar.N_TICKETS, Nat.mod_lt _ JamConfig.valid.hN⟩ }
 
 instance : Shrinkable Ticket where
   shrink _ := []
@@ -277,9 +272,8 @@ instance : Shrinkable Fault where
 instance : Arbitrary TicketProof where
   arbitrary := do
     let n ← (arbitrary : Gen UInt8)
-    have : 0 < Jar.N_TICKETS := by decide
     return {
-      attempt := ⟨n.toNat % Jar.N_TICKETS, Nat.mod_lt _ this⟩
+      attempt := ⟨n.toNat % Jar.N_TICKETS, Nat.mod_lt _ JamConfig.valid.hN⟩
       proof := ← arbitrary
     }
 

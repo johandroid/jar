@@ -92,6 +92,8 @@ structure Params.Valid (cfg : Params) : Prop where
     Used by struct types and Fin-based index aliases.
     Extended by `JamVariant` (in `Jar/Variant.lean`) to add PVM function fields. -/
 class JamConfig where
+  /-- Variant name, e.g. "gp072_tiny", "gp072_full". -/
+  name : String
   config : Params
   valid : Params.Valid config
 

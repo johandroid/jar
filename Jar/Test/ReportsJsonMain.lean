@@ -1,6 +1,18 @@
 import Jar.Test.ReportsJson
-open Jar.Test.ReportsJson
+import Jar.Variant
+
+open Jar Jar.Test.ReportsJson
+
+def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
+
 def main (args : List String) : IO UInt32 := do
-  let dir := match args with | [d] => d | _ => "tests/vectors/reports/tiny"
-  IO.println s!"Running reports JSON tests from: {dir}"
-  runJsonTestDir dir
+  let dir := match args with
+    | [d] => d
+    | _ => "tests/vectors/reports/tiny"
+  let mut exitCode : UInt32 := 0
+  for v in testVariants do
+    letI := v
+    IO.println s!"Running reports JSON tests ({v.name}) from: {dir}"
+    let code ← runJsonTestDir dir
+    if code != 0 then exitCode := code
+  return exitCode

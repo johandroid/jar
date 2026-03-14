@@ -12,9 +12,7 @@ namespace Jar.Test.Authorizations
 
 open Jar
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- Flattened Authorization State (matches test vector JSON shape)

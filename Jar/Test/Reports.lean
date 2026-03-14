@@ -13,9 +13,7 @@ namespace Jar.Test.Reports
 
 open Jar Jar.Crypto
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 def MAX_ACCUMULATE_GAS : Nat := G_A
 def MAX_OUTPUT_PER_ITEM : Nat := 18432

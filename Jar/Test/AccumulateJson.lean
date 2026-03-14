@@ -14,9 +14,7 @@ namespace Jar.Test.AccumulateJson
 open Lean (Json ToJson FromJson toJson fromJson?)
 open Jar Jar.Json Jar.Test.Accumulate
 
-instance : JamConfig where
-  config := Params.tiny
-  valid := Params.tiny_valid
+variable [JamConfig]
 
 -- ============================================================================
 -- Grey-format parsers for Work types (different field names from Jar.Json)
@@ -341,7 +339,7 @@ def runJsonTest (inputPath : System.FilePath) (verbose := false) : IO Bool := do
   let t0 ← IO.monoMsNow
   let inputContent ← IO.FS.readFile inputPath
   let inputJson ← IO.ofExcept (Json.parse inputContent)
-  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" ".output.json")
+  let outputPath := System.FilePath.mk (inputPath.toString.replace ".input.json" s!".output.{JamConfig.name}.json")
   let outputContent ← IO.FS.readFile outputPath
   let outputJson ← IO.ofExcept (Json.parse outputContent)
   let t1 ← IO.monoMsNow
