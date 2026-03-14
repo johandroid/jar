@@ -70,6 +70,7 @@ fn polkavm_config(backend: BackendKind) -> Config {
     config.set_backend(Some(backend));
     config.set_allow_experimental(true);
     config.set_sandboxing_enabled(false);
+    #[cfg(feature = "polkavm-generic-sandbox")]
     config.set_sandbox(Some(SandboxKind::Generic));
     config
 }
