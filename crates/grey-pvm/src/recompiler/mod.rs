@@ -209,26 +209,6 @@ impl FlatMemory {
             }
         }
     }
-
-    /// Sync from Memory to flat buffer (before JIT re-entry after host call).
-    fn sync_from(&mut self, memory: &Memory) {
-        for (page_idx, access, data) in memory.pages_iter() {
-            let perm = match access {
-                crate::memory::PageAccess::Inaccessible => 0,
-                crate::memory::PageAccess::ReadOnly => 1,
-                crate::memory::PageAccess::ReadWrite => 2,
-            };
-            if (page_idx as usize) < NUM_PAGES {
-                unsafe { *self.perms.add(page_idx as usize) = perm; }
-            }
-            let offset = (page_idx as usize) * 4096;
-            if offset + data.len() <= FLAT_BUF_SIZE {
-                unsafe {
-                    std::ptr::copy_nonoverlapping(data.as_ptr(), self.buf.add(offset), data.len());
-                }
-            }
-        }
-    }
 }
 
 impl Drop for FlatMemory {
@@ -496,10 +476,6 @@ pub struct RecompiledPvm {
     debug: bool,
     /// Flat memory for inline JIT access.
     flat_memory: Option<FlatMemory>,
-    /// Whether flat buffer needs re-sync from Memory on next run().
-    needs_flat_sync: bool,
-    /// Whether Memory needs write_back from flat buffer (lazy, on memory() access).
-    needs_write_back: bool,
 }
 
 impl RecompiledPvm {
@@ -608,8 +584,6 @@ impl RecompiledPvm {
             dispatch_table,
             debug,
             flat_memory,
-            needs_flat_sync: false,
-            needs_write_back: false,
         };
 
         // Set dispatch_table pointer (must point to the Vec's data in Self)
@@ -623,17 +597,6 @@ impl RecompiledPvm {
     /// modify registers/memory as needed, then call run() again (entry_pc is set
     /// automatically for re-entry).
     pub fn run(&mut self) -> ExitReason {
-        // Sync Memory → flat buffer on entry. This is needed when the caller
-        // (host call handler) modifies Memory directly between run() calls.
-        // We use a dirty flag to avoid unnecessary syncs.
-        if self.needs_flat_sync {
-            if let Some(ref mut fm) = self.flat_memory {
-                fm.sync_from(unsafe { &*self.ctx.memory });
-                self.ctx.flat_perms = fm.perms;
-            }
-            self.needs_flat_sync = false;
-        }
-
         loop {
             if self.debug {
                 eprintln!("recompiler::run() entry_pc={} gas={} heap_base=0x{:08x} heap_top=0x{:08x}",
@@ -663,11 +626,6 @@ impl RecompiledPvm {
                 }
                 3 => return ExitReason::PageFault(self.ctx.exit_arg),
                 4 => {
-                    // Host call — flat buffer is the source of truth.
-                    // Host handlers use read_byte/write_byte which access flat buffer
-                    // directly. No write_back needed unless memory()/memory_mut() is called.
-                    self.needs_write_back = self.flat_memory.is_some();
-                    self.needs_flat_sync = false; // flat buffer is already current
                     self.ctx.entry_pc = self.ctx.pc;
                     return ExitReason::HostCall(self.ctx.exit_arg);
                 }
@@ -715,32 +673,20 @@ impl RecompiledPvm {
         self.ctx.gas.max(0) as u64
     }
 
-    /// Access memory.
-    /// Note: after run() returns for a host call, flat buffer has already been
-    /// synced to Memory. Direct Memory modifications between run() calls are
-    /// synced back to flat buffer at the start of the next run().
+    /// Access the BTreeMap Memory (syncs flat buffer → Memory first).
+    /// Only needed for debugging/compare mode — production host calls
+    /// use read_byte/write_byte which access the flat buffer directly.
     pub fn memory(&self) -> &Memory {
-        // Lazy write_back: if flat buffer has unsync'd writes, flush to Memory.
-        // This is safe: we're the sole owner of both flat_memory and ctx.memory.
-        if self.needs_write_back {
-            if let Some(ref fm) = self.flat_memory {
-                fm.write_back(unsafe { &mut *self.ctx.memory });
-            }
-            // Can't set needs_write_back=false through &self, but the data is now synced.
-            // The next memory() call will redundantly write_back, which is correct if slow.
-            // In practice, memory() is rarely called in tight loops.
+        if let Some(ref fm) = self.flat_memory {
+            fm.write_back(unsafe { &mut *self.ctx.memory });
         }
         unsafe { &*self.ctx.memory }
     }
 
     pub fn memory_mut(&mut self) -> &mut Memory {
-        if self.needs_write_back {
-            if let Some(ref fm) = self.flat_memory {
-                fm.write_back(unsafe { &mut *self.ctx.memory });
-            }
-            self.needs_write_back = false;
+        if let Some(ref fm) = self.flat_memory {
+            fm.write_back(unsafe { &mut *self.ctx.memory });
         }
-        self.needs_flat_sync = true;
         unsafe { &mut *self.ctx.memory }
     }
 
