@@ -48,17 +48,19 @@ def outsideInSequencer (tickets : Array Ticket) : Array Ticket :=
 -- ============================================================================
 
 /-- F(η, κ) : Fallback seal-key sequence. GP eq (6.26).
-    When tickets are insufficient, generates E keys by shuffling
-    validator Bandersnatch keys using entropy. -/
+    When tickets are insufficient, generates E keys by hashing
+    entropy ∥ slot_index for each slot independently. -/
 def fallbackKeySequence
     (entropy : Hash) (validators : Array ValidatorKey)
     : Array BandersnatchPublicKey :=
-  let bsKeys := validators.map (·.bandersnatch)
-  let shuffled := Crypto.shuffle bsKeys entropy
-  -- Cycle through shuffled keys to fill E slots
-  Array.ofFn (n := E) fun ⟨i, _⟩ =>
-    if shuffled.size > 0 then shuffled[i % shuffled.size]!
-    else default
+  let v := validators.size
+  if v == 0 then Array.replicate E default
+  else
+    Array.ofFn (n := E) fun ⟨i, _⟩ =>
+      let preimage := entropy.data ++ Codec.encodeFixedNat 4 i
+      let hash := Crypto.blake2b preimage
+      let idx := (Codec.decodeFixedNat (hash.data.extract 0 4)) % v
+      validators[idx]!.bandersnatch
 
 -- ============================================================================
 -- §6.5 — Seal Verification
@@ -135,35 +137,47 @@ def accumulateTickets
 -- ============================================================================
 
 /-- Update the Safrole state for a new block. GP §6.
-    This combines epoch transitions, seal key updates, and ticket accumulation. -/
+    This combines epoch transitions, seal key updates, and ticket accumulation.
+    `oldSlotInEpoch` is the PRIOR timeslot's position in its epoch (τ % E). -/
 def updateSafrole
     (gamma : SafroleState)
     (tickets : TicketsExtrinsic)
     (eta' : Entropy)
     (kappa' : Array ValidatorKey)
     (epochChanged : Bool)
-    (slotInEpoch : Nat) : SafroleState :=
-  -- Ticket accumulation
+    (oldSlotInEpoch : Nat)
+    (oldEpoch newEpoch : Nat)
+    (iota : Array ValidatorKey)
+    (offenders : Array Ed25519PublicKey) : SafroleState :=
+  -- Ticket accumulation: clear on epoch change, then add new
   let newTickets := tickets.map fun tp =>
     let ticketId := Crypto.bandersnatchRingOutput tp.proof
     { id := ticketId, attempt := tp.attempt : Ticket }
   let acc' := accumulateTickets gamma.ticketAccumulator newTickets epochChanged
-  -- Seal key update on epoch boundary
-  let epochTailStart := E / 2  -- Y epoch tail start
+  -- Key rotation on epoch boundary (GP eq 6.13)
+  let (newGammaP, newKappa, newRingRoot) :=
+    if epochChanged then
+      let filtered := iota.map fun k =>
+        if offenders.any (· == k.ed25519) then
+          { bandersnatch := default, ed25519 := default, bls := default, metadata := default : ValidatorKey }
+        else k
+      let ringRoot := Crypto.bandersnatchRingRoot (filtered.map (·.bandersnatch))
+      (filtered, gamma.pendingKeys, ringRoot)  -- γ_P' = Φ(ι), κ' = γ_P
+    else
+      (gamma.pendingKeys, kappa', gamma.ringRoot)
+  -- Seal key update on epoch boundary (GP eq 6.24)
   let sealKeys' :=
     if epochChanged then
-      -- Check if accumulator was full at epoch tail
-      if slotInEpoch >= epochTailStart && acc'.size >= E then
-        SealKeySeries.tickets (outsideInSequencer acc')
+      let singleAdvance := newEpoch == oldEpoch + 1
+      let wasPastY := oldSlotInEpoch >= Y_TAIL
+      let accumulatorFull := gamma.ticketAccumulator.size >= E
+      if singleAdvance && wasPastY && accumulatorFull then
+        SealKeySeries.tickets (outsideInSequencer gamma.ticketAccumulator)
       else
-        SealKeySeries.fallback (fallbackKeySequence eta'.twoBack kappa')
+        SealKeySeries.fallback (fallbackKeySequence eta'.twoBack newKappa)
     else gamma.sealKeys
-  -- Ring root update on epoch boundary
-  let ringRoot' := if epochChanged then
-    Crypto.bandersnatchRingRoot (kappa'.map (·.bandersnatch))
-  else gamma.ringRoot
-  { pendingKeys := gamma.pendingKeys  -- updated via accumulation
-    ringRoot := ringRoot'
+  { pendingKeys := newGammaP
+    ringRoot := newRingRoot
     sealKeys := sealKeys'
     ticketAccumulator := acc' }
 

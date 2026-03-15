@@ -270,7 +270,7 @@ def encodeUnsignedHeader (h : Header) : ByteArray :=
     ++ h.extrinsicHash.data
     ++ encodeFixedNat 4 h.timeslot.toNat
     ++ encodeOption encodeEpochMarker h.epochMarker
-    ++ encodeOption (encodeCountPrefixedArray encodeTicket) h.ticketsMarker
+    ++ encodeOption (encodeArray encodeTicket) h.ticketsMarker
     ++ encodeFixedNat 2 h.authorIndex.val
     ++ h.vrfSignature.data
     ++ encodeCountPrefixedArray (fun k => k.data) h.offenders

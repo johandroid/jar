@@ -712,7 +712,9 @@ def stateTransition (s : State) (b : Block) : Option State := do
     recent := beta'
     accOutputs := accResult.outputs
     safrole := Consensus.updateSafrole s.safrole ext.tickets eta' kappa'
-                  (isEpochChange s.timeslot t') (epochSlot t')
+                  (isEpochChange s.timeslot t') (epochSlot s.timeslot)
+                  (epochIndex s.timeslot) (epochIndex t')
+                  s.pendingValidators h.offenders
     services := delta'
     entropy := eta'
     pendingValidators := accResult.pendingValidators
@@ -754,7 +756,9 @@ def stateTransitionNoSealCheck (s : State) (b : Block) : Option State := do
     recent := beta'
     accOutputs := accResult.outputs
     safrole := Consensus.updateSafrole s.safrole ext.tickets eta' kappa'
-                  (isEpochChange s.timeslot t') (epochSlot t')
+                  (isEpochChange s.timeslot t') (epochSlot s.timeslot)
+                  (epochIndex s.timeslot) (epochIndex t')
+                  s.pendingValidators h.offenders
     services := delta'
     entropy := eta'
     pendingValidators := accResult.pendingValidators
