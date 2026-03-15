@@ -582,10 +582,11 @@ def runBlockTestDirSeq [JamConfig] (dir : String) : IO UInt32 := do
 
     let block ← IO.ofExcept blockResult
 
-    -- Run transition
-    let result := @stateTransitionNoSealCheck _ state block
+    -- Run transition with opaque data for PVM accumulation
+    let result := @stateTransitionWithOpaque _ state block opaqueData
+    let postStateOpt := result.map Prod.fst
 
-    match result with
+    match postStateOpt with
     | some postState =>
       if isError then
         IO.println s!"  FAIL {name}: expected error but transition succeeded"
@@ -619,13 +620,7 @@ def runBlockTestDirSeq [JamConfig] (dir : String) : IO UInt32 := do
             if idx >= 1 && idx <= 16 || idx == 255 then
               let h := Crypto.blake2b v
               IO.println s!"    idx={idx} val_len={v.size} hash={bytesToHex h.data |>.take 16}.."
-          -- Uncomment to dump specific components for debugging
-          -- if name.endsWith "004.input.gp072_tiny.json" then
-          --   for (k, v) in allPostKvs do
-          --     let idx := k.get! 0
-          --     if idx == 3 || idx == 13 then
-          --       let hexStr := bytesToHex v
-          --       IO.println s!"    DUMP idx={idx} ({v.size} bytes): {hexStr}"
+          pure ()
           failed := failed + 1
           -- Continue threading to see if subsequent blocks also fail
           currentState := some (postState, opaqueData)

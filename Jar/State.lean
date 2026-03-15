@@ -278,7 +278,7 @@ def reportsPostAssurance
           (a.bitfield.data[byteIdx]!.toNat >>> bitIdx) % 2 == 1) |>.size
       if count >= superMajority then
         (clearCore reports pr.report.coreIndex, available.push pr.report)
-      else if t'.toNat - pr.timeslot.toNat > timeout then
+      else if t'.toNat >= pr.timeslot.toNat + timeout then
         (clearCore reports pr.report.coreIndex, available)
       else (reports, available)
 
@@ -354,8 +354,12 @@ structure AccumulationResult where
     Delegates to the full accumulation pipeline in Jar.Accumulation. -/
 def performAccumulation
     (available : Array WorkReport)
-    (s : State) (t' : Timeslot) : AccumulationResult :=
-  let result := Accumulation.accumulate s available t'
+    (s : State) (t' : Timeslot)
+    (opaqueData : Array (ByteArray × ByteArray))
+    (entropy' : Entropy := s.entropy) : AccumulationResult :=
+  -- Pass the state with updated entropy so accumulation uses eta'_0
+  let s' := { s with entropy := entropy' }
+  let result : Accumulation.AccumulationResult := Accumulation.accumulate s' available t' opaqueData
   -- Collect work-package hashes of accumulated reports for history (sorted)
   let accPackageHashes := (available.map fun wr => wr.availSpec.packageHash).qsort
     (fun a b => Id.run do
@@ -527,24 +531,30 @@ def updateStatistics
   -- D(c): DA load from available reports (assurance-confirmed)
   -- p: popularity from assurance bitfields
   let coreStats := Array.replicate C CoreStatistics.zero
-  -- Incoming report stats from guarantees: imports, extrinsics, exports, gas, bundle_size
-  let coreStats := e.guarantees.foldl (init := coreStats) fun cs g =>
-    let cIdx := g.report.coreIndex.val
-    if hc : cIdx < cs.size then
-      let s := cs[cIdx]
-      -- Count assurances for this core (popularity)
+  -- p: popularity from assurance bitfields (computed independently for ALL cores)
+  let coreStats := Id.run do
+    let mut cs := coreStats
+    for cIdx in [:C] do
       let pop := e.assurances.filter (fun a =>
         let byteIdx := cIdx / 8
         let bitIdx := cIdx % 8
         byteIdx < a.bitfield.size &&
           (a.bitfield.data[byteIdx]!.toNat >>> bitIdx) % 2 == 1) |>.size
+      if hc : cIdx < cs.size then
+        let s := cs[cIdx]
+        cs := cs.set cIdx { s with popularity := s.popularity + pop }
+    return cs
+  -- R(c), L(c): refine-load and bundle size from incoming reports (guarantees)
+  let coreStats := e.guarantees.foldl (init := coreStats) fun cs g =>
+    let cIdx := g.report.coreIndex.val
+    if hc : cIdx < cs.size then
+      let s := cs[cIdx]
       -- Sum digest statistics
       let (totalImports, totalExtrinsics, totalExtrinsicSize, totalExports, totalGas) :=
         g.report.digests.foldl (init := (0, 0, 0, 0, (0 : UInt64))) fun (i, x, z, e', gas) d =>
           (i + d.importsCount, x + d.extrinsicsCount, z + d.extrinsicsSize,
            e' + d.exportsCount, gas + d.gasUsed)
       cs.set cIdx { s with
-        popularity := s.popularity + pop
         imports := s.imports + totalImports
         extrinsicCount := s.extrinsicCount + totalExtrinsics
         extrinsicSize := s.extrinsicSize + totalExtrinsicSize
@@ -558,8 +568,10 @@ def updateStatistics
     if hc : cIdx < cs.size then
       let s := cs[cIdx]
       let bundleLen := wr.availSpec.bundleLength.toNat
-      -- TODO: add segment bytes when W_P is available
-      cs.set cIdx { s with daLoad := s.daLoad + bundleLen }
+      let exportsCount := wr.availSpec.segmentCount
+      -- D(c) = bundle_length + W_G * ceil(exports_count * 65 / 64)
+      let segmentBytes := W_G * ((exportsCount * 65 + 63) / 64)
+      cs.set cIdx { s with daLoad := s.daLoad + bundleLen + segmentBytes }
     else cs
 
   -- §13.2: Service statistics — always fresh per block (not accumulated within epoch)
@@ -716,7 +728,7 @@ def stateTransition (s : State) (b : Block) : Option State := do
   let bDag := updateParentStateRoot s.recent h
 
   -- §12 — Accumulation
-  let accResult := performAccumulation available s t'
+  let accResult := performAccumulation available s t' #[] eta'
 
   -- §7 — Recent history: β'
   let headerHash := Crypto.blake2b (Codec.encodeHeader h)
@@ -755,6 +767,52 @@ def stateTransition (s : State) (b : Block) : Option State := do
     accHistory := accResult.accHistory
   }
 
+/-- State transition with opaque data for PVM accumulation (for block-level testing).
+    Returns (state, available_count) for debugging. -/
+def stateTransitionWithOpaque (s : State) (b : Block)
+    (opaqueData : Array (ByteArray × ByteArray)) : Option (State × Nat) := do
+  let h := b.header
+  let ext := b.extrinsic
+  guard (validateHeaderNoSeal s h)
+  guard (validateExtrinsic ext)
+  let t' := newTimeslot h
+  let eta' := updateEntropy s.entropy h s.timeslot t'
+  let kappa' := updateActiveValidators s.currentValidators s.safrole s.timeslot t' h.offenders
+  let lambda' := updatePreviousValidators s.previousValidators s.currentValidators s.timeslot t'
+  let psi' := updateJudgments s.judgments ext.disputes
+  let rhoDag := reportsPostJudgment s.pendingReports psi'.bad
+  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t'
+  let rho' := reportsPostGuarantees rhoDDag ext.guarantees t'
+  let bDag := updateParentStateRoot s.recent h
+  let accResult := performAccumulation available s t' opaqueData eta'
+  let headerHash := Crypto.blake2b (Codec.encodeHeader h)
+  let beta' := updateRecentHistory bDag headerHash accResult.outputs ext.guarantees
+  let delta' := integratePreimages accResult.services ext.preimages t'
+  let alpha' := updateAuthPool s.authPool accResult.authQueue h ext.guarantees
+  let pi' := updateStatistics s.statistics h ext s.timeslot t' kappa' available accResult.accStats
+  pure ({
+    authPool := alpha'
+    recent := beta'
+    accOutputs := accResult.outputs
+    safrole := Consensus.updateSafrole s.safrole ext.tickets eta' kappa'
+                  (isEpochChange s.timeslot t') (epochSlot s.timeslot)
+                  (epochIndex s.timeslot) (epochIndex t')
+                  s.pendingValidators h.offenders
+    services := delta'
+    entropy := eta'
+    pendingValidators := accResult.pendingValidators
+    currentValidators := kappa'
+    previousValidators := lambda'
+    pendingReports := rho'
+    timeslot := t'
+    authQueue := accResult.authQueue
+    privileged := accResult.privileged
+    judgments := psi'
+    statistics := pi'
+    accQueue := accResult.accQueue
+    accHistory := accResult.accHistory
+  }, available.size)
+
 /-- State transition without seal/VRF verification (for block-level testing). -/
 def stateTransitionNoSealCheck (s : State) (b : Block) : Option State := do
   let h := b.header
@@ -770,7 +828,7 @@ def stateTransitionNoSealCheck (s : State) (b : Block) : Option State := do
   let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t'
   let rho' := reportsPostGuarantees rhoDDag ext.guarantees t'
   let bDag := updateParentStateRoot s.recent h
-  let accResult := performAccumulation available s t'
+  let accResult := performAccumulation available s t' #[] eta'
   let headerHash := Crypto.blake2b (Codec.encodeHeader h)
   let beta' := updateRecentHistory bDag headerHash accResult.outputs ext.guarantees
   let delta' := integratePreimages accResult.services ext.preimages t'

@@ -2,6 +2,7 @@ import Jar.Notation
 import Jar.Types
 import Jar.Codec
 import Jar.Crypto
+import Jar.StateSerialization
 import Jar.PVM
 import Jar.PVM.Decode
 import Jar.PVM.Memory
@@ -886,7 +887,8 @@ def accone (ps : PartialState) (serviceId : ServiceId)
     (operands : Array OperandTuple) (transfers : Array DeferredTransfer)
     (freeGas : Gas) (timeslot : Timeslot)
     (entropy : Hash) (configBlob : ByteArray)
-    (itemsBlob : ByteArray) (items : Array ByteArray) : AccOneOutput :=
+    (itemsBlob : ByteArray) (items : Array ByteArray)
+    (opaqueData : Array (ByteArray × ByteArray) := #[]) : AccOneOutput :=
   -- Look up service account
   match ps.accounts.lookup serviceId with
   | none =>
@@ -922,8 +924,15 @@ def accone (ps : PartialState) (serviceId : ServiceId)
       items
     }
 
-    -- Look up service code blob from preimage store using codeHash
-    match acct.preimages.lookup acct.codeHash with
+    -- Look up service code blob from preimage store, falling back to opaque data
+    let codeOpt := match acct.preimages.lookup acct.codeHash with
+      | some blob => some blob
+      | none =>
+        -- Try opaque data: compute expected key C(s, E_4(2^32-2) ++ code_hash)
+        let codeKey := StateSerialization.stateKeyForServiceData serviceId
+          (StateSerialization.preimageHashArg acct.codeHash)
+        opaqueData.findSome? fun (k, v) => if k == codeKey.data then some v else none
+    match codeOpt with
     | none =>
       -- Code not available: service cannot accumulate
       { postState := ps, deferredTransfers := #[], yieldHash := none,
@@ -1000,6 +1009,7 @@ def groupTransfersByDest (transfers : Array DeferredTransfer) : Dict ServiceId (
 def accpar (ps : PartialState) (reports : Array WorkReport)
     (transfers : Array DeferredTransfer) (freeGasMap : Dict ServiceId Gas)
     (timeslot : Timeslot) (entropy : Hash) (configBlob : ByteArray)
+    (opaqueData : Array (ByteArray × ByteArray) := #[])
     : PartialState × Array DeferredTransfer × Array (ServiceId × Hash) × Dict ServiceId Gas :=
   let operandGroups := groupByService reports
   let transferGroups := groupTransfersByDest transfers
@@ -1016,7 +1026,7 @@ def accpar (ps : PartialState) (reports : Array WorkReport)
       let freeGas := match freeGasMap.lookup sid with | some g => g | none => 0
       let (itemsBlob, items) := buildItemsBlob ops txs
       let result := accone ps sid ops txs freeGas timeslot entropy configBlob
-        itemsBlob items
+        itemsBlob items opaqueData
       let ps' := result.postState
       let xfers' := xfers ++ result.deferredTransfers
       let yields' := match result.yieldHash with
@@ -1037,15 +1047,16 @@ def accseq (_gasLimit : Gas) (reports : Array WorkReport)
     (initialTransfers : Array DeferredTransfer)
     (ps : PartialState) (freeGasMap : Dict ServiceId Gas)
     (timeslot : Timeslot) (entropy : Hash) (configBlob : ByteArray)
+    (opaqueData : Array (ByteArray × ByteArray) := #[])
     : Nat × PartialState × Array (ServiceId × Hash) × Dict ServiceId Gas :=
   -- Round 1: accumulate work-report operands + initial deferred transfers
-  let (ps1, newXfers1, yields1, gasMap1) := accpar ps reports initialTransfers freeGasMap timeslot entropy configBlob
+  let (ps1, newXfers1, yields1, gasMap1) := accpar ps reports initialTransfers freeGasMap timeslot entropy configBlob opaqueData
 
   -- Round 2: process deferred transfers generated in round 1
   if newXfers1.size == 0 then
     (reports.size, ps1, yields1, gasMap1)
   else
-    let (ps2, newXfers2, yields2, gasMap2) := accpar ps1 #[] newXfers1 Dict.empty timeslot entropy configBlob
+    let (ps2, newXfers2, yields2, gasMap2) := accpar ps1 #[] newXfers1 Dict.empty timeslot entropy configBlob opaqueData
     let allYields := yields1 ++ yields2
     let gasMapFinal := gasMap2.entries.foldl (init := gasMap1) fun acc (k, v) =>
       acc.insert k v
@@ -1054,7 +1065,7 @@ def accseq (_gasLimit : Gas) (reports : Array WorkReport)
     if newXfers2.size == 0 then
       (reports.size, ps2, allYields, gasMapFinal)
     else
-      let (ps3, _, yields3, gasMap3) := accpar ps2 #[] newXfers2 Dict.empty timeslot entropy configBlob
+      let (ps3, _, yields3, gasMap3) := accpar ps2 #[] newXfers2 Dict.empty timeslot entropy configBlob opaqueData
       let finalYields := allYields ++ yields3
       let gasMapFinal' := gasMap3.entries.foldl (init := gasMapFinal) fun acc (k, v) =>
         acc.insert k v
@@ -1083,7 +1094,8 @@ structure AccumulationResult where
     Takes available work-reports that have been assured and
     runs the full accseq pipeline. -/
 def accumulate (state : State) (reports : Array WorkReport)
-    (timeslot : Timeslot) : AccumulationResult :=
+    (timeslot : Timeslot)
+    (opaqueData : Array (ByteArray × ByteArray)) : AccumulationResult :=
   let ps := PartialState.fromState state
   let freeGasMap := state.privileged.alwaysAccumulate
 
@@ -1091,9 +1103,9 @@ def accumulate (state : State) (reports : Array WorkReport)
   let alwaysGas := freeGasMap.values.foldl (init := 0) fun acc g => acc + g.toNat
   let _totalGas := max G_T (G_A * C + alwaysGas)
 
-  -- TODO: pass real entropy and config blob from state
   let (_, ps', outputs, gasUsage) := accseq
-    (UInt64.ofNat G_T) reports #[] ps freeGasMap timeslot Hash.zero ByteArray.empty
+    (UInt64.ofNat G_T) reports #[] ps freeGasMap timeslot
+    state.entropy.current ByteArray.empty opaqueData
 
   { services := ps'.accounts
     privileged := {

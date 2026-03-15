@@ -8,11 +8,9 @@ def testVariants : Array JamConfig := #[JamVariant.gp072_tiny.toJamConfig]
 /-- Traces where each block has full keyvals (independent per-block tests). -/
 def independentTraces : Array String := #["safrole", "fallback"]
 
-/-- Traces where only the first block has keyvals (sequential state threading).
-    Not yet passing — kept out of default test run. -/
--- conformance_no_forks: 4/100 pass (blocks 1-4), block 5+ needs PVM accumulation
--- conformance_forks: needs seal verification
+/-- Traces where only the first block has keyvals (sequential state threading). -/
 def sequentialTraces : Array String := #[]
+-- TODO: enable when passing: "conformance_no_forks", "conformance_forks"
 
 def main (args : List String) : IO UInt32 := do
   let mut exitCode : UInt32 := 0
