@@ -998,6 +998,16 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
         let regs' := setReg regs' 8 0
         (mkResult regs' mem gas', ctx)
       | some acct =>
+        -- Promote from opaque data if needed
+        let (acct, ctx) :=
+          if (acct.preimageInfo.lookup (h, blobLen)).isSome then (acct, ctx)
+          else match promotePreimageInfo acct ctx.opaqueData ctx.serviceId h blobLen with
+            | some (acct', opaqueData') => (acct', { ctx with opaqueData := opaqueData' })
+            | none => (acct, ctx)
+        -- Update accounts with promoted preimage info
+        let accounts' := ctx.state.accounts.insert ctx.serviceId acct
+        let state' := { ctx.state with accounts := accounts' }
+        let ctx := { ctx with state := state' }
         match acct.preimageInfo.lookup (h, blobLen) with
         | none =>
           let regs' := setR7 regs PVM.RESULT_NONE
@@ -1114,10 +1124,17 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
               preimages := acct.preimages.erase h
               created := acct.created - 2
               totalFootprint := acct.totalFootprint - (81 + blobLen.toNat) }
+            -- Also remove preimage data and preimage_info from opaque data
+            let preimageDataKey := StateSerialization.stateKeyForServiceData ctx.serviceId
+              (StateSerialization.preimageHashArg h)
+            let preimageInfoKey := StateSerialization.stateKeyForServiceData ctx.serviceId
+              (StateSerialization.preimageInfoHashArg blobLen h)
+            let od := ctx.opaqueData.filter fun (k, _) =>
+              k != preimageDataKey.data && k != preimageInfoKey.data
             let accounts' := ctx.state.accounts.insert ctx.serviceId acct'
             let state' := { ctx.state with accounts := accounts' }
             let regs' := setR7 regs PVM.RESULT_OK
-            (mkResult regs' mem gas', { ctx with state := state' })
+            (mkResult regs' mem gas', { ctx with state := state', opaqueData := od })
           else if ts.size == 1 then
             -- [x] → set forget time: [x, t]
             let acct' := { acct with
@@ -1133,10 +1150,17 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
               preimages := acct.preimages.erase h
               created := acct.created - 2
               totalFootprint := acct.totalFootprint - (81 + blobLen.toNat) }
+            -- Also remove preimage data and preimage_info from opaque data
+            let preimageDataKey := StateSerialization.stateKeyForServiceData ctx.serviceId
+              (StateSerialization.preimageHashArg h)
+            let preimageInfoKey := StateSerialization.stateKeyForServiceData ctx.serviceId
+              (StateSerialization.preimageInfoHashArg blobLen h)
+            let od := ctx.opaqueData.filter fun (k, _) =>
+              k != preimageDataKey.data && k != preimageInfoKey.data
             let accounts' := ctx.state.accounts.insert ctx.serviceId acct'
             let state' := { ctx.state with accounts := accounts' }
             let regs' := setR7 regs PVM.RESULT_OK
-            (mkResult regs' mem gas', { ctx with state := state' })
+            (mkResult regs' mem gas', { ctx with state := state', opaqueData := od })
           else if ts.size == 3 && ts[1]!.toNat + D_EXPUNGE < ctx.timeslot.toNat then
             -- [x, y, w] with y < t - D → [w, t]
             let acct' := { acct with

@@ -499,35 +499,73 @@ def performAccumulation
 -- §12.7 — Preimage Integration
 -- ============================================================================
 
+/-- Decode preimage info timeslots from raw bytes (compact-encoded count + E_4 each). -/
+private def decodePreimageInfoTimeslots (data : ByteArray) : Array Timeslot :=
+  match Codec.Decoder.run (fun s => do
+    let (count, s) ← Codec.decodeNatD s
+    let mut timeslots : Array Timeslot := #[]
+    let mut state := s
+    for _ in [:count] do
+      match Codec.decodeFixedNatD 4 state with
+      | some (ts, s') =>
+        timeslots := timeslots.push (UInt32.ofNat ts)
+        state := s'
+      | none => break
+    return (timeslots, state)) data with
+  | some ts => ts
+  | none => #[]
+
 /-- δ‡ : Integrate preimage data into service accounts. GP eq (12.35–12.38).
     For each (service_id, preimage_data) in E_P:
     1. Hash the preimage data to get h = H(data)
     2. If the service has a solicitation for (h, |data|), store the preimage
-    3. Expunge old preimage solicitations past D_EXPUNGE timeslots. -/
+    3. Expunge old preimage solicitations past D_EXPUNGE timeslots.
+    Also accepts and returns opaque data so that preimage_info entries
+    not promoted during accumulation can still be found and updated. -/
 def integratePreimages
     (delta : Dict ServiceId ServiceAccount)
     (preimages : PreimagesExtrinsic)
-    (t' : Timeslot) : Dict ServiceId ServiceAccount :=
+    (t' : Timeslot)
+    (opaqueData : Array (ByteArray × ByteArray) := #[])
+    : Dict ServiceId ServiceAccount × Array (ByteArray × ByteArray) :=
   -- Phase 1: Store new preimages
-  let delta' := preimages.foldl (init := delta) fun acc (sid, data) =>
+  let (delta', od') := preimages.foldl (init := (delta, opaqueData)) fun (acc, od) (sid, data) =>
     match acc.lookup sid with
-    | none => acc
+    | none => (acc, od)
     | some acct =>
       let h := Crypto.blake2b data
       let blobLen := UInt32.ofNat data.size
-      -- Check if the service has solicited this preimage
+      -- Check structured preimageInfo first
       match acct.preimageInfo.lookup (h, blobLen) with
-      | none => acc  -- Not solicited; ignore
       | some timeslots =>
         -- Store the preimage data and update the info with current timeslot
         let acct' := { acct with
           preimages := acct.preimages.insert h data
           preimageInfo := acct.preimageInfo.insert (h, blobLen)
             (timeslots.push t') }
-        acc.insert sid acct'
+        (acc.insert sid acct', od)
+      | none =>
+        -- Promote preimage_info from opaque data if available
+        let stateKey := StateSerialization.stateKeyForServiceData sid
+          (StateSerialization.preimageInfoHashArg blobLen h)
+        let found := od.findSome? fun (k, v) =>
+          if k == stateKey.data then some v else none
+        match found with
+        | none => (acc, od)  -- Not solicited; ignore
+        | some rawVal =>
+          -- Decode timeslots from opaque data value
+          let timeslots := decodePreimageInfoTimeslots rawVal
+          -- Remove from opaque data
+          let od' := od.filter fun (k, _) => k != stateKey.data
+          -- Store the preimage data and update the info with current timeslot
+          let acct' := { acct with
+            preimages := acct.preimages.insert h data
+            preimageInfo := acct.preimageInfo.insert (h, blobLen)
+              (timeslots.push t') }
+          (acc.insert sid acct', od')
   -- Note: Expunging of old preimage solicitations is NOT done here.
   -- It happens via the `forget` host call (24) during accumulation.
-  delta'
+  (delta', od')
 
 -- ============================================================================
 -- §13 — Statistics Update
@@ -842,15 +880,10 @@ def validatePreimages
       match acct.preimageInfo.lookup (h, blobLen) with
       | some _ => true
       | none =>
-        -- Check opaque data for preimage_info entries
-        -- The state key format is: idx=252 ++ service_id(4) ++ hash(32)[:26]
-        -- But for validation, we just need to confirm there's a solicitation
-        -- If not in structured data, check opaque for the preimage info key
-        let sidBytes := Codec.encodeFixedNat 4 sid.toNat
-        let hashPrefix := h.data.extract 0 26
-        let stateKey := ByteArray.mk #[252] ++ sidBytes ++ hashPrefix
-        -- Check if this key exists in opaque data
-        opaqueData.any fun (k, _v) => k == stateKey
+        -- Check opaque data for preimage_info entries using the correct state key format
+        let stateKey := StateSerialization.stateKeyForServiceData sid
+          (StateSerialization.preimageInfoHashArg blobLen h)
+        opaqueData.any fun (k, _v) => k == stateKey.data
 
 /-- Validate assurance ordering: validator indices must be sorted and unique. -/
 def validateAssuranceOrder (assurances : AssurancesExtrinsic) : Bool :=
@@ -973,7 +1006,7 @@ def stateTransition (s : State) (b : Block) : Option State := do
   let beta' := updateRecentHistory bDag headerHash accResult.outputs ext.guarantees
 
   -- §12.7 — Preimage integration
-  let delta' := integratePreimages accResult.services ext.preimages t'
+  let (delta', _) := integratePreimages accResult.services ext.preimages t'
 
   -- §8 — Authorization
   let alpha' := updateAuthPool s.authPool accResult.authQueue h ext.guarantees
@@ -1067,7 +1100,7 @@ def stateTransitionWithOpaque (s : State) (b : Block)
   let accResult := performAccumulation available s t' opaqueData eta'
   let headerHash := Crypto.blake2b (Codec.encodeHeader h)
   let beta' := updateRecentHistory bDag headerHash accResult.outputs ext.guarantees
-  let delta' := integratePreimages accResult.services ext.preimages t'
+  let (delta', remainingOpaque) := integratePreimages accResult.services ext.preimages t' accResult.remainingOpaqueData
   let alpha' := updateAuthPool s.authPool accResult.authQueue h ext.guarantees
   let pi' := updateStatistics s.statistics h ext s.timeslot t' kappa' available accResult.accStats
   pure ({
@@ -1091,7 +1124,7 @@ def stateTransitionWithOpaque (s : State) (b : Block)
     statistics := pi'
     accQueue := accResult.accQueue
     accHistory := accResult.accHistory
-  }, (available.size, accResult.exitReasons, accResult.remainingOpaqueData))
+  }, (available.size, accResult.exitReasons, remainingOpaque))
 
 /-- State transition without seal/VRF verification (for block-level testing).
     Accepts opaque data for PVM accumulation host calls and returns remaining
@@ -1115,7 +1148,7 @@ def stateTransitionNoSealCheck (s : State) (b : Block)
   let accResult := performAccumulation available s t' opaqueData eta'
   let headerHash := Crypto.blake2b (Codec.encodeHeader h)
   let beta' := updateRecentHistory bDag headerHash accResult.outputs ext.guarantees
-  let delta' := integratePreimages accResult.services ext.preimages t'
+  let (delta', remainingOpaque) := integratePreimages accResult.services ext.preimages t' accResult.remainingOpaqueData
   let alpha' := updateAuthPool s.authPool accResult.authQueue h ext.guarantees
   let pi' := updateStatistics s.statistics h ext s.timeslot t' kappa' available accResult.accStats
   pure ({
@@ -1139,6 +1172,6 @@ def stateTransitionNoSealCheck (s : State) (b : Block)
     statistics := pi'
     accQueue := accResult.accQueue
     accHistory := accResult.accHistory
-  }, accResult.exitReasons, accResult.remainingOpaqueData)
+  }, accResult.exitReasons, remainingOpaque)
 
 end Jar
