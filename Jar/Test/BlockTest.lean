@@ -638,6 +638,107 @@ def runBlockTestDirSeq [JamConfig] (dir : String) : IO UInt32 := do
           IO.println s!"    got:      {bytesToHex computedRoot.data}"
           IO.println s!"    total KVs: {allPostKvs.size} (serialized={postKvs.size} opaque={filteredOpaque.size})"
           pure ()
+          if false then
+            let preSerKvs := (@StateSerialization.serializeState _ state).map fun (k, v) => (k.data, v)
+            let preOpaqueKvs := (preSerKvs ++ opaqueData).qsort fun (k1, _) (k2, _) => byteArrayLt k1 k2
+            let preMap := preOpaqueKvs.foldl (init := Dict.empty (K := ByteArray) (V := ByteArray))
+              fun acc (k, v) => acc.insert k v
+            -- Which indices changed?
+            let mut changedIdxs : Array Nat := #[]
+            for (k, v) in allPostKvs do
+              match preMap.lookup k with
+              | some preV => if preV != v then
+                  let idx := k.get! 0 |>.toNat
+                  if !changedIdxs.contains idx then changedIdxs := changedIdxs.push idx
+              | none => pure ()
+            IO.println s!"    changed: {changedIdxs.toList}"
+            -- Revert all EXCEPT service data (idx > 16)
+            let svcOnlyKvs := allPostKvs.map fun (k, v) =>
+              if k.get! 0 <= 16 then
+                match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+              else (k, v)
+            let svcOnlyRoot := Merkle.trieRoot (svcOnlyKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            if svcOnlyRoot == expectedPostRoot then
+              IO.println s!"    FIX: all global components wrong, service data correct"
+            -- Revert all EXCEPT global (idx <= 16)
+            let globalOnlyKvs := allPostKvs.map fun (k, v) =>
+              if k.get! 0 > 16 then
+                match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+              else (k, v)
+            let globalOnlyRoot := Merkle.trieRoot (globalOnlyKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            if globalOnlyRoot == expectedPostRoot then
+              IO.println s!"    FIX: service data wrong, global components correct"
+            -- Revert ALL to verify pre-state root
+            let allRevertKvs := allPostKvs.map fun (k, v) =>
+              match preMap.lookup k with
+              | some preV => (k, preV)
+              | none => (k, v)
+            let allRevertRoot := Merkle.trieRoot (allRevertKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            let preRoot := Merkle.trieRoot (preOpaqueKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            IO.println s!"    preRoot: {bytesToHex preRoot.data |>.take 16}.. allRevert: {bytesToHex allRevertRoot.data |>.take 16}.."
+            -- Try reverting all 7 global + service metadata
+            let all8Kvs := allPostKvs.map fun (k, v) =>
+              let idx := k.get! 0 |>.toNat
+              if idx == 3 || idx == 6 || idx == 10 || idx == 11 || idx == 13 || idx == 15 || idx == 16 || idx == 255 then
+                match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+              else (k, v)
+            let all8Root := Merkle.trieRoot (all8Kvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            IO.println s!"    revert all 8 changed: {bytesToHex all8Root.data |>.take 16}.. (pre: {bytesToHex preRoot.data |>.take 16}..)"
+            -- Try keeping only small subsets of changed components
+            -- Keep timeslot + service metadata + entropy (should be trivially correct)
+            let trivialKvs := allPostKvs.map fun (k, v) =>
+              let idx := k.get! 0 |>.toNat
+              if idx == 11 || idx == 255 || idx == 6 then (k, v)
+              else match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+            let trivialRoot := Merkle.trieRoot (trivialKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            -- Keep everything except statistics (idx=13)
+            let noStatsKvs := allPostKvs.map fun (k, v) =>
+              if k.get! 0 == 13 then
+                match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+              else (k, v)
+            let noStatsRoot := Merkle.trieRoot (noStatsKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            IO.println s!"    trivial(11,255,6): {bytesToHex trivialRoot.data |>.take 16}.."
+            IO.println s!"    no stats(~13): {bytesToHex noStatsRoot.data |>.take 16}.."
+            IO.println s!"    expected: {bytesToHex expectedPostRoot.data |>.take 16}.."
+            -- Check if maybe some component that should be UNCHANGED is wrong
+            -- If all changes are right, root should match expected
+            -- If a MISSING change exists, we need to find which unchanged idx should change
+            -- Try: apply ONLY idx=11 change (trivially correct)
+            let onlyTimeslotKvs := allPostKvs.map fun (k, v) =>
+              if k.get! 0 == 11 then (k, v)  -- keep timeslot
+              else match preMap.lookup k with
+                | some preV => (k, preV)
+                | none => (k, v)
+            let onlyTsRoot := Merkle.trieRoot (onlyTimeslotKvs.map fun (k, v) => ((⟨k, sorry⟩ : OctetSeq 31), v))
+            -- Hmm, what if idx=1 (authPool) SHOULD change but isn't?
+            -- Check if expected root = pre-state with ONLY timeslot changed
+            IO.println s!"    only timeslot: {bytesToHex onlyTsRoot.data |>.take 16}.."
+            -- Dump statistics bytes to find exact differences
+            for (k, v) in allPostKvs do
+              if k.get! 0 == 13 then
+                match preMap.lookup k with
+                | some preV =>
+                  -- Show byte differences in statistics
+                  let diffBytes := Id.run do
+                    let mut diffs : Array (Nat × Nat × Nat) := #[]  -- (pos, pre, post)
+                    for i in [:min preV.size v.size] do
+                      if preV.get! i != v.get! i then
+                        diffs := diffs.push (i, preV.get! i |>.toNat, v.get! i |>.toNat)
+                    return diffs
+                  IO.println s!"    stats diffs ({diffBytes.size} bytes differ, pre={preV.size} post={v.size}):"
+                  for (pos, pre, post) in diffBytes.toSubarray 0 (min 20 diffBytes.size) do
+                    IO.println s!"      byte {pos}: {pre} -> {post}"
+                | none => pure ()
           for (sid, reason) in exitReasons do
             IO.println s!"    acc svc={sid}: {reason}"
           -- Debug: show service storage state
