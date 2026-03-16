@@ -1,0 +1,10 @@
+{"post_state":
+ {"avail_assignments":
+  [null,
+   {"timeout": 11,
+    "report":
+    {"package_spec":
+     {"hash":
+      "0xc7e675b7e3450cf70d436172644faef291c2aa905b1fe81c068785cd6e1e44e5"},
+     "core_index": 1}}]},
+ "output": {"ok": {"reported": [{"core_index": 0}]}}}

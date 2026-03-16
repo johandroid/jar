@@ -56,4 +56,10 @@ instance JamVariant.gp072_tiny : JamVariant where
   pvmRun := PVM.run
   pvmRunWithHostCalls := PVM.runWithHostCalls
 
+/-- Tiny JAR v0.8.0 variant — copy of gp072_tiny for future spec changes. -/
+instance JamVariant.jar080_tiny : JamVariant where
+  toJamConfig := JamConfig.mk "jar080_tiny" Params.tiny Params.tiny_valid
+  pvmRun := PVM.run
+  pvmRunWithHostCalls := PVM.runWithHostCalls
+
 end Jar
