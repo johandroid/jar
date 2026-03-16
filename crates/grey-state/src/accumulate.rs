@@ -288,6 +288,9 @@ fn compute_accumulatable_with_new(
 struct AccContext {
     service_id: ServiceId,
     accounts: BTreeMap<ServiceId, AccServiceAccount>,
+    /// Initial (pre-accumulation) snapshot for parallel read semantics.
+    /// host_read/host_info on OTHER services read from this snapshot.
+    init_accounts: BTreeMap<ServiceId, AccServiceAccount>,
     next_service_id: ServiceId,
     transfers: Vec<DeferredTransfer>,
     output: Option<Hash>,
@@ -303,6 +306,7 @@ struct AccContext {
 fn accumulate_single_service(
     config: &Config,
     accounts: &BTreeMap<ServiceId, AccServiceAccount>,
+    init_accounts: &BTreeMap<ServiceId, AccServiceAccount>,
     transfers: &[DeferredTransfer],
     reports: &[WorkReport],
     privileges: &AccPrivileges,
@@ -392,6 +396,7 @@ fn accumulate_single_service(
     let regular = AccContext {
         service_id,
         accounts: initial_accounts.clone(),
+        init_accounts: init_accounts.clone(),
         next_service_id,
         transfers: vec![],
         output: None,
@@ -846,7 +851,13 @@ fn host_read(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
         None => return false, // page fault → PANIC
     };
 
-    if let Some(account) = ctx.accounts.get_mut(&service_id) {
+    // For parallel semantics: read self from mutable accounts, others from init snapshot
+    let target_accounts = if service_id == ctx.service_id {
+        &mut ctx.accounts
+    } else {
+        &mut ctx.init_accounts
+    };
+    if let Some(account) = target_accounts.get_mut(&service_id) {
         // Check structured storage first, then fall back to opaque data
         let value = if let Some(v) = account.storage.get(&key) {
             Some(v.clone())
@@ -867,9 +878,6 @@ fn host_read(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
             let v_len = value.len() as u64;
             let f = offset.min(v_len) as usize;
             let l = max_len.min(v_len - f as u64) as usize;
-            if v_len <= 64 {
-            } else {
-            }
             if l > 0 {
                 if pvm.try_write_bytes(out_ptr, &value[f..f + l]).is_none() {
                     return false; // page fault → PANIC
@@ -992,7 +1000,13 @@ fn host_info(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     let offset = pvm.reg(9);
     let max_len = pvm.reg(10);
 
-    if let Some(account) = ctx.accounts.get(&service_id) {
+    // For parallel semantics: read self from mutable accounts, others from init snapshot
+    let target = if service_id == ctx.service_id {
+        ctx.accounts.get(&service_id)
+    } else {
+        ctx.init_accounts.get(&service_id)
+    };
+    if let Some(account) = target {
         // Build info struct v per GP:
         // E(a_c, E_8(a_b, a_t, a_g, a_m, a_o), E_4(a_i), E_8(a_f), E_4(a_r, a_a, a_p))
         // = 32 + 40 + 4 + 8 + 12 = 96 bytes
@@ -1236,7 +1250,13 @@ fn host_lookup(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     hash.copy_from_slice(&hash_data);
     let hash = Hash(hash);
 
-    if let Some(account) = ctx.accounts.get_mut(&service_id) {
+    // For parallel semantics: lookup self from mutable accounts, others from init snapshot
+    let target = if service_id == ctx.service_id {
+        ctx.accounts.get_mut(&service_id)
+    } else {
+        ctx.init_accounts.get_mut(&service_id)
+    };
+    if let Some(account) = target {
         // Check structured preimage_lookup first, then fall back to opaque data
         let value = if let Some(v) = account.preimage_lookup.get(&hash) {
             Some(v.clone())
@@ -1610,7 +1630,7 @@ fn host_query(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
     hash.copy_from_slice(&hash_data);
     let hash = Hash(hash);
 
-    // Promote preimage_info from opaque if needed
+    // Promote preimage_info from opaque if needed (query is always on self)
     if let Some(account) = ctx.accounts.get_mut(&ctx.service_id) {
         let key = (hash, z);
         if !account.preimage_info.contains_key(&key) {
@@ -1624,6 +1644,7 @@ fn host_query(pvm: &mut PvmInstance, ctx: &mut AccContext) -> bool {
         }
     }
 
+    // query always operates on the current service's own account
     let account = ctx.accounts.get(&ctx.service_id);
     if let Some(account) = account {
         if let Some(timeslots) = account.preimage_info.get(&(hash, z)) {
@@ -1941,6 +1962,8 @@ fn accumulate_batch(
     }
 
     let mut current_accounts = accounts.clone();
+    // Initial snapshot for parallel read semantics (info/read/lookup on other services)
+    let init_accounts = accounts.clone();
     let mut all_transfers = Vec::new();
     let mut outputs = Vec::new();
     let mut gas_usage = Vec::new();
@@ -1960,6 +1983,7 @@ fn accumulate_batch(
         let result = accumulate_single_service(
             config,
             &current_accounts,
+            &init_accounts,
             transfers,
             reports,
             &current_privileges,
