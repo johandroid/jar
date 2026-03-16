@@ -142,6 +142,9 @@ structure AccContext where
   items : Array ByteArray
   /-- Opaque data for fallback lookups (storage/preimage from initial keyvals). -/
   opaqueData : Array (ByteArray × ByteArray)
+  /-- Initial accounts snapshot for parallel semantics: host calls that read OTHER
+      services' state use this instead of ctx.state.accounts. -/
+  initAccounts : Dict ServiceId ServiceAccount := Dict.empty
   /-- Segment export data (for export host call). -/
   exports : Array ByteArray := #[]
   /-- Debug: host call log. -/
@@ -592,7 +595,12 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
     let targetSid := if rawSid == UInt64.ofNat (2^64 - 1) then ctx.serviceId
       else if rawSid.toNat <= UInt32.toNat (UInt32.ofNat (2^32 - 1)) then UInt32.ofNat rawSid.toNat
       else 0  -- invalid → will return NONE
-    match ctx.state.accounts.lookup targetSid with
+    -- GP parallel semantics: read OTHER services from initial state snapshot,
+    -- read SELF from current (accumulated) state.
+    let acctLookup := if targetSid == ctx.serviceId
+      then ctx.state.accounts.lookup targetSid
+      else ctx.initAccounts.lookup targetSid
+    match acctLookup with
     | none =>
       let regs' := setR7 regs PVM.RESULT_NONE
       (mkResult regs' mem gas', ctx)
@@ -1357,7 +1365,8 @@ def accone (ps : PartialState) (serviceId : ServiceId)
     (freeGas : Gas) (timeslot : Timeslot)
     (entropy : Hash) (configBlob : ByteArray)
     (itemsBlob : ByteArray) (items : Array ByteArray)
-    (opaqueData : Array (ByteArray × ByteArray) := #[]) : AccOneOutput :=
+    (opaqueData : Array (ByteArray × ByteArray) := #[])
+    (initAccounts : Dict ServiceId ServiceAccount := Dict.empty) : AccOneOutput :=
   -- Look up service account
   match ps.accounts.lookup serviceId with
   | none =>
@@ -1425,6 +1434,7 @@ def accone (ps : PartialState) (serviceId : ServiceId)
       nextServiceId := UInt32.ofNat nextId
       checkpoint := none
       entropy
+      initAccounts
       configBlob
       itemsBlob
       items
@@ -1600,10 +1610,9 @@ private def privSnap (ps : PartialState) : PrivSnapshot :=
     stagingKeys := ps.stagingKeys, authQueue := ps.authQueue }
 
 /-- Accumulate all affected services in parallel. GP §12 eq:accpar.
-    Services are accumulated sequentially for accounts, but before each service runs,
-    privileges are reset to the initial values. After all services complete, the
-    GP R-merge formula determines the final privileges from each service's individual
-    privilege changes.
+    Services are accumulated sequentially, but host calls that read other services'
+    state (info, read, lookup, query) use a snapshot of the INITIAL state to ensure
+    parallel semantics: each service's computation is independent of accumulation order.
     Returns (updated partial state, new deferred transfers, yield outputs, gas used). -/
 def accpar (ps : PartialState) (reports : Array WorkReport)
     (transfers : Array DeferredTransfer) (freeGasMap : Dict ServiceId Gas)
@@ -1619,9 +1628,12 @@ def accpar (ps : PartialState) (reports : Array WorkReport)
 
   -- Save the initial privileges for R-merge.
   let initPriv := privSnap ps
+  -- Save initial accounts snapshot for parallel read semantics.
+  let initAccts := ps.accounts
 
-  -- Accumulate each service sequentially for accounts.
-  -- Track each service's privilege snapshot for R-merge at the end.
+  -- Accumulate each service sequentially. Cross-service writes (eject, provide, new)
+  -- take effect immediately. But host calls that READ other services' state use
+  -- the initial state snapshot (ps.accounts) via the initAccounts field in AccContext.
   let (ps', allTransfers, allYields, gasMap, exitReasons, opaqueData', perServicePriv) := serviceIds.foldl
     (init := (ps, #[], #[], Dict.empty (K := ServiceId) (V := Gas), #[], opaqueData,
              Dict.empty (K := ServiceId) (V := PrivSnapshot)))
@@ -1633,12 +1645,7 @@ def accpar (ps : PartialState) (reports : Array WorkReport)
       -- Snapshot privileges BEFORE this service runs, to detect changes.
       let privBefore := privSnap ps
       let result := accone ps sid ops txs freeGas timeslot entropy configBlob
-        itemsBlob items od
-      -- Capture this service's privilege changes as a delta from initPriv.
-      -- If this service changed any privilege field, its snapshot reflects the change.
-      -- Since services run sequentially and may see prior changes, we record
-      -- what the state looks like AFTER this service. The R-merge at the end will
-      -- select the appropriate service's version.
+        itemsBlob items od initAccts
       let svcPriv := privSnap result.postState
       let ps' := result.postState
       let od' := result.opaqueData
@@ -1651,9 +1658,6 @@ def accpar (ps : PartialState) (reports : Array WorkReport)
         | some h => yields.push (sid, h)
         | none => yields
       let gm' := gm.insert sid (UInt64.ofNat result.gasUsed.toNat)
-      -- Only record privilege snapshot if this service actually changed privileges
-      -- (to avoid cascading sequential changes polluting the per-service map).
-      -- A service changed privileges if any privilege field differs from before.
       let changed := privBefore.manager != svcPriv.manager ||
         privBefore.designator != svcPriv.designator ||
         privBefore.registrar != svcPriv.registrar ||
