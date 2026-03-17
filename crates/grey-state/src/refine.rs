@@ -7,7 +7,7 @@
 
 use crate::pvm_backend::{ExitReason, PvmInstance};
 use grey_types::config::Config;
-use grey_types::constants::{GAS_IS_AUTHORIZED, HOST_NONE, HOST_OOB};
+use grey_types::constants::{GAS_IS_AUTHORIZED, HOST_OOB, HOST_WHAT};
 use grey_types::work::*;
 use grey_types::{Gas, Hash, ServiceId, Timeslot};
 use std::collections::BTreeMap;
@@ -318,8 +318,9 @@ fn handle_readonly_host_call(id: u32, pvm: &mut PvmInstance, _config: &Config) {
             pvm.set_reg(7, pvm.gas());
         }
         _ => {
-            // Unknown host call in read-only context → return WHAT
-            pvm.set_reg(7, HOST_NONE);
+            // Unsupported host call in read-only context → return WHAT (GP catch-all)
+            tracing::warn!(id, "unsupported host call in is-authorized context");
+            pvm.set_reg(7, HOST_WHAT);
         }
     }
 }
@@ -352,8 +353,9 @@ fn handle_refine_host_call(
             }
         }
         _ => {
-            // Other host calls not yet implemented → return NONE
-            pvm.set_reg(7, HOST_NONE);
+            // Unsupported host call in refine context → return WHAT (GP catch-all)
+            tracing::warn!(id, "unsupported host call in refine context");
+            pvm.set_reg(7, HOST_WHAT);
         }
     }
 }
