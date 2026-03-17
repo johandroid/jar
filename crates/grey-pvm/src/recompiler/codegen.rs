@@ -80,6 +80,7 @@ pub const CTX_ENTRY_PC: i32 = -CTX_OFFSET + 168;
 pub const CTX_PC: i32 = -CTX_OFFSET + 172;
 pub const CTX_DISPATCH_TABLE: i32 = -CTX_OFFSET + 176;
 pub const CTX_CODE_BASE: i32 = -CTX_OFFSET + 184;
+pub const CTX_FAST_REENTRY: i32 = -CTX_OFFSET + 208;
 
 /// Exit reason codes (matching ExitReason enum).
 pub const EXIT_HALT: u32 = 0;
@@ -347,40 +348,64 @@ impl Compiler {
         };
 
         // SCRATCH (RDX) = guest address (32-bit clean)
-        // Uses push/pop RAX (phi[11]) as temp for permission check.
         let done_label = self.asm.new_label();
-        let fault_label = self.asm.new_label();
 
-        // Permission check: cmp byte [R15 + page_index - PERMS_OFFSET], 1
-        self.asm.push(Reg::RAX);                     // save phi[11]
-        self.asm.mov_rr(Reg::RAX, SCRATCH);          // eax = guest addr
-        self.asm.shr_ri32(Reg::RAX, 12);             // eax = page index
-        self.asm.cmp_byte_sib_disp32(CTX, Reg::RAX, -PERMS_OFFSET, 1);
-        self.asm.jcc_label(Cc::B, fault_label);
+        if dst != Reg::RAX && dst != SCRATCH {
+            // Fast path: use dst as temp for page index (no push/pop needed).
+            // dst will be overwritten by the load anyway.
+            let fault_label = self.asm.new_label();
+            self.asm.mov_rr(dst, SCRATCH);               // dst = guest addr
+            self.asm.shr_ri32(dst, 12);                  // dst = page index
+            self.asm.cmp_byte_sib_disp32(CTX, dst, -PERMS_OFFSET, 1);
+            self.asm.jcc_label(Cc::B, fault_label);
 
-        // Direct load: [R15 + guest_addr] — result in dst
-        match _w {
-            1 => self.asm.movzx_load8_sib(dst, CTX, SCRATCH),
-            2 => self.asm.movzx_load16_sib(dst, CTX, SCRATCH),
-            4 => self.asm.mov_load32_sib(dst, CTX, SCRATCH),
-            8 => self.asm.mov_load64_sib(dst, CTX, SCRATCH),
-            _ => unreachable!(),
-        }
-        if dst == Reg::RAX {
-            // dst overwrote RAX; discard the saved phi[11] (it's the old value)
-            self.asm.add_ri(Reg::RSP, 8);
+            // Direct load: [R15 + guest_addr] — result in dst
+            match _w {
+                1 => self.asm.movzx_load8_sib(dst, CTX, SCRATCH),
+                2 => self.asm.movzx_load16_sib(dst, CTX, SCRATCH),
+                4 => self.asm.mov_load32_sib(dst, CTX, SCRATCH),
+                8 => self.asm.mov_load64_sib(dst, CTX, SCRATCH),
+                _ => unreachable!(),
+            }
+            self.asm.jmp_label(done_label);
+
+            // Fault (fast path — no RAX to restore)
+            self.asm.bind_label(fault_label);
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, pvm_pc as i32);
+            self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
+            self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
+            self.asm.jmp_label(self.exit_label);
         } else {
-            self.asm.pop(Reg::RAX);                  // restore phi[11]
-        }
-        self.asm.jmp_label(done_label);
+            // Slow path: dst is RAX (phi[11]) or SCRATCH — use push/pop RAX.
+            let fault_label = self.asm.new_label();
+            self.asm.push(Reg::RAX);                     // save phi[11]
+            self.asm.mov_rr(Reg::RAX, SCRATCH);          // eax = guest addr
+            self.asm.shr_ri32(Reg::RAX, 12);             // eax = page index
+            self.asm.cmp_byte_sib_disp32(CTX, Reg::RAX, -PERMS_OFFSET, 1);
+            self.asm.jcc_label(Cc::B, fault_label);
 
-        // Fault path
-        self.asm.bind_label(fault_label);
-        self.asm.pop(Reg::RAX);                      // restore phi[11]
-        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pvm_pc as i32);
-        self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
-        self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
-        self.asm.jmp_label(self.exit_label);
+            match _w {
+                1 => self.asm.movzx_load8_sib(dst, CTX, SCRATCH),
+                2 => self.asm.movzx_load16_sib(dst, CTX, SCRATCH),
+                4 => self.asm.mov_load32_sib(dst, CTX, SCRATCH),
+                8 => self.asm.mov_load64_sib(dst, CTX, SCRATCH),
+                _ => unreachable!(),
+            }
+            if dst == Reg::RAX {
+                self.asm.add_ri(Reg::RSP, 8);            // discard saved phi[11]
+            } else {
+                self.asm.pop(Reg::RAX);                  // restore phi[11]
+            }
+            self.asm.jmp_label(done_label);
+
+            // Fault (slow path — restore RAX)
+            self.asm.bind_label(fault_label);
+            self.asm.pop(Reg::RAX);
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, pvm_pc as i32);
+            self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
+            self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
+            self.asm.jmp_label(self.exit_label);
+        }
 
         self.asm.bind_label(done_label);
     }

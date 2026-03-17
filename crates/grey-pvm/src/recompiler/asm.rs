@@ -488,6 +488,17 @@ impl Assembler {
     pub fn sub_ri32(&mut self, dst: Reg, imm: i32) { self.alu_ri32(5, dst, imm); }
     pub fn cmp_ri32(&mut self, a: Reg, imm: i32) { self.alu_ri32(7, a, imm); }
 
+    /// cmp dword [base + disp32], imm32
+    pub fn cmp_mem32_imm(&mut self, base: Reg, disp: i32, imm: i32) {
+        if base.hi() != 0 {
+            self.emit(0x41);             // REX.B for extended base register
+        }
+        self.emit(0x81);                 // ALU r/m32, imm32
+        self.modrm_disp32(7, base);     // /7 = CMP
+        self.emit_i32(disp);
+        self.emit_i32(imm);
+    }
+
     /// sub qword [base + disp32], sign-extended imm32
     pub fn sub_mem64_imm32(&mut self, base: Reg, disp: i32, imm: i32) {
         self.rex_w_b(base);          // REX.W (+ REX.B if base is R8-R15)

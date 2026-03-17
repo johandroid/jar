@@ -63,6 +63,11 @@ pub struct JitContext {
     /// Permission table base pointer (offset 200).
     /// 1 byte per 4KB page: 0=inaccessible, 1=read-only, 2=read-write.
     pub flat_perms: *const u8,
+    /// Fast re-entry flag (offset 208). When non-zero, prologue skips loading
+    /// callee-saved PVM registers (φ[0]-φ[4]) since they're preserved in x86
+    /// callee-saved registers between calls.
+    pub fast_reentry: u32,
+    _pad2: u32,
 }
 
 /// Compiled native code buffer (mmap'd as executable).
@@ -534,6 +539,8 @@ impl RecompiledPvm {
                 code_base: 0,
                 flat_buf: flat_memory.buf,
                 flat_perms: flat_memory.perms,
+                fast_reentry: 0,
+                _pad2: 0,
             });
         }
         let ctx = unsafe { &mut *ctx_raw };
@@ -648,67 +655,19 @@ impl RecompiledPvm {
                 );
             }
 
-            // Read exit reason from context
+            // Read exit reason from context.
+            // Hot path (case 4 = HostCall) is kept minimal. Cold paths
+            // (OOG fallback, gas correction) are in separate methods to
+            // avoid bloating the function and hurting instruction cache.
             match self.ctx().exit_reason {
-                0 => {
-                    let exit_pc = self.ctx().pc as usize;
-                    self.correct_gas_for_mid_block_exit(exit_pc);
-                    return ExitReason::Halt;
-                }
-                1 => {
-                    let exit_pc = self.ctx().pc as usize;
-                    self.correct_gas_for_mid_block_exit(exit_pc);
-                    return ExitReason::Panic;
-                }
-                2 => {
-                    // Block-level OOG: gas was restored to pre-subtraction value.
-                    // Fall back to the interpreter for the remaining instructions
-                    // in this block, which handles per-instruction OOG correctly.
-                    let pc = self.ctx().pc;
-                    let remaining_gas = self.ctx().gas as u64;
-                    if remaining_gas == 0 {
-                        // Truly out of gas — no instructions can execute
-                        self.ctx_mut().entry_pc = pc;
-                        return ExitReason::OutOfGas;
-                    }
-                    // Build an interpreter from the current recompiler state and run it
-                    let mut interp = crate::vm::Pvm::new(
-                        self.code.clone(),
-                        self.bitmask.clone(),
-                        self.jump_table.clone(),
-                        *self.registers(),
-                        self.memory().clone(),
-                        remaining_gas,
-                    );
-                    interp.pc = pc;
-                    interp.heap_base = self.ctx().heap_base;
-                    interp.heap_top = self.ctx().heap_top;
-                    let (exit, _) = interp.run();
-                    // Sync state back from interpreter
-                    for i in 0..13 {
-                        self.ctx_mut().regs[i] = interp.registers[i];
-                    }
-                    self.ctx_mut().gas = interp.gas as i64;
-                    self.ctx_mut().pc = interp.pc;
-                    self.ctx_mut().entry_pc = interp.pc;
-                    self.ctx_mut().heap_base = interp.heap_base;
-                    self.ctx_mut().heap_top = interp.heap_top;
-                    // Sync memory back to flat buffer
-                    self.sync_memory_from_interp(&interp.memory);
-                    return exit;
-                }
-                3 => {
-                    // Page fault mid-block: gas was charged for the full block
-                    // at block start, but only some instructions executed.
-                    // Correct gas by adding back the un-executed portion.
-                    let fault_pc = self.ctx().pc as usize;
-                    self.correct_gas_for_mid_block_exit(fault_pc);
-                    return ExitReason::PageFault(self.ctx().exit_arg);
-                }
                 4 => {
                     self.ctx_mut().entry_pc = self.ctx().pc;
                     return ExitReason::HostCall(self.ctx().exit_arg);
                 }
+                0 => return self.handle_halt_exit(),
+                1 => return self.handle_panic_exit(),
+                2 => return self.handle_oog_exit(),
+                3 => return self.handle_page_fault_exit(),
                 5 => {
                     // Dynamic jump — resolve and re-enter
                     let idx = self.ctx().exit_arg;
@@ -737,6 +696,61 @@ impl RecompiledPvm {
         } else {
             None
         }
+    }
+
+    // --- Cold exit handlers (kept out of run() to avoid bloating the hot path) ---
+
+    #[cold]
+    fn handle_halt_exit(&mut self) -> ExitReason {
+        self.correct_gas_for_mid_block_exit(self.ctx().pc as usize);
+        ExitReason::Halt
+    }
+
+    #[cold]
+    fn handle_panic_exit(&mut self) -> ExitReason {
+        self.correct_gas_for_mid_block_exit(self.ctx().pc as usize);
+        ExitReason::Panic
+    }
+
+    #[cold]
+    fn handle_page_fault_exit(&mut self) -> ExitReason {
+        self.correct_gas_for_mid_block_exit(self.ctx().pc as usize);
+        ExitReason::PageFault(self.ctx().exit_arg)
+    }
+
+    #[cold]
+    fn handle_oog_exit(&mut self) -> ExitReason {
+        // Block-level OOG: gas was restored to pre-subtraction value.
+        // Fall back to the interpreter for the remaining instructions
+        // in this block, which handles per-instruction OOG correctly.
+        let pc = self.ctx().pc;
+        let remaining_gas = self.ctx().gas as u64;
+        if remaining_gas == 0 {
+            self.ctx_mut().entry_pc = pc;
+            return ExitReason::OutOfGas;
+        }
+        let mut interp = crate::vm::Pvm::new(
+            self.code.clone(),
+            self.bitmask.clone(),
+            self.jump_table.clone(),
+            *self.registers(),
+            self.memory().clone(),
+            remaining_gas,
+        );
+        interp.pc = pc;
+        interp.heap_base = self.ctx().heap_base;
+        interp.heap_top = self.ctx().heap_top;
+        let (exit, _) = interp.run();
+        for i in 0..13 {
+            self.ctx_mut().regs[i] = interp.registers[i];
+        }
+        self.ctx_mut().gas = interp.gas as i64;
+        self.ctx_mut().pc = interp.pc;
+        self.ctx_mut().entry_pc = interp.pc;
+        self.ctx_mut().heap_base = interp.heap_base;
+        self.ctx_mut().heap_top = interp.heap_top;
+        self.sync_memory_from_interp(&interp.memory);
+        exit
     }
 
     /// Access the PVM registers.
@@ -996,6 +1010,8 @@ mod tests {
             code_base: 0,
             flat_buf: std::ptr::null_mut(),
             flat_perms: std::ptr::null(),
+            fast_reentry: 0,
+            _pad2: 0,
         };
         let base = &ctx as *const JitContext as usize;
         // Convert codegen offset (negative from R15) to struct offset:
