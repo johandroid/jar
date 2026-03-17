@@ -1417,7 +1417,7 @@ def accone (ps : PartialState) (serviceId : ServiceId)
 
     match codeOpt with
     | none =>
-      -- Code not available: skip PVM execution, credit transfers only (GP eq 12.24)
+      -- Code unavailable (c = ∅): return identity output per GP eq B.6 (Ψ_A)
       { postState := ps, deferredTransfers := #[], yieldHash := none,
         gasUsed := 0, provisions := #[], opaqueData := opaqueData',
         exitReasonStr := "" }

@@ -739,7 +739,7 @@ def decodeUnsignedHeaderD : Decoder Header := do
       offenders
       authorIndex := ⟨authorIndex, h⟩
       vrfSignature
-      sealSig := default  -- placeholder, filled by decodeHeaderD
+      sealSig := default  -- E_U(H) excludes seal; filled by decodeHeaderD (GP eq C.22-C.23)
     }
   else
     failure
