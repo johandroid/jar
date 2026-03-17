@@ -2024,9 +2024,11 @@ fn accumulate_batch(
             batch_pending_validators = result.pending_validators;
         }
 
-        if result.privileges.designate != prev_designate || result.privileges.bless != prev_bless {
+        // GP R-merge: only the MANAGER service's bless call updates privileges.
+        // Other services' bless calls are discarded.
+        if sid == current_privileges.bless {
+            current_privileges = result.privileges;
         }
-        current_privileges = result.privileges;
 
         if let Some(output) = result.output {
             outputs.push((sid, output));
@@ -2105,6 +2107,10 @@ fn accumulate_all(
 
     // GP: n = |t| + i + |f| — total items to process
     let n = transfers.len() + max_reports + privileges.always_acc.len();
+    if timeslot == 24 {
+        eprintln!("acc_all t=24: budget={gas_budget} reports={max_reports}/{} xfers={} always={} n={n}",
+            reports.len(), transfers.len(), privileges.always_acc.len());
+    }
     for t in &transfers {
     }
     if n == 0 {
