@@ -22,6 +22,10 @@ struct Cli {
     #[arg(short = 'i', long, default_value_t = 0)]
     validator_index: u16,
 
+    /// Network listen address
+    #[arg(long, default_value = "127.0.0.1")]
+    listen_addr: String,
+
     /// Network listen port
     #[arg(short, long, default_value_t = 9000)]
     port: u16,
@@ -169,6 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     node::run_node(node::NodeConfig {
         validator_index: cli.validator_index,
+        listen_addr: cli.listen_addr,
         listen_port: cli.port,
         boot_peers: cli.peers,
         protocol_config: config,

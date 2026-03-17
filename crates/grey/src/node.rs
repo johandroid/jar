@@ -29,6 +29,8 @@ use tokio::sync::mpsc;
 pub struct NodeConfig {
     /// Validator index in the genesis set.
     pub validator_index: u16,
+    /// Network listen address (e.g. "127.0.0.1" or "0.0.0.0").
+    pub listen_addr: String,
     /// Network listen port.
     pub listen_port: u16,
     /// Boot peer addresses.
@@ -91,6 +93,7 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
         .collect();
 
     let (mut net_events, net_commands) = grey_network::service::start_network(NetworkConfig {
+        listen_addr: config.listen_addr.clone(),
         listen_port: config.listen_port,
         boot_peers,
         validator_index: config.validator_index,

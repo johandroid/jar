@@ -93,6 +93,8 @@ pub enum NetworkCommand {
 
 /// Configuration for the network service.
 pub struct NetworkConfig {
+    /// IP address to listen on (e.g. "0.0.0.0" for all interfaces, "127.0.0.1" for loopback).
+    pub listen_addr: String,
     /// Port to listen on.
     pub listen_port: u16,
     /// Peer addresses to connect to at startup.
@@ -291,7 +293,7 @@ pub async fn start_network(
         .map_err(|e| format!("Failed to subscribe to tickets topic: {e}"))?;
 
     // Listen on the configured port
-    let listen_addr: Multiaddr = format!("/ip4/127.0.0.1/tcp/{}", config.listen_port)
+    let listen_addr: Multiaddr = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port)
         .parse()
         .map_err(|e| format!("Invalid listen address: {e}"))?;
     swarm.listen_on(listen_addr)?;

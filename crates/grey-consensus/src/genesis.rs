@@ -49,11 +49,13 @@ pub fn make_validator_key(secrets: &ValidatorSecrets) -> ValidatorKey {
 
     let bls_bytes = secrets.bls.public_key_bytes();
 
-    // Metadata: encode the validator index and a dummy network address
+    // Metadata: encode the validator index and network address.
+    // Uses loopback (127.0.0.1) for local testnets; production genesis
+    // would use actual public addresses.
     let mut metadata = [0u8; 128];
     metadata[0] = secrets.index as u8;
     metadata[1] = (secrets.index >> 8) as u8;
-    // Bytes 2..6: loopback IP + port for this validator
+    // Bytes 2..6: IP address (loopback for testnet)
     metadata[2] = 127;
     metadata[3] = 0;
     metadata[4] = 0;

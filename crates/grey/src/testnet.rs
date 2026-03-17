@@ -157,6 +157,7 @@ pub async fn run_testnet(
         let handle = tokio::spawn(async move {
             let node_config = crate::node::NodeConfig {
                 validator_index: i,
+                listen_addr: "127.0.0.1".to_string(),
                 listen_port: port,
                 boot_peers: peers,
                 protocol_config: config_clone,
