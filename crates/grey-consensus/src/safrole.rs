@@ -236,9 +236,10 @@ pub fn apply_safrole(
         }
     }
 
-    // Derive tickets from proofs (eq 6.31)
-    // NOTE: In a real implementation, we'd verify Ring VRF proofs and extract Y(p).
-    // For now, derive ticket IDs from a hash of the proof data.
+    // Derive tickets from proofs (eq 6.31).
+    // Full Ring VRF verification is done in grey-state/src/safrole.rs via the
+    // ring_vrf_verify callback. This consensus-layer code uses a simplified
+    // hash-based derivation for its own ticket management.
     let new_tickets: Vec<Ticket> = ticket_proofs
         .iter()
         .map(|tp| {

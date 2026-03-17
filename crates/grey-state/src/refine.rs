@@ -379,28 +379,9 @@ fn encode_work_package_simple(pkg: &WorkPackage) -> Vec<u8> {
 mod tests {
     use super::*;
 
-    /// Build a minimal PVM blob that immediately halts with output = input (echo).
-    /// This is a simplified test: the real service code would be a proper PVM program.
+    /// Stub blob for structural tests (empty — PVM init will fail gracefully).
+    /// PVM-based refine tests use the block trace vectors in stf_blocks instead.
     fn make_echo_blob() -> Vec<u8> {
-        // Build a minimal PVM program that:
-        // 1. Reads arguments from the standard argument region
-        // 2. Sets ω[7] = arg_ptr, ω[8] = arg_len (echo back)
-        // 3. Halts
-        //
-        // For testing, we use the grey-transpiler to build a real program,
-        // or we just use a raw deblob-compatible program.
-        //
-        // Simplest: a program that immediately halts.
-        // After initialization, ω[7] and ω[8] already point to arguments.
-        // A single `trap` instruction would panic; we need `halt`.
-        //
-        // PVM opcode for halt = 0x00 (trap acts as halt if used at PC=0 after args setup)
-        // Actually, looking at the PVM: opcode 0 = trap (panic), not halt.
-        // Halt is actually unreachable by opcode alone — it happens when the program
-        // reaches fallthrough at the end of code.
-        //
-        // For a real test, we'd need to use the transpiler or hand-craft a blob.
-        // Let's skip the PVM execution test and just test the pipeline structure.
         vec![]
     }
 
