@@ -424,9 +424,12 @@ def invokeStd (blob : ByteArray) (gasLimit : Gas) (input : ByteArray)
     let result := run prog 0 regs mem (Int64.ofUInt64 gasLimit)
     match result.exitReason with
     | .halt =>
-      -- Output is in memory at the address in reg[10], length in reg[11]
-      -- Simplified: return empty output
-      (result.gas.toUInt64, .inl ByteArray.empty)
+      let outPtr := result.registers[10]!
+      let outLen := result.registers[11]!
+      let output := match readByteArray result.memory outPtr outLen.toNat with
+        | .ok bytes => bytes
+        | .panic | .fault _ => ByteArray.empty
+      (result.gas.toUInt64, .inl output)
     | other => (result.gas.toUInt64, .inr other)
 
 end Jar.PVM
