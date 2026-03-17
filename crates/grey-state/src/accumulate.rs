@@ -467,6 +467,13 @@ fn accumulate_single_service(
     let (final_context, gas_used) =
         run_accumulate_pvm(config, &code_blob, total_gas, &args, regular, exceptional, timeslot, entropy, &service_fetch_ctx);
 
+    // Dump last 50 PCs if tracing was enabled (service 0 at gas=50469)
+    if total_gas == 50469 {
+        // The trace is inside the PVM which was moved into run_accumulate_pvm.
+        // We can't access it here. Instead, dump gas_used.
+        eprintln!("TRACE gas=50469: gas_used={gas_used} remaining={}", total_gas - gas_used);
+    }
+
 
     ServiceAccResult {
         accounts: final_context.accounts,
@@ -709,6 +716,7 @@ fn handle_host_call(
     let host_gas_cost: u64 = 10;
 
     if pvm.gas() < host_gas_cost {
+        pvm.set_gas(0); // GP: gas set to 0 when insufficient for host call
         return false;
     }
     pvm.set_gas(pvm.gas() - host_gas_cost);
