@@ -185,20 +185,48 @@ def updateSafrole
 -- §19 — Best Chain Selection
 -- ============================================================================
 
-/-- Metric for best chain selection. GP §19 eq (19.1–19.4).
-    The best chain maximizes the count of ticketed seals among ancestors
-    which are not yet finalized. -/
-def chainMetric (ticketedCount : Nat) : Nat := ticketedCount
+/-- Chain ancestry data: maps header hash → (parent hash, timeslot).
+    Represents the set of known headers for ancestry traversal. -/
+abbrev ChainAncestry := List (Hash × Hash × Timeslot)
+
+/-- A(H) : Ancestor set of a block. GP §19.
+    Traces parent links back through known headers. -/
+partial def ancestors (chain : ChainAncestry) (headerHash : Hash) : List Hash :=
+  match chain.find? (fun (h, _, _) => h == headerHash) with
+  | none => []
+  | some (_, parent, _) => headerHash :: ancestors chain parent
 
 /-- Check if a block is acceptable for best chain consideration. GP §19.
     A block must:
-    1. Be a descendant of the finalized block
-    2. Have all reports audited
-    3. Not contain equivocating headers (same timeslot, different hash) -/
+    1. Be a descendant of the finalized block: A(H♭) ∋ H♮
+    2. Have all reports audited: U♭ ≡ ⊤
+    3. Not contain equivocating headers in unfinalized range:
+       ¬∃ H^A ≠ H^B : H^A_T = H^B_T ∧ H^A ∈ A(H♭) ∧ H^A ∉ A(H♮) -/
 def isAcceptable
-    (_headerHash : Hash) (_finalizedHash : Hash)
-    (_isAudited : Bool) : Bool :=
-  -- Simplified: full implementation would check ancestry and equivocation
-  _isAudited
+    (chain : ChainAncestry)
+    (headerHash : Hash) (finalizedHash : Hash)
+    (isAudited : Bool) : Bool :=
+  -- 1. Ancestry: finalized block must be in ancestor set
+  let candidateAncestors := ancestors chain headerHash
+  let hasFinalized := candidateAncestors.any (· == finalizedHash)
+  -- 2. Auditing
+  let audited := isAudited
+  -- 3. No equivocation: no two distinct unfinalized headers share a timeslot
+  let finalizedAncestors := ancestors chain finalizedHash
+  let unfinalizedHeaders := candidateAncestors.filter fun h =>
+    !finalizedAncestors.any (· == h)
+  let unfinalizedWithSlot := unfinalizedHeaders.filterMap fun h =>
+    chain.find? (fun (h', _, _) => h' == h) |>.map fun (_, _, ts) => (h, ts)
+  let noEquivocation := !unfinalizedWithSlot.any fun (h1, ts1) =>
+    unfinalizedWithSlot.any fun (h2, ts2) => h1 != h2 && ts1 == ts2
+  hasFinalized && audited && noEquivocation
+
+/-- Best chain metric: count of ticketed (non-fallback) seals among ancestors. GP §19.
+    m = Σ_{H^A ∈ A♭} T^A.  Select B♭ to maximize this value. -/
+def chainMetric
+    (chain : ChainAncestry) (headerHash : Hash)
+    (isTicketed : Hash → Bool) : Nat :=
+  let ancestorSet := ancestors chain headerHash
+  ancestorSet.foldl (fun count h => if isTicketed h then count + 1 else count) 0
 
 end Jar.Consensus
