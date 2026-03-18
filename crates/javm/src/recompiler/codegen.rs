@@ -116,6 +116,8 @@ pub struct Compiler {
     panic_label: Label,
     /// Per-gas-block OOG stubs: (label, pvm_pc) — emitted as cold code after main body.
     oog_stubs: Vec<(Label, u32, u32)>,  // (label, pvm_pc, block_cost)
+    /// Per-memory-access fault stubs — emitted as cold code after main body.
+    fault_stubs: Vec<(Label, u32)>,  // (label, pvm_pc)
     /// Helper function addresses.
     helpers: HelperFns,
     /// Entry points: every instruction start (for dispatch table / re-entry).
@@ -144,6 +146,7 @@ impl Compiler {
             oog_label,
             panic_label,
             oog_stubs: Vec::new(),
+            fault_stubs: Vec::new(),
             helpers,
             basic_block_starts,
             gas_block_starts,
@@ -336,12 +339,8 @@ impl Compiler {
         self.emit_mem_read_sized(dst, fn_addr, 0, pvm_pc);
     }
 
-    /// Emit inline memory read with explicit width.
-    /// width_bytes: 1=u8, 2=u16, 4=u32, 8=u64. 0=auto (use fn_addr to detect).
-    /// pvm_pc: the PVM PC of the instruction, stored in CTX_PC on fault for gas correction.
-    /// Emit inline memory read with bounds check.
-    /// JAR v0.8.0 linear memory: all addresses in [0, heap_top) are valid RW.
-    /// Hot path: cmp + jae + load (no push/pop, no permission table).
+    /// Emit memory read with bounds check (cold fault path).
+    /// Hot path: cmp + jae + load (3 instructions, no jmp over fault).
     fn emit_mem_read_sized(&mut self, dst: Reg, fn_addr: u64, width_bytes: u32, pvm_pc: u32) {
         let w = if width_bytes > 0 { width_bytes } else {
             if fn_addr == self.helpers.mem_read_u8 { 1 }
@@ -350,15 +349,13 @@ impl Compiler {
             else { 8 }
         };
 
-        // SCRATCH (RDX) = guest address (32-bit clean)
         let fault_label = self.asm.new_label();
-        let done_label = self.asm.new_label();
 
-        // Bounds check: cmp [R15 + CTX_HEAP_TOP], edx  (heap_top vs addr)
+        // Bounds check: cmp [R15 + CTX_HEAP_TOP], edx
         self.asm.cmp_mem32_r(CTX, CTX_HEAP_TOP, SCRATCH);
-        self.asm.jcc_label(Cc::BE, fault_label);  // fault if heap_top <= addr
+        self.asm.jcc_label(Cc::BE, fault_label);
 
-        // Direct load: [R15 + guest_addr]
+        // Direct load: [R15 + guest_addr] — falls through to next instruction
         match w {
             1 => self.asm.movzx_load8_sib(dst, CTX, SCRATCH),
             2 => self.asm.movzx_load16_sib(dst, CTX, SCRATCH),
@@ -366,21 +363,11 @@ impl Compiler {
             8 => self.asm.mov_load64_sib(dst, CTX, SCRATCH),
             _ => unreachable!(),
         }
-        self.asm.jmp_label(done_label);
-
-        // Fault path (cold)
-        self.asm.bind_label(fault_label);
-        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pvm_pc as i32);
-        self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
-        self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
-        self.asm.jmp_label(self.exit_label);
-
-        self.asm.bind_label(done_label);
+        self.fault_stubs.push((fault_label, pvm_pc));
     }
 
-    /// Emit memory write with bounds check.
-    /// JAR v0.8.0 linear memory: all addresses in [0, heap_top) are valid RW.
-    /// Hot path: cmp + jae + store (no push/pop, no permission table).
+    /// Emit memory write with bounds check (cold fault path).
+    /// Hot path: cmp + jae + store (3 instructions, no jmp over fault).
     fn emit_mem_write(&mut self, _addr_in_scratch: bool, val_reg: Reg, fn_addr: u64, pvm_pc: u32) {
         let w = if fn_addr == self.helpers.mem_write_u8 { 1u32 }
             else if fn_addr == self.helpers.mem_write_u16 { 2 }
@@ -388,7 +375,6 @@ impl Compiler {
             else { 8 };
 
         let fault_label = self.asm.new_label();
-        let done_label = self.asm.new_label();
 
         // Bounds check: cmp [R15 + CTX_HEAP_TOP], edx
         self.asm.cmp_mem32_r(CTX, CTX_HEAP_TOP, SCRATCH);
@@ -402,16 +388,8 @@ impl Compiler {
             8 => self.asm.mov_store64_sib(CTX, SCRATCH, val_reg),
             _ => unreachable!(),
         }
-        self.asm.jmp_label(done_label);
-
-        // Fault path (cold)
-        self.asm.bind_label(fault_label);
-        self.asm.mov_store32_imm(CTX, CTX_PC as i32, pvm_pc as i32);
-        self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
-        self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
-        self.asm.jmp_label(self.exit_label);
-
-        self.asm.bind_label(done_label);
+        // No jmp needed — fault path is emitted as cold code at the end
+        self.fault_stubs.push((fault_label, pvm_pc));
     }
 
     /// Compile a single PVM instruction.
@@ -1956,6 +1934,17 @@ impl Compiler {
             self.asm.add_mem64_imm32(CTX, CTX_GAS, *cost as i32);
             self.asm.mov_store32_imm(CTX, CTX_PC as i32, *pvm_pc as i32);
             self.asm.jmp_label(self.oog_label);
+        }
+
+        // Per-memory-access fault stubs (cold code): store PC, set PAGE_FAULT,
+        // store fault address, jump to shared exit.
+        let fault_stubs = std::mem::take(&mut self.fault_stubs);
+        for (label, pvm_pc) in &fault_stubs {
+            self.asm.bind_label(*label);
+            self.asm.mov_store32_imm(CTX, CTX_PC as i32, *pvm_pc as i32);
+            self.asm.mov_store32_imm(CTX, CTX_EXIT_REASON, EXIT_PAGE_FAULT as i32);
+            self.asm.mov_store32(CTX, CTX_EXIT_ARG, SCRATCH);
+            self.asm.jmp_label(self.exit_label);
         }
 
         // Shared out-of-gas exit
