@@ -503,8 +503,8 @@ impl RecompiledPvm {
         // at arbitrary PCs, e.g., PC=5 for accumulate, PC=10 for on-transfer).
         let basic_block_starts: Vec<bool> = bitmask.iter().map(|&b| b == 1).collect();
 
-        // Pre-decode all instructions for fast codegen (replaces byte-by-byte loop).
-        let pre_decoded = predecode::predecode(&code, &bitmask, &jump_table);
+        // Fast gas-block bitmap (byte-level scan, no full instruction decoding).
+        let gas_starts = predecode::compute_gas_blocks(&code, &bitmask, &jump_table);
 
         // Allocate memory on the heap so we have a stable pointer
         let memory = Box::new(memory);
@@ -575,7 +575,7 @@ impl RecompiledPvm {
             helpers,
             code.len(),
         );
-        let (native, dispatch_table) = compiler.compile(&pre_decoded, code.len(), &code, &bitmask);
+        let (native, dispatch_table) = compiler.compile(&code, &bitmask, &gas_starts);
 
         if debug {
             let _ = std::fs::write("/tmp/pvm_native.bin", &native);

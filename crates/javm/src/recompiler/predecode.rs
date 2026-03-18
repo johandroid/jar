@@ -136,6 +136,78 @@ pub fn predecode(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> Vec<PreDeco
     instrs
 }
 
+/// Compute gas block start bitmap from raw code+bitmask (no full Args decoding).
+/// Returns Vec<bool> indexed by PVM byte offset. True = this PC starts a gas block.
+pub fn compute_gas_blocks(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> Vec<bool> {
+    let mut gas_starts = vec![false; code.len()];
+
+    // PC=0 always starts a gas block
+    if !code.is_empty() {
+        gas_starts[0] = true;
+    }
+
+    // Jump table entries
+    for &target in jump_table {
+        let t = target as usize;
+        if t < code.len() && t < bitmask.len() && bitmask[t] == 1 {
+            gas_starts[t] = true;
+        }
+    }
+
+    // Scan instructions for branch targets and terminators
+    let mut pc: usize = 0;
+    while pc < code.len() {
+        if pc < bitmask.len() && bitmask[pc] != 1 {
+            pc += 1;
+            continue;
+        }
+
+        let opcode = Opcode::from_byte(code[pc]);
+        let skip = compute_skip(pc, bitmask);
+        let next_pc = pc + 1 + skip;
+
+        if let Some(op) = opcode {
+            // Extract branch/jump targets from raw bytes
+            let category = op.category();
+            let target_pc = match category {
+                crate::instruction::InstructionCategory::OneOffset => {
+                    // Jump: offset is signed, relative to pc
+                    let raw = args::decode_args(code, pc, skip, category);
+                    match raw { Args::Offset { offset } => Some(offset as usize), _ => None }
+                }
+                crate::instruction::InstructionCategory::OneRegImmOffset => {
+                    let raw = args::decode_args(code, pc, skip, category);
+                    match raw { Args::RegImmOffset { offset, .. } => Some(offset as usize), _ => None }
+                }
+                crate::instruction::InstructionCategory::TwoRegOneOffset => {
+                    let raw = args::decode_args(code, pc, skip, category);
+                    match raw { Args::TwoRegOffset { offset, .. } => Some(offset as usize), _ => None }
+                }
+                _ => None,
+            };
+            if let Some(t) = target_pc {
+                if t < code.len() && t < bitmask.len() && bitmask[t] == 1 {
+                    gas_starts[t] = true;
+                }
+            }
+
+            // Post-terminator fallthrough
+            if op.is_terminator() && next_pc < code.len() {
+                gas_starts[next_pc] = true;
+            }
+
+            // Post-ecalli
+            if matches!(op, Opcode::Ecalli) && next_pc < code.len() {
+                gas_starts[next_pc] = true;
+            }
+        }
+
+        pc = next_pc;
+    }
+
+    gas_starts
+}
+
 /// Compute skip(i) — distance to next instruction start.
 fn compute_skip(pc: usize, bitmask: &[u8]) -> usize {
     for j in 0..25 {

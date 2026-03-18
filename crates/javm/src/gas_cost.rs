@@ -774,18 +774,16 @@ fn reg_bit(r: u8) -> u16 {
     if r < 13 { 1u16 << r } else { 0 }
 }
 
-/// Compute FastCost from a pre-decoded instruction.
-/// Uses flat (ra, rb, rd) fields from PreDecodedInst for zero-cost register access.
+/// Compute FastCost from instruction components.
 #[inline(always)]
-pub fn fast_cost(instr: &crate::recompiler::predecode::PreDecodedInst, code: &[u8], bitmask: &[u8]) -> FastCost {
+pub fn fast_cost_from_parts(opcode_byte: u8, ra: u8, rb: u8, rd: u8, pc: u32, args: &crate::args::Args, code: &[u8], bitmask: &[u8]) -> FastCost {
     use crate::args::Args;
-    let (ra, rb, rd) = (instr.ra, instr.rb, instr.rd);
 
     let r1 = |r: u8| reg_bit(r);
     let r2 = |a: u8, b: u8| reg_bit(a) | reg_bit(b);
     let dst_src_overlap = |dst: u8, s: u16| (reg_bit(dst) & s) != 0;
 
-    let opcode = instr.opcode as u8;
+    let opcode = opcode_byte;
     match opcode {
         // No-arg terminators
         0 => FastCost { cycles: 2, decode_slots: 1, exec_unit: EU_NONE, src_mask: 0, dst_mask: 0, is_terminator: true, is_move_reg: false },
@@ -820,13 +818,13 @@ pub fn fast_cost(instr: &crate::recompiler::predecode::PreDecodedInst, code: &[u
 
         // Branches (reg+imm+offset)
         81..=90 => {
-            let target = match instr.args { Args::RegImmOffset { offset, .. } => offset as usize, _ => instr.pc as usize };
+            let target = match args { Args::RegImmOffset { offset, .. } => *offset as usize, _ => pc as usize };
             let bc = branch_cost(code, bitmask, target);
             FastCost { cycles: bc as u8, decode_slots: 1, exec_unit: EU_ALU, src_mask: r1(ra), dst_mask: 0, is_terminator: true, is_move_reg: false }
         }
         // Branches (two-reg+offset)
         170..=175 => {
-            let target = match instr.args { Args::TwoRegOffset { offset, .. } => offset as usize, _ => instr.pc as usize };
+            let target = match args { Args::TwoRegOffset { offset, .. } => *offset as usize, _ => pc as usize };
             let bc = branch_cost(code, bitmask, target);
             FastCost { cycles: bc as u8, decode_slots: 1, exec_unit: EU_ALU, src_mask: r2(ra, rb), dst_mask: 0, is_terminator: true, is_move_reg: false }
         }
@@ -1008,7 +1006,11 @@ fn gas_sim_fast(instrs: &[crate::recompiler::predecode::PreDecodedInst], _code: 
     for _safety in 0..100_000u32 {
         // Phase 1: Decode as many instructions as possible this cycle
         while instr_idx < instrs.len() && decode_slots > 0 && (next_slot as usize) < 32 {
-            let cost = fast_cost(&instrs[instr_idx], _code, _bitmask);
+            let cost = fast_cost_from_parts(
+                instrs[instr_idx].opcode as u8, instrs[instr_idx].ra, instrs[instr_idx].rb,
+                instrs[instr_idx].rd, instrs[instr_idx].pc,
+                &instrs[instr_idx].args, _code, _bitmask,
+            );
 
             if cost.is_move_reg {
                 decode_slots = decode_slots.saturating_sub(cost.decode_slots);
