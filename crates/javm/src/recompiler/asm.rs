@@ -892,6 +892,22 @@ impl Assembler {
         self.emit_i32(disp);
     }
 
+    /// lea r32, [base32 + index32 * 4]  (32-bit result, auto zero-extends to 64)
+    pub fn lea_sib4_32(&mut self, dst: Reg, base: Reg, index: Reg) {
+        let rex = 0x40 | (dst.hi() << 2) | (index.hi() << 1) | base.hi();
+        if rex != 0x40 { self.emit(rex); }
+        self.emit(0x8D); // LEA
+        if base.lo() == 5 {
+            // RBP/R13 as base: need mod=01 with disp8=0 (mod=00 means [disp32])
+            self.emit(0x44 | (dst.lo() << 3)); // mod=01, reg=dst, rm=100(SIB)
+            self.emit(0x80 | (index.lo() << 3) | base.lo()); // scale=4, index, base
+            self.emit(0x00); // disp8 = 0
+        } else {
+            self.emit((dst.lo() << 3) | 0x04); // mod=00, reg=dst, rm=100(SIB)
+            self.emit(0x80 | (index.lo() << 3) | base.lo()); // scale=4, index, base
+        }
+    }
+
     // -- Misc --
 
     /// ud2 (undefined instruction, for traps)
