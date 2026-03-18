@@ -58,17 +58,17 @@ fn parse_service_account(v: &serde_json::Value) -> (ServiceId, AccServiceAccount
     }
 
     let account = AccServiceAccount {
-        version: svc["version"].as_u64().unwrap() as u8,
+        version: svc["version"].as_u64().unwrap_or(0) as u8,
         code_hash: hash_from_hex(svc["code_hash"].as_str().unwrap()),
         balance: svc["balance"].as_u64().unwrap(),
         min_item_gas: svc["min_item_gas"].as_u64().unwrap() as Gas,
         min_memo_gas: svc["min_memo_gas"].as_u64().unwrap() as Gas,
         bytes: svc["bytes"].as_u64().unwrap(),
-        deposit_offset: svc["deposit_offset"].as_u64().unwrap(),
+        deposit_offset: svc["deposit_offset"].as_u64().unwrap_or(0),
         items: svc["items"].as_u64().unwrap(),
         creation_slot: svc["creation_slot"].as_u64().unwrap() as Timeslot,
-        last_accumulation_slot: svc["last_accumulation_slot"].as_u64().unwrap() as Timeslot,
-        parent_service: svc["parent_service"].as_u64().unwrap() as ServiceId,
+        last_accumulation_slot: svc["last_accumulation_slot"].as_u64().unwrap_or(0) as Timeslot,
+        parent_service: svc["parent_service"].as_u64().unwrap_or(0) as ServiceId,
         storage,
         preimage_lookup,
         preimage_info,
