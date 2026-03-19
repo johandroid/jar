@@ -6,23 +6,16 @@ A JAM (Join-Accumulate Machine) blockchain node implementation in Rust, followin
 
 - **382+ tests passing** across all crates, **101/101 conformance blocks**
 - **Multi-node testnet** — 6 validators, GRANDPA finality, full work package pipeline
-- **PVM recompiler faster than polkavm's compiler** — grey's x86-64 JIT recompiler outperforms polkavm v0.30.0's compiler backend on both compute and host-call workloads (including compilation time in each iteration):
+- **PVM recompiler faster than polkavm** — grey's x86-64 JIT recompiler outperforms polkavm v0.32.0's compiler backend on all workloads with pipeline gas metering (`POLKAVM_DEFAULT_COST_MODEL=full-l1-hit`). Benchmarks include full compile+execute each iteration (realistic JAM model where each work-package is compiled fresh):
 
-  | Benchmark | Grey Recompiler | PolkaVM Compiler | Result |
-  |-----------|-----------------|------------------|--------|
-  | Fibonacci (1M iter) | 425 us | 445 us | **Grey 5% faster** |
-  | Host calls (100K ecalli) | 679 us | 3,331 us | **Grey 4.9x faster** |
+  | Benchmark | Grey Recompiler | PolkaVM Generic | PolkaVM Linux | Grey vs best |
+  |-----------|-----------------|-----------------|---------------|--------------|
+  | Fibonacci (1M iter) | **416 µs** | 429 µs | 414 µs | 1.00x |
+  | Host calls (100K ecalli) | **834 µs** | 3,177 µs | 30,164 µs | **3.8x faster** |
+  | Sort (500 elements) | **434 µs** | 463 µs | 452 µs | **1.04x faster** |
+  | Ecrecover (secp256k1) | **2,078 µs** | 3,122 µs | 2,958 µs | **1.42x faster** |
 
-  Key optimizations: per-basic-block gas metering with fused `sub [mem], imm` + `js` (2 instructions), cold OOG stubs to keep PC stores off the hot path, `inc`/`dec` for +1/-1, register-mapped PVM state. Benchmarks include full compile+execute each iteration (realistic JAM model where each work-package is compiled fresh). See [docs/pvm-recompiler-optimization.md](docs/pvm-recompiler-optimization.md) for details.
-
-- **PVM interpreter also faster than polkavm** — grey's interpreter beats polkavm's interpreter:
-
-  | Benchmark | Grey | PolkaVM | Result |
-  |-----------|------|---------|--------|
-  | Fibonacci (1M iter) | 10.8 ms | 9.4 ms | PolkaVM 1.15x faster |
-  | Host calls (100K ecalli) | 0.91 ms | 2.6 ms | **Grey 2.9x faster** |
-
-  Key optimizations: pre-decoded instruction cache, basic-block gas charging, inline flat-operand execution, pre-resolved branch targets. See [docs/pvm-interpreter-optimization.md](docs/pvm-interpreter-optimization.md) for details.
+  Key optimizations: per-basic-block pipeline gas simulation, peephole instruction fusion, mprotect+SIGSEGV memory bounds checking (zero-instruction hot path), register-mapped PVM state, cold OOG/fault stubs.
 
 ## Building
 
