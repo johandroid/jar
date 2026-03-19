@@ -1703,7 +1703,6 @@ def accseq (gasLimit : Gas) (reports : Array WorkReport)
   -- Initialize count map from round 1
   let countMap1 := gasMap1.entries.foldl (init := Dict.empty (K := ServiceId) (V := Nat))
     fun acc (k, _) => acc.insert k 1
-
   -- Subsequent rounds: process deferred transfers until none remain or gas exhausted.
   -- GP §12 eq:accseq: g* = g + Σ(t.gas) — augment budget with transfer gas each round.
   let maxRounds := 10
