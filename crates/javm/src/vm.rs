@@ -1609,6 +1609,134 @@ impl Pvm {
                 Opcode::Min => { self.registers[rd] = std::cmp::min(self.registers[ra] as i64, self.registers[rb] as i64) as u64; }
                 Opcode::MinU => { self.registers[rd] = std::cmp::min(self.registers[ra], self.registers[rb]); }
 
+                // === Indirect loads (two reg + imm) ===
+                Opcode::LoadIndU8 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u8(addr) {
+                        Some(v) => { self.registers[ra] = v as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndI8 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u8(addr) {
+                        Some(v) => { self.registers[ra] = v as i8 as i64 as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndU16 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u16_le(addr) {
+                        Some(v) => { self.registers[ra] = v as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndI16 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u16_le(addr) {
+                        Some(v) => { self.registers[ra] = v as i16 as i64 as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndU32 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u32_le(addr) {
+                        Some(v) => { self.registers[ra] = v as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndI32 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u32_le(addr) {
+                        Some(v) => { self.registers[ra] = v as i32 as i64 as u64; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+                Opcode::LoadIndU64 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.read_u64_le(addr) {
+                        Some(v) => { self.registers[ra] = v; }
+                        None => { exit = Some(ExitReason::PageFault(addr & !0xFFF)); }
+                    }
+                }
+
+                // === Indirect stores (two reg + imm) ===
+                Opcode::StoreIndU8 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.write_u8(addr, self.registers[ra] as u8) {
+                        MemoryAccess::Ok => {}
+                        MemoryAccess::PageFault(a) => { exit = Some(ExitReason::PageFault(a)); }
+                    }
+                }
+                Opcode::StoreIndU16 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.write_u16_le(addr, self.registers[ra] as u16) {
+                        MemoryAccess::Ok => {}
+                        MemoryAccess::PageFault(a) => { exit = Some(ExitReason::PageFault(a)); }
+                    }
+                }
+                Opcode::StoreIndU32 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.write_u32_le(addr, self.registers[ra] as u32) {
+                        MemoryAccess::Ok => {}
+                        MemoryAccess::PageFault(a) => { exit = Some(ExitReason::PageFault(a)); }
+                    }
+                }
+                Opcode::StoreIndU64 => {
+                    let addr = self.registers[rb].wrapping_add(imm1) as u32;
+                    match self.memory.write_u64_le(addr, self.registers[ra]) {
+                        MemoryAccess::Ok => {}
+                        MemoryAccess::PageFault(a) => { exit = Some(ExitReason::PageFault(a)); }
+                    }
+                }
+
+                // === Div/Rem (three reg, common in crypto) ===
+                Opcode::DivU32 => {
+                    let b = self.registers[rb] as u32;
+                    self.registers[rd] = if b == 0 { u64::MAX } else { args::sign_extend_32((self.registers[ra] as u32 / b) as u64) };
+                }
+                Opcode::DivU64 => {
+                    let b = self.registers[rb];
+                    self.registers[rd] = if b == 0 { u64::MAX } else { self.registers[ra] / b };
+                }
+                Opcode::DivS32 => {
+                    let a = self.registers[ra] as i32;
+                    let b = self.registers[rb] as i32;
+                    self.registers[rd] = if b == 0 { u64::MAX } else if a == i32::MIN && b == -1 { a as u64 } else { args::sign_extend_32((a / b) as i64 as u64) };
+                }
+                Opcode::DivS64 => {
+                    let a = self.registers[ra] as i64;
+                    let b = self.registers[rb] as i64;
+                    self.registers[rd] = if b == 0 { u64::MAX } else if a == i64::MIN && b == -1 { a as u64 } else { (a / b) as u64 };
+                }
+                Opcode::RemU32 => {
+                    let b = self.registers[rb] as u32;
+                    self.registers[rd] = if b == 0 { args::sign_extend_32(self.registers[ra] as u32 as u64) } else { args::sign_extend_32((self.registers[ra] as u32 % b) as u64) };
+                }
+                Opcode::RemU64 => {
+                    let b = self.registers[rb];
+                    self.registers[rd] = if b == 0 { self.registers[ra] } else { self.registers[ra] % b };
+                }
+                Opcode::RemS32 => {
+                    let a = self.registers[ra] as i32;
+                    let b = self.registers[rb] as i32;
+                    self.registers[rd] = if b == 0 { a as u64 } else if a == i32::MIN && b == -1 { 0 } else { args::sign_extend_32((a % b) as i64 as u64) };
+                }
+                Opcode::RemS64 => {
+                    let a = self.registers[ra] as i64;
+                    let b = self.registers[rb] as i64;
+                    self.registers[rd] = if b == 0 { a as u64 } else if a == i64::MIN && b == -1 { 0 } else { (a % b) as u64 };
+                }
+                Opcode::MulUpperSS => {
+                    self.registers[rd] = ((self.registers[ra] as i64 as i128).wrapping_mul(self.registers[rb] as i64 as i128) >> 64) as u64;
+                }
+                Opcode::MulUpperUU => {
+                    self.registers[rd] = ((self.registers[ra] as u128).wrapping_mul(self.registers[rb] as u128) >> 64) as u64;
+                }
+                Opcode::MulUpperSU => {
+                    self.registers[rd] = ((self.registers[ra] as i64 as i128).wrapping_mul(self.registers[rb] as u128 as i128) >> 64) as u64;
+                }
+
                 // === All other instructions: delegate to execute() ===
                 _ => {
                     self.pc = inst.pc;
