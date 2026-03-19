@@ -12,8 +12,8 @@ polkavm-generic-sandbox = ["polkavm/generic-sandbox"]
 [dependencies]
 javm = { workspace = true }
 grey-transpiler = { workspace = true }
-polkavm = "0.30.0"
-polkavm-common = "0.30.0"
+polkavm = "0.32.0"
+polkavm-common = "0.32.0"
 polkavm-linker = { path = "../../../polkavm/crates/polkavm-linker" }
 
 [dev-dependencies]

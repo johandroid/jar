@@ -70,9 +70,14 @@ fn polkavm_config(backend: BackendKind) -> Config {
     let mut config = Config::from_env().unwrap_or_else(|_| Config::new());
     config.set_backend(Some(backend));
     config.set_allow_experimental(true);
-    config.set_sandboxing_enabled(false);
+    // Don't override sandboxing if env explicitly set it
+    if std::env::var_os("POLKAVM_SANDBOXING_ENABLED").is_none() {
+        config.set_sandboxing_enabled(false);
+    }
     #[cfg(feature = "polkavm-generic-sandbox")]
-    config.set_sandbox(Some(SandboxKind::Generic));
+    if std::env::var_os("POLKAVM_SANDBOX").is_none() {
+        config.set_sandbox(Some(SandboxKind::Generic));
+    }
     config
 }
 
