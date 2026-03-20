@@ -279,7 +279,7 @@ impl Pvm {
         // Gas is charged at every block entry: initial entry, after terminators,
         // and at branch/jump targets. Matches Lean runBlockGas behavior.
         if self.need_gas_charge {
-            let block_cost = crate::gas_cost::gas_cost_for_block(&self.code, &self.bitmask, pc);
+            let block_cost = self.block_gas_costs[pc];
             if self.gas < block_cost {
                 return Some(ExitReason::OutOfGas);
             }
@@ -2058,18 +2058,56 @@ pub fn compute_basic_block_starts(code: &[u8], bitmask: &[u8]) -> Vec<bool> {
     starts
 }
 
-/// Compute the gas cost for each basic block using pipeline simulation (JAR v0.8.0).
+/// Compute the gas cost for each basic block using single-pass gas model (JAR v0.8.0).
 ///
-/// Gas is charged per basic block at block entry. The cost is computed by
-/// the CPU pipeline simulation: max(simulated_cycles - 3, 1).
+/// Uses the same GasSimulator as the recompiler — single code path.
+/// Gas is charged per basic block at block entry: max(max_done - 3, 1).
 fn compute_block_gas_costs(code: &[u8], bitmask: &[u8], basic_block_starts: &[bool]) -> Vec<u64> {
+    use crate::gas_cost::{fast_cost_from_raw, skip_distance};
+    use crate::recompiler::gas_sim::GasSimulator;
+
     let len = code.len();
     let mut costs = vec![0u64; len];
-    for (pc, &is_start) in basic_block_starts.iter().enumerate() {
-        if is_start {
-            costs[pc] = crate::gas_cost::gas_cost_for_block(code, bitmask, pc);
+    let mut sim = GasSimulator::new();
+    let mut block_start: usize = 0;
+    let mut in_block = false;
+
+    let mut pc = 0;
+    while pc < len {
+        if !basic_block_starts[pc] && !in_block {
+            pc += 1;
+            continue;
         }
+
+        if basic_block_starts[pc] {
+            if in_block {
+                // Finalize previous block
+                costs[block_start] = sim.flush_and_get_cost() as u64;
+                sim.reset();
+            }
+            block_start = pc;
+            in_block = true;
+        }
+
+        // Extract raw register nibbles (same as codegen.rs)
+        let opcode_byte = code[pc];
+        let raw_ra = if pc + 1 < len { code[pc + 1] & 0x0F } else { 0xFF };
+        let raw_rb = if pc + 1 < len { (code[pc + 1] >> 4) & 0x0F } else { 0xFF };
+        let raw_rd = if pc + 2 < len { code[pc + 2] & 0x0F } else { 0xFF };
+
+        let fc = fast_cost_from_raw(opcode_byte, raw_ra, raw_rb, raw_rd, pc as u32, code, bitmask);
+        sim.feed(&fc);
+
+        // Advance to next instruction
+        let skip = skip_distance(bitmask, pc);
+        pc += 1 + skip;
     }
+
+    // Finalize last block
+    if in_block {
+        costs[block_start] = sim.flush_and_get_cost() as u64;
+    }
+
     costs
 }
 

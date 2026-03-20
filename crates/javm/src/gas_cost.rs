@@ -134,7 +134,7 @@ fn reg_d(code: &[u8], pc: usize) -> u8 {
 }
 
 /// Compute skip distance (bytes to next instruction start).
-fn skip_distance(bitmask: &[u8], pc: usize) -> usize {
+pub fn skip_distance(bitmask: &[u8], pc: usize) -> usize {
     for j in 0..25 {
         let idx = pc + 1 + j;
         let bit = if idx < bitmask.len() { bitmask[idx] } else { 1 };
@@ -1131,280 +1131,54 @@ pub fn gas_cost_for_block_fast(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::recompiler::gas_sim::GasSimulator;
+
+    /// Helper: compute gas cost for a single-block program using GasSimulator.
+    fn block_cost(code: &[u8], bitmask: &[u8]) -> u32 {
+        let mut sim = GasSimulator::new();
+        let mut pc = 0;
+        while pc < code.len() {
+            if pc < bitmask.len() && bitmask[pc] != 1 { pc += 1; continue; }
+            let opcode_byte = code[pc];
+            let raw_ra = if pc + 1 < code.len() { code[pc + 1] & 0x0F } else { 0xFF };
+            let raw_rb = if pc + 1 < code.len() { (code[pc + 1] >> 4) & 0x0F } else { 0xFF };
+            let raw_rd = if pc + 2 < code.len() { code[pc + 2] & 0x0F } else { 0xFF };
+            let fc = fast_cost_from_raw(opcode_byte, raw_ra, raw_rb, raw_rd, pc as u32, code, bitmask);
+            sim.feed(&fc);
+            if fc.is_terminator { break; }
+            let skip = skip_distance(bitmask, pc);
+            pc += 1 + skip;
+        }
+        sim.flush_and_get_cost()
+    }
 
     #[test]
     fn test_single_trap() {
-        let code = vec![0u8];
-        let bitmask = vec![1u8];
-        let cycles = gas_sim_traced(&code, &bitmask, 0, false);
-        assert_eq!(cycles, 2);
-        assert_eq!(gas_cost_for_block(&code, &bitmask, 0), 1); // max(2-3,1)=1
+        // trap = 2 cycles, max(2-3,1) = 1
+        assert_eq!(block_cost(&[0u8], &[1u8]), 1);
     }
 
     #[test]
     fn test_single_ecalli() {
-        // ecalli 0: opcode=10, imm=0
-        let code = vec![10u8, 0];
-        let bitmask = vec![1, 0];
-        let cycles = gas_sim_traced(&code, &bitmask, 0, true);
-        eprintln!("ecalli-only: cycles={} cost={}", cycles, gas_cost_for_block(&code, &bitmask, 0));
-        assert_eq!(cycles, 100, "ecalli should take 100 cycles");
-        assert_eq!(gas_cost_for_block(&code, &bitmask, 0), 97);
+        // ecalli = 100 cycles, max(100-3,1) = 97
+        assert_eq!(block_cost(&[10u8, 0], &[1, 0]), 97);
     }
 
     #[test]
     fn test_single_jump() {
-        // jump offset=0: opcode=40
-        let code = vec![40u8, 0];
-        let bitmask = vec![1, 0];
-        let cycles = gas_sim_traced(&code, &bitmask, 0, false);
-        assert_eq!(cycles, 15);
-        assert_eq!(gas_cost_for_block(&code, &bitmask, 0), 12);
+        // jump = 15 cycles, max(15-3,1) = 12
+        assert_eq!(block_cost(&[40u8, 0], &[1, 0]), 12);
     }
 
     #[test]
     fn test_single_fallthrough() {
-        let code = vec![1u8]; // fallthrough
-        let bitmask = vec![1];
-        let cycles = gas_sim_traced(&code, &bitmask, 0, false);
-        assert_eq!(cycles, 2);
-        assert_eq!(gas_cost_for_block(&code, &bitmask, 0), 1);
-    }
-
-    #[test]
-    fn test_loadimm_then_trap() {
+        // fallthrough = 2 cycles, max(2-3,1) = 1
+        assert_eq!(block_cost(&[1u8], &[1]), 1);
     }
 
     #[test]
     fn test_load_imm_then_trap() {
-        // Block: load_imm φ[0], 42; trap
-        // load_imm (51) = 1 cycle, trap (0) = 2 cycles
-        // Pipeline: both decode in cycle 0, dispatch cycle 0/1, done by cycle ~3
-        let code = vec![51, 0, 42, 0];
-        let bitmask = vec![1, 0, 0, 1];
-        let cost = gas_cost_for_block(&code, &bitmask, 0);
+        let cost = block_cost(&[51, 0, 42, 0], &[1, 0, 0, 1]);
         assert!(cost >= 1, "cost should be >= 1, got {}", cost);
-    }
-}
-
-#[cfg(test)]
-mod integration_tests {
-    use super::*;
-    
-    #[test]
-    fn test_service_blob_gas() {
-        let blob = match std::fs::read("/tmp/test_service_blob.bin") {
-            Ok(b) => b,
-            Err(_) => { eprintln!("Skipping: /tmp/test_service_blob.bin not found"); return; }
-        };
-        let pvm = crate::program::initialize_program(&blob, &[0,0,0,0], 100_000).unwrap();
-        eprintln!("Code length: {}", pvm.code.len());
-        
-        // Show block gas costs near the entry points
-        let mut block_count = 0;
-        for (pc, &cost) in pvm.block_gas_costs.iter().enumerate() {
-            if cost > 0 {
-                block_count += 1;
-                if block_count <= 30 {
-                    eprintln!("  BB[{:5}] cost={:4} (opcode={})", pc, cost, 
-                        if pc < pvm.code.len() { pvm.code[pc] } else { 255 });
-                }
-            }
-        }
-        eprintln!("Total basic blocks: {}", block_count);
-    }
-
-    #[test]
-    fn trace_ecalli_block() {
-        let blob = match std::fs::read("/tmp/test_service_blob.bin") {
-            Ok(b) => b,
-            Err(_) => { eprintln!("Skipping: /tmp/test_service_blob.bin not found"); return; }
-        };
-        let pvm = crate::program::initialize_program(&blob, &[0,0,0,0], 100_000).unwrap();
-        let code = &pvm.code;
-        let bm = &pvm.bitmask;
-
-        // Trace ALL blocks that the test program executes
-        // (blocks from the gas trace: 5, 2055, 18927, 17372, 17429, ...)
-        for &pc in &[5usize, 2055, 18927, 17372, 17429, 17454, 17459, 17463, 17469, 17532, 17545] {
-            let cycles = gas_sim_traced(code, bm, pc, false);
-            let cost = if cycles > 3 { cycles - 3 } else { 1 };
-            eprintln!("BB[{}]: cycles={} cost={}", pc, cycles, cost);
-        }
-
-        // Verify pre-computed costs match dynamic costs for key PCs
-        let bb = crate::vm::compute_basic_block_starts(code, bm);
-        for &pc in &[5usize, 2055, 18927, 17372, 17429, 17454, 17532, 17545] {
-            let is_bb = pc < bb.len() && bb[pc];
-            assert!(is_bb, "PC={} should be BB start", pc);
-            assert_eq!(pvm.block_gas_costs[pc], gas_cost_for_block(code, bm, pc),
-                "pre-computed vs dynamic cost mismatch at PC={}", pc);
-        }
-    }
-
-    #[test]
-    fn trace_block_instructions() {
-        let blob = match std::fs::read("/tmp/test_service_blob.bin") {
-            Ok(b) => b,
-            Err(_) => { eprintln!("Skipping: /tmp/test_service_blob.bin not found"); return; }
-        };
-        let pvm = crate::program::initialize_program(&blob, &[0,0,0,0], 100_000).unwrap();
-        let code = &pvm.code;
-        let bm = &pvm.bitmask;
-        let bb = crate::vm::compute_basic_block_starts(code, bm);
-
-        // Dump first 5 blocks starting from PC=0
-        let block_starts: Vec<usize> = bb.iter().enumerate()
-            .filter(|&(_, b)| *b).map(|(i, _)| i).take(10).collect();
-
-        for &start in &block_starts {
-            eprintln!("\n=== Block at PC={} (cost={}) ===", start, gas_cost_for_block(code, bm, start));
-            let mut pc = start;
-            let mut count = 0;
-            loop {
-                if pc >= code.len() || count > 20 { break; }
-                if pc < bm.len() && bm[pc] == 1 {
-                    let op = crate::instruction::Opcode::from_byte(code[pc]);
-                    let skip = skip_distance(bm, pc);
-                    let cost = instruction_cost(code, bm, pc);
-                    eprintln!("  pc={:5} {:?} cy={} dec={} eu=alu:{}/ld:{}/st:{}/mul:{}/div:{} dst={:?} src={:?} term={} move={}",
-                        pc, op, cost.cycles, cost.decode_slots,
-                        cost.exec_units.alu, cost.exec_units.load, cost.exec_units.store,
-                        cost.exec_units.mul, cost.exec_units.div,
-                        cost.dest_regs, cost.src_regs, cost.is_terminator, cost.is_move_reg);
-                    if let Some(o) = op {
-                        if o.is_terminator() { break; }
-                    }
-                    pc += 1 + skip;
-                    count += 1;
-                    if pc < bb.len() && bb[pc] { break; }
-                } else {
-                    pc += 1;
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn trace_divergent_block() {
-        let blob = match std::fs::read("/tmp/test_service_blob.bin") {
-            Ok(b) => b,
-            Err(_) => { eprintln!("Skipping: /tmp/test_service_blob.bin not found"); return; }
-        };
-        let pvm = crate::program::initialize_program(&blob, &[0,0,0,0], 100_000).unwrap();
-        let code = &pvm.code;
-        let bm = &pvm.bitmask;
-        // Trace PC=79 with gas_sim_traced
-        eprintln!("=== gas_sim_traced PC=79 ===");
-        let cycles = gas_sim_traced(code, bm, 79, true);
-        eprintln!("Result: cycles={} cost={}", cycles, if cycles > 3 { cycles - 3 } else { 1 });
-
-        // Now show instruction-by-instruction FastCost for same block
-        let bb = crate::vm::compute_basic_block_starts(code, bm);
-        eprintln!("\n=== FastCost for same block ===");
-        let mut pc = 79;
-        loop {
-            if pc >= bm.len() || (pc != 79 && pc < bb.len() && bb[pc]) { break; }
-            if bm[pc] != 1 { pc += 1; continue; }
-            let Some(op) = crate::instruction::Opcode::from_byte(code[pc]) else { pc += 1; continue; };
-            let raw_ra = if pc + 1 < code.len() { code[pc + 1] & 0x0F } else { 0 };
-            let raw_rb = if pc + 1 < code.len() { (code[pc + 1] >> 4) & 0x0F } else { 0 };
-            let raw_rd = if pc + 2 < code.len() { code[pc + 2] & 0x0F } else { 0 };
-            let fc = fast_cost_from_raw(op as u8, raw_ra, raw_rb, raw_rd, pc as u32, code, bm);
-            let ic = instruction_cost(code, bm, pc);
-            eprintln!("  pc={} {:?} FC(cy={} dc={} eu={} src={:04x} dst={:04x} term={} mv={}) IC(cy={} dc={} eu={:?} dst={:?} src={:?} term={} mv={})",
-                pc, op, fc.cycles, fc.decode_slots, fc.exec_unit, fc.src_mask, fc.dst_mask, fc.is_terminator, fc.is_move_reg,
-                ic.cycles, ic.decode_slots, ic.exec_units, ic.dest_regs, ic.src_regs, ic.is_terminator, ic.is_move_reg);
-            if op.is_terminator() { break; }
-            let mut skip = 0;
-            for j in 0..25 {
-                if pc + 1 + j >= bm.len() || bm[pc + 1 + j] == 1 { skip = j; break; }
-            }
-            pc += 1 + skip;
-        }
-    }
-
-    #[test]
-    fn compare_gas_sim_vs_gas_simulator() {
-        use crate::recompiler::gas_sim::GasSimulator;
-        let blob = match std::fs::read("/tmp/test_service_blob.bin") {
-            Ok(b) => b,
-            Err(_) => { eprintln!("Skipping: /tmp/test_service_blob.bin not found"); return; }
-        };
-        let pvm = crate::program::initialize_program(&blob, &[0,0,0,0], 100_000).unwrap();
-        let code = &pvm.code;
-        let bm = &pvm.bitmask;
-        let bb = crate::vm::compute_basic_block_starts(code, bm);
-
-        let mut mismatches = 0;
-        let mut total = 0;
-        for start_pc in 0..code.len() {
-            if start_pc >= bb.len() || !bb[start_pc] { continue; }
-            total += 1;
-
-            let old_cost = gas_cost_for_block(code, bm, start_pc);
-
-            // Compute with GasSimulator
-            let mut sim = GasSimulator::new();
-            let mut pc = start_pc;
-            loop {
-                if pc >= bm.len() || (pc != start_pc && pc < bb.len() && bb[pc]) { break; }
-                if bm[pc] != 1 { pc += 1; continue; }
-                let Some(op) = crate::instruction::Opcode::from_byte(code[pc]) else { pc += 1; continue; };
-                let raw_ra = if pc + 1 < code.len() { code[pc + 1] & 0x0F } else { 0 };
-                let raw_rb = if pc + 1 < code.len() { (code[pc + 1] >> 4) & 0x0F } else { 0 };
-                let raw_rd = if pc + 2 < code.len() { code[pc + 2] & 0x0F } else { 0 };
-                let fc = fast_cost_from_raw(op as u8, raw_ra, raw_rb, raw_rd, pc as u32, code, bm);
-                sim.feed(&fc);
-                if op.is_terminator() { break; }
-                let mut skip = 0;
-                for j in 0..25 {
-                    if pc + 1 + j >= bm.len() || bm[pc + 1 + j] == 1 { skip = j; break; }
-                }
-                pc += 1 + skip;
-            }
-            let new_cost = sim.flush_and_get_cost() as u64;
-
-            // Also run GasSimulator with instruction_cost data (to isolate sim vs cost issue)
-            let mut sim2 = GasSimulator::new();
-            let mut pc2 = start_pc;
-            loop {
-                if pc2 >= bm.len() || (pc2 != start_pc && pc2 < bb.len() && bb[pc2]) { break; }
-                if bm[pc2] != 1 { pc2 += 1; continue; }
-                let Some(op) = crate::instruction::Opcode::from_byte(code[pc2]) else { pc2 += 1; continue; };
-                let ic = instruction_cost(code, bm, pc2);
-                // Convert InstrCost to FastCost
-                let mut src_mask: u16 = 0;
-                for i in 0..ic.src_regs.len as usize { src_mask |= reg_bit(ic.src_regs.regs[i]); }
-                let mut dst_mask: u16 = 0;
-                for i in 0..ic.dest_regs.len as usize { dst_mask |= reg_bit(ic.dest_regs.regs[i]); }
-                let fc2 = FastCost {
-                    cycles: ic.cycles as u8,
-                    decode_slots: ic.decode_slots,
-                    exec_unit: ic.exec_units.to_eu_byte(),
-                    src_mask,
-                    dst_mask,
-                    is_terminator: ic.is_terminator,
-                    is_move_reg: ic.is_move_reg,
-                };
-                sim2.feed(&fc2);
-                if op.is_terminator() { break; }
-                let mut skip = 0;
-                for j in 0..25 {
-                    if pc2 + 1 + j >= bm.len() || bm[pc2 + 1 + j] == 1 { skip = j; break; }
-                }
-                pc2 += 1 + skip;
-            }
-            let ic_cost = sim2.flush_and_get_cost() as u64;
-
-            if old_cost != new_cost || old_cost != ic_cost {
-                mismatches += 1;
-                if mismatches <= 10 {
-                    eprintln!("MISMATCH PC={}: gas_sim_traced={} GasSim+FC={} GasSim+IC={}", start_pc, old_cost, new_cost, ic_cost);
-                }
-            }
-        }
-        eprintln!("Total blocks: {}, mismatches: {}", total, mismatches);
-        assert_eq!(mismatches, 0, "{} gas cost mismatches", mismatches);
     }
 }
