@@ -179,6 +179,8 @@ pub struct Compiler {
     bitmask_len: usize,
     /// Peephole: tracks how each PVM register was last defined.
     reg_defs: [RegDef; 13],
+    /// Bitmask of registers that have non-Unknown reg_defs (for fast invalidation).
+    reg_defs_active: u16,
     /// Trap table for signal-based bounds checking: (native_offset, pvm_pc).
     #[cfg(feature = "signals")]
     trap_entries: Vec<(u32, u32)>,
@@ -196,9 +198,8 @@ impl Compiler {
     ) -> Self {
         // Estimate native code size: ~8 bytes per PVM code byte (empirically ~5-6x).
         let estimated_native = code_len * 8;
-        // Labels: basic blocks + ~1 per instruction for fault stubs + overhead.
-        let num_bbs = bitmask.iter().filter(|&&b| b == 1).count();
-        let estimated_labels = num_bbs * 2 + code_len / 3;
+        // Labels: estimate ~1 label per 3 code bytes + overhead.
+        let estimated_labels = code_len / 3 + 256;
         let mut asm = Assembler::with_capacity(estimated_native, estimated_labels);
         let exit_label = asm.new_label();
         let oog_label = asm.new_label();
@@ -212,8 +213,9 @@ impl Compiler {
             panic_label,
             fault_exit_label,
             oog_stubs: Vec::new(),
-            fault_stubs: Vec::with_capacity(num_bbs * 16),
+            fault_stubs: Vec::with_capacity(256),
             reg_defs: [RegDef::Unknown; 13],
+            reg_defs_active: 0,
             helpers,
             jump_table,
             bitmask_ptr: bitmask.as_ptr(),
@@ -665,30 +667,38 @@ impl Compiler {
     }
 
     /// Invalidate any reg_defs that depend on `reg`, but NOT reg itself.
+    #[inline]
     fn invalidate_dependents(&mut self, reg: usize) {
-        for i in 0..13 {
-            if i != reg {
-                let depends = match self.reg_defs[i] {
-                    RegDef::Shifted { src, .. } => src == reg,
-                    RegDef::ScaledAdd { base, idx, .. } => base == reg || idx == reg,
-                    _ => false,
-                };
-                if depends {
-                    self.reg_defs[i] = RegDef::Unknown;
-                }
+        // Only iterate registers that have active (non-Unknown) defs
+        let mut active = self.reg_defs_active & !(1u16 << reg);
+        while active != 0 {
+            let i = active.trailing_zeros() as usize;
+            active &= active - 1;
+            let depends = match self.reg_defs[i] {
+                RegDef::Shifted { src, .. } => src == reg,
+                RegDef::ScaledAdd { base, idx, .. } => base == reg || idx == reg,
+                _ => false,
+            };
+            if depends {
+                self.reg_defs[i] = RegDef::Unknown;
+                self.reg_defs_active &= !(1u16 << i);
             }
         }
     }
 
     /// Invalidate a register's tracked definition and any dependents.
+    #[inline]
     fn invalidate_reg(&mut self, reg: usize) {
         self.reg_defs[reg] = RegDef::Unknown;
+        self.reg_defs_active &= !(1u16 << reg);
         self.invalidate_dependents(reg);
     }
 
     /// Invalidate all register definitions (on block boundaries, calls, etc.)
+    #[inline]
     fn invalidate_all_regs(&mut self) {
         self.reg_defs = [RegDef::Unknown; 13];
+        self.reg_defs_active = 0;
     }
 
     /// Update reg_defs after compiling an instruction.
@@ -703,15 +713,19 @@ impl Compiler {
                         if let RegDef::Shifted { src, shift } = self.reg_defs[*rd] {
                             if shift < 3 {
                                 self.reg_defs[*rd] = RegDef::Shifted { src, shift: shift + 1 };
+                                self.reg_defs_active |= 1u16 << *rd;
                             } else {
                                 self.reg_defs[*rd] = RegDef::Unknown;
+                                self.reg_defs_active &= !(1u16 << *rd);
                             }
                         } else {
                             self.reg_defs[*rd] = RegDef::Unknown;
+                            self.reg_defs_active &= !(1u16 << *rd);
                         }
                     } else if *ra == *rb {
                         // add64 D, A, A — D = A * 2 = A << 1
                         self.reg_defs[*rd] = RegDef::Shifted { src: *ra, shift: 1 };
+                        self.reg_defs_active |= 1u16 << *rd;
                     } else {
                         // add64 D, A, B — check if one operand is Shifted
                         let def = if let RegDef::Shifted { src, shift } = self.reg_defs[*rb] {
@@ -723,8 +737,10 @@ impl Compiler {
                         };
                         if let Some((base, idx, shift)) = def {
                             self.reg_defs[*rd] = RegDef::ScaledAdd { base, idx, shift };
+                            self.reg_defs_active |= 1u16 << *rd;
                         } else {
                             self.reg_defs[*rd] = RegDef::Unknown;
+                            self.reg_defs_active &= !(1u16 << *rd);
                         }
                     }
                     self.invalidate_dependents(*rd);
@@ -733,12 +749,14 @@ impl Compiler {
             Opcode::LoadImm => {
                 if let Args::RegImm { ra, imm } = args {
                     self.reg_defs[*ra] = RegDef::Const(*imm as u32);
+                    self.reg_defs_active |= 1u16 << *ra;
                     self.invalidate_dependents(*ra);
                 }
             }
             Opcode::LoadImm64 => {
                 if let Args::RegExtImm { ra, imm } = args {
                     self.reg_defs[*ra] = RegDef::Const(*imm as u32);
+                    self.reg_defs_active |= 1u16 << *ra;
                     self.invalidate_dependents(*ra);
                 }
             }
@@ -747,6 +765,11 @@ impl Compiler {
                     if *rd != *ra {
                         // Propagate the source's definition to the destination.
                         self.reg_defs[*rd] = self.reg_defs[*ra];
+                        if matches!(self.reg_defs[*rd], RegDef::Unknown) {
+                            self.reg_defs_active &= !(1u16 << *rd);
+                        } else {
+                            self.reg_defs_active |= 1u16 << *rd;
+                        }
                         self.invalidate_dependents(*rd);
                     }
                 }
