@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Workspace tests (interpreter)
+        run: cargo test --workspace
+
+      - name: Workspace tests (recompiler)
+        run: cargo test --workspace
+        env:
+          GREY_PVM: recompiler
