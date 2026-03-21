@@ -63,8 +63,9 @@ def verify (config : VerifierConfig) (proof : LigeritoProof)
     proof.initialOpening.openedRows.map fun row =>
       hashRow row
 
-  -- (Simplified Merkle verification — full implementation would use
-  --  verify_hashed with the batched proof)
+  if !verifyHashed proof.initialCommitment.root
+      proof.initialOpening.merkleProof depth hashedLeaves queries then
+    return (false, ts)
 
   let (alpha, ts') := challengeGF128 ts
   ts := ts'
@@ -100,6 +101,11 @@ def verify (config : VerifierConfig) (proof : LigeritoProof)
 
       if claimedSum != currentSum then
         return (false, ts)
+
+      -- Absorb round polynomial into Fiat-Shamir before squeezing challenge.
+      ts := absorbGF128 ts s0
+      ts := absorbGF128 ts s1
+      ts := absorbGF128 ts s2
 
       let (ri, ts') := challengeGF128 ts
       ts := ts'
