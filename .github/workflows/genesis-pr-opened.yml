@@ -3,7 +3,7 @@ name: "Genesis: PR Opened"
 on:
   pull_request:
     types: [opened]
-    branches: [master]
+    branches: [testnet]
 
 jobs:
   select-targets:
