@@ -8,7 +8,7 @@ jobs:
   check-review:
     if: >
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/genesis-review')
+      startsWith(github.event.comment.body, '/review')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

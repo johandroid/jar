@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collect all /genesis-review comments and their meta-reviews (reactions)
+# Collect all /review comments and their meta-reviews (reactions)
 # from a GitHub PR.
 #
 # Usage: genesis-collect-reviews.sh <pr_number>
@@ -36,7 +36,7 @@ parse_review() {
 # Fetch all comments on the PR with their IDs, authors, and bodies
 # gh pr view --json comments doesn't include comment IDs, so use the API
 COMMENTS_JSON=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate --jq \
-  '[.[] | select(.body | startswith("/genesis-review")) | {id: .id, author: .user.login, body: .body}]')
+  '[.[] | select(.body | startswith("/review")) | {id: .id, author: .user.login, body: .body}]')
 
 # Parse reviews (last review per author wins)
 REVIEWS="[]"
@@ -61,7 +61,7 @@ for row in $(echo "$COMMENTS_JSON" | jq -r '.[] | @base64'); do
   fi
 done
 
-# Collect meta-reviews: 👍/👎 reactions on the latest /genesis-review comment per reviewer
+# Collect meta-reviews: 👍/👎 reactions on the latest /review comment per reviewer
 META_REVIEWS="[]"
 
 for row in $(echo "$REVIEW_COMMENT_IDS" | jq -r '.[] | @base64'); do

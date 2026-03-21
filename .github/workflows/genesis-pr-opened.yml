@@ -79,7 +79,7 @@ jobs:
           Post a comment with the following format (rank from best to worst):
 
           ```
-          /genesis-review
+          /review
           difficulty: <commit1>, <commit2>, ..., <commitN>, currentPR
           novelty: <commit1>, <commit2>, ..., <commitN>, currentPR
           design: <commit1>, <commit2>, ..., <commitN>, currentPR
