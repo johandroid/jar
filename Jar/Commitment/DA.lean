@@ -209,7 +209,7 @@ def verifyOpening (root : Option CHash) (opening : RowOpening)
     entirely, using the already-computed EncodedBlock as the witness.
 
     **Zero re-encoding cost.** -/
-def proveFromBlock (block : EncodedBlock) (poly : Array GF32)
+def proveFromBlock (block : EncodedBlock) (_poly : Array GF32)
     : Witness := Id.run do
   -- Reuse the DA block as the initial witness
   let wtns := block.intoWitness

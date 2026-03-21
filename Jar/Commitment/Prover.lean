@@ -55,11 +55,11 @@ def proveCore (config : ProverConfig) (poly : Array GF32)
 
   -- Convert to extension field
   let partialEvals0U : Array GF128 := partialEvals0.map embedGF32
-  let fEvalsU : Array GF128 := fEvals.map embedGF32
+  let _fEvalsU : Array GF128 := fEvals.map embedGF32
 
   -- First recursive step: commit folded polynomial in extension field
   -- (Simplified: using the folded evaluations as the commitment)
-  let rs1 := mkRSConfig (config.dims[0]!).1 ((config.dims[0]!).1 * 4)
+  let _rs1 := mkRSConfig (config.dims[0]!).1 ((config.dims[0]!).1 * 4)
 
   -- Query selection on initial witness
   let rows := wtns0.rows
