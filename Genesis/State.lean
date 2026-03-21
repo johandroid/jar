@@ -85,8 +85,8 @@ structure CommitIndex where
 structure EvalState where
   /-- Current contributor weights (for reviewer weight lookups). -/
   contributors : List Contributor
-  /-- Scored commit history (for comparison target selection and scoring). -/
-  scoredCommits : List (CommitId × CommitScore)
+  /-- Past commit IDs (for comparison target selection). -/
+  pastCommitIds : List CommitId
 
 /-- Update or insert a contributor in a list. -/
 private def upsertContributor (cs : List Contributor) (updated : Contributor) : List Contributor :=
@@ -101,7 +101,7 @@ private def upsertContributor (cs : List Contributor) (updated : Contributor) : 
 def reconstructState (pastIndices : List CommitIndex) (rp : RewardParams := .default) : EvalState :=
   let init : EvalState := {
     contributors := [⟨founder, 0, founderWeight, true⟩],
-    scoredCommits := []
+    pastCommitIds := []
   }
   pastIndices.foldl (fun state (idx : CommitIndex) =>
     -- Apply weight change to the contributor (author)
@@ -115,8 +115,8 @@ def reconstructState (pastIndices : List CommitIndex) (rp : RewardParams := .def
         let updated : Contributor := ⟨c.id, c.balance, newWeight, c.isReviewer || meetsThreshold⟩
         upsertContributor state.contributors updated
     -- Record score for future comparisons
-    let scoredCommits := state.scoredCommits ++ [(idx.commitHash, idx.score)]
-    { contributors := contributors, scoredCommits := scoredCommits }
+    let pastCommitIds := state.pastCommitIds ++ [idx.commitHash]
+    { contributors := contributors, pastCommitIds := pastCommitIds }
   ) init
 
 /-- Get reviewer weight from an EvalState. -/
@@ -126,8 +126,8 @@ def EvalState.reviewerWeight (s : EvalState) (id : ContributorId) : Nat :=
   | none => 0
 
 /-- Get past commit IDs from an EvalState. -/
-def EvalState.pastCommitIds (s : EvalState) : List CommitId :=
-  s.scoredCommits.map (fun (id, _) => id)
+def EvalState.getPastCommitIds (s : EvalState) : List CommitId :=
+  s.pastCommitIds
 
 /-! ### Evaluate — Produce a CommitIndex from a signed commit -/
 
@@ -148,7 +148,7 @@ def evaluate
     (rp : RewardParams := .default) : CommitIndex :=
   let state := reconstructState pastIndices rp
   let (_, score) := commitRewards rp commit
-    state.pastCommitIds state.scoredCommits (state.reviewerWeight ·)
+    state.pastCommitIds (state.reviewerWeight ·)
   let weightedScore := score.weighted
   let approved := filterReviews commit.reviews commit.metaReviews (state.reviewerWeight ·)
   let approvedReviewers := approved

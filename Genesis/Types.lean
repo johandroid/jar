@@ -137,19 +137,22 @@ structure RewardDelta where
   kind : RewardKind
   deriving Repr
 
-/-- Score for a single commit, per dimension. Stored as integers
-    (can be negative for a commit rated worse than all references). -/
+/-- Score for a single commit, per dimension.
+    Each dimension is a percentile rank (0-100) of the current PR
+    among the ranked items. 100 = ranked first, 0 = ranked last. -/
 structure CommitScore where
-  difficulty : Int
-  novelty : Int
-  designQuality : Int
+  difficulty : Nat
+  novelty : Nat
+  designQuality : Nat
   deriving Repr, BEq
 
+/-- Number of scoring dimensions. Used to normalize the weighted total. -/
+def CommitScore.numWeightedDimensions : Nat := 5  -- 1 + 1 + 3
+
 /-- Combined weighted score from CommitScore. designQuality is 3x.
-    Floored at 0 (negative total → zero, no negative rewards). -/
+    Result is 0-100 (normalized by number of weighted dimensions). -/
 def CommitScore.weighted (s : CommitScore) : Nat :=
-  let raw := s.difficulty + s.novelty + 3 * s.designQuality
-  raw.toNat
+  (s.difficulty + s.novelty + 3 * s.designQuality) / CommitScore.numWeightedDimensions
 
 /-- A signed commit and the data needed to compute its rewards. -/
 structure SignedCommit where

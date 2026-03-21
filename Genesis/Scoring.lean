@@ -56,11 +56,6 @@ structure RewardParams where
   /-- Fraction of emission allocated to reviewers (denominator). -/
   reviewerShareDen : Nat
   reviewerShareDen_pos : reviewerShareDen > 0 := by omega
-  /-- Score step size: score points between adjacent ranks.
-      Rank 1 gets referenceScore + (N-1)*step, rank N gets referenceScore. -/
-  rankStep : Nat
-  /-- Base score assigned to the very first commit (bootstrap anchor). -/
-  bootstrapScore : Nat
   /-- Minimum weight to activate as a reviewer. -/
   reviewerThreshold : Nat
   /-- Minimum number of approved reviews required for scoring. -/
@@ -73,8 +68,6 @@ def RewardParams.default : RewardParams where
   emission := 1000
   reviewerShareNum := 30
   reviewerShareDen := 100
-  rankStep := 50
-  bootstrapScore := 250
   reviewerThreshold := 500
   minReviews := 1
 
@@ -148,76 +141,34 @@ def filterReviews
 /-! ### Score Derivation from Rankings
 
   Each reviewer ranks N+1 commits (targets + current PR).
-  The rank of the current PR implies a score relative to the reference
-  commits' known scores.
+  The score for each dimension is the PR's percentile rank (0-100)
+  among the ranked items. Rank 1 of N = 100, rank N of N = 0.
 
-  If the current PR is ranked at position P (1-indexed, 1=best) among
-  N+1 items, its implied score for that dimension is interpolated from
-  the reference commits' scores based on its rank position.
+  This is independent of past scores — purely positional. The score
+  is always 0-100, making weightDelta predictable and extensible.
 -/
 
-/-- Look up a reference commit's score. -/
-def getReferenceScore
-    (scores : List (CommitId × CommitScore))
-    (commitId : CommitId) : CommitScore :=
-  match scores.find? (fun (id, _) => id == commitId) with
-  | some (_, s) => s
-  | none => { difficulty := 0, novelty := 0, designQuality := 0 }
-
-/-- Extract a single dimension's score from a CommitScore. -/
-def getDimension (s : CommitScore) (dim : Nat) : Int :=
-  match dim with
-  | 0 => s.difficulty
-  | 1 => s.novelty
-  | _ => s.designQuality
-
-/-- Compute the implied score for the current PR on one dimension,
-    given a ranking and the known scores of reference commits.
-
-    The ranking orders all items best-to-worst. We find where the
-    current PR sits relative to the reference commits and interpolate.
-    If ranked above all references: highest reference score + step.
-    If ranked below all: lowest reference score - step.
-    If between two references: average of their scores. -/
-def impliedScoreFromRanking
+/-- Compute the percentile rank (0-100) of the current PR in a ranking.
+    Ranking is best-to-worst. Position 0 (first) = 100, last = 0.
+    If the PR is not in the ranking, returns 0. -/
+def percentileFromRanking
     (ranking : Ranking)
-    (currentPR : CommitId)
-    (referenceScores : List (CommitId × CommitScore))
-    (dim : Nat)
-    (step : Nat) : Int :=
-  -- Get reference scores sorted by their rank position
-  let refScoresInOrder := ranking.filterMap fun cid =>
-    if cid == currentPR then none
-    else some (getDimension (getReferenceScore referenceScores cid) dim)
-  match refScoresInOrder with
-  | [] => 0
-  | _ =>
-    -- Find the current PR's position in the ranking (0-indexed)
-    let prPos := match ranking.findIdx? (· == currentPR) with
-      | some idx => idx
-      | none => ranking.length
-    -- Scores of refs ranked above and below the PR
-    let above := ranking.take prPos |>.filterMap fun cid =>
-      if cid == currentPR then none
-      else some (getDimension (getReferenceScore referenceScores cid) dim)
-    let below := ranking.drop (prPos + 1) |>.filterMap fun cid =>
-      if cid == currentPR then none
-      else some (getDimension (getReferenceScore referenceScores cid) dim)
-    match above.getLast?, below.head? with
-    | none, none => 0
-    | none, some belowScore => belowScore + step  -- ranked above all refs
-    | some aboveScore, none => aboveScore - step  -- ranked below all refs
-    | some aboveScore, some belowScore => (aboveScore + belowScore) / 2
+    (currentPR : CommitId) : Nat :=
+  let n := ranking.length
+  if n ≤ 1 then 100  -- sole item gets 100
+  else
+    match ranking.findIdx? (· == currentPR) with
+    | none => 0
+    | some pos => (n - 1 - pos) * 100 / (n - 1)
 
-/-- Derive a score for the current PR from one reviewer's rankings. -/
+/-- Derive a score for the current PR from one reviewer's rankings.
+    Each dimension is a percentile rank (0-100). -/
 def scoreFromReview
     (review : EmbeddedReview)
-    (currentPR : CommitId)
-    (referenceScores : List (CommitId × CommitScore))
-    (step : Nat) : CommitScore :=
-  { difficulty := impliedScoreFromRanking review.difficultyRanking currentPR referenceScores 0 step,
-    novelty := impliedScoreFromRanking review.noveltyRanking currentPR referenceScores 1 step,
-    designQuality := impliedScoreFromRanking review.designQualityRanking currentPR referenceScores 2 step }
+    (currentPR : CommitId) : CommitScore :=
+  { difficulty := percentileFromRanking review.difficultyRanking currentPR,
+    novelty := percentileFromRanking review.noveltyRanking currentPR,
+    designQuality := percentileFromRanking review.designQualityRanking currentPR }
 
 /-! ### Weighted Lower-Quantile
 
@@ -230,8 +181,8 @@ def scoreFromReview
 /-- Weighted quantile of a list of (weight, value) pairs.
     Returns the value at the point where `quantileNum/quantileDen`
     of the total weight has been accumulated (walking from low to high). -/
-def weightedQuantile (entries : List (Nat × Int))
-    (qNum : Nat := quantileNum) (qDen : Nat := quantileDen) : Int :=
+def weightedQuantile (entries : List (Nat × Nat))
+    (qNum : Nat := quantileNum) (qDen : Nat := quantileDen) : Nat :=
   if entries.isEmpty then 0
   else
     let sorted := entries.toArray.qsort (fun a b => a.2 < b.2) |>.toList
@@ -248,25 +199,23 @@ def weightedQuantile (entries : List (Nat × Int))
 
 /-- Derive a score for the current PR from all approved reviews.
 
-    For each reviewer, compute the implied score from their rankings.
+    For each reviewer, compute the percentile score from their rankings.
     Then take the weighted quantile across all reviewers per dimension.
 
     Reviews from non-reviewers (weight = 0) are silently ignored. -/
 def deriveScore
     (reviews : List EmbeddedReview)
     (currentPR : CommitId)
-    (referenceScores : List (CommitId × CommitScore))
-    (step : Nat)
     (getWeight : ContributorId → Nat) : CommitScore :=
   let weightedScores := reviews.filterMap fun (r : EmbeddedReview) =>
     let w := getWeight r.reviewer
     if w == 0 then none
-    else some (w, scoreFromReview r currentPR referenceScores step)
+    else some (w, scoreFromReview r currentPR)
   if weightedScores.isEmpty then { difficulty := 0, novelty := 0, designQuality := 0 }
   else
-    let dEntries := weightedScores.map (fun (w, s) => (w, s.difficulty))
-    let nEntries := weightedScores.map (fun (w, s) => (w, s.novelty))
-    let qEntries := weightedScores.map (fun (w, s) => (w, s.designQuality))
+    let dEntries := weightedScores.map fun (w, s) => (w, s.difficulty)
+    let nEntries := weightedScores.map fun (w, s) => (w, s.novelty)
+    let qEntries := weightedScores.map fun (w, s) => (w, s.designQuality)
     { difficulty := weightedQuantile dEntries
       novelty := weightedQuantile nEntries
       designQuality := weightedQuantile qEntries }
@@ -288,7 +237,6 @@ def commitRewards
     (rp : RewardParams)
     (commit : SignedCommit)
     (pastCommitIds : List CommitId)
-    (referenceScores : List (CommitId × CommitScore))
     (getWeight : ContributorId → Nat)
     : List RewardDelta × CommitScore :=
   let zeroScore : CommitScore := { difficulty := 0, novelty := 0, designQuality := 0 }
@@ -304,13 +252,8 @@ def commitRewards
     if weightedReviews.length < rp.minReviews then
       ([], zeroScore)
     else
-      -- Step 4: Derive score
-      let score :=
-        if pastCommitIds.isEmpty then
-          let bs := (rp.bootstrapScore : Int)
-          { difficulty := bs, novelty := bs, designQuality := bs : CommitScore }
-        else
-          deriveScore weightedReviews commit.id referenceScores rp.rankStep getWeight
+      -- Step 4: Derive score (percentile-based, no bootstrap special case)
+      let score := deriveScore weightedReviews commit.id getWeight
       let weightedScore := score.weighted
       -- Step 5: Contributor reward
       let contributorShare := rp.emission * (rp.reviewerShareDen - rp.reviewerShareNum) / rp.reviewerShareDen

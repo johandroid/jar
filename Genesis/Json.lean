@@ -62,7 +62,7 @@ instance : FromJson RewardKind where
     | j => .error s!"expected \"contribution\" or \"review\", got {j}"
 
 -- ============================================================================
--- CommitScore (has Int fields)
+-- CommitScore (percentile ranks, 0-100)
 -- ============================================================================
 
 instance : ToJson CommitScore where
@@ -74,9 +74,9 @@ instance : ToJson CommitScore where
 
 instance : FromJson CommitScore where
   fromJson? j := do
-    let difficulty ← j.getObjValAs? Int "difficulty"
-    let novelty ← j.getObjValAs? Int "novelty"
-    let designQuality ← j.getObjValAs? Int "designQuality"
+    let difficulty ← j.getObjValAs? Nat "difficulty"
+    let novelty ← j.getObjValAs? Nat "novelty"
+    let designQuality ← j.getObjValAs? Nat "designQuality"
     return { difficulty, novelty, designQuality }
 
 -- ============================================================================
@@ -229,8 +229,6 @@ instance : ToJson RewardParams where
     ("emission", toJson rp.emission),
     ("reviewerShareNum", toJson rp.reviewerShareNum),
     ("reviewerShareDen", toJson rp.reviewerShareDen),
-    ("rankStep", toJson rp.rankStep),
-    ("bootstrapScore", toJson rp.bootstrapScore),
     ("reviewerThreshold", toJson rp.reviewerThreshold),
     ("minReviews", toJson rp.minReviews)
   ]
@@ -242,14 +240,12 @@ instance : FromJson RewardParams where
     let emission ← j.getObjValAs? Nat "emission"
     let reviewerShareNum ← j.getObjValAs? Nat "reviewerShareNum"
     let reviewerShareDen ← j.getObjValAs? Nat "reviewerShareDen"
-    let rankStep ← j.getObjValAs? Nat "rankStep"
-    let bootstrapScore ← j.getObjValAs? Nat "bootstrapScore"
     let reviewerThreshold ← j.getObjValAs? Nat "reviewerThreshold"
     let minReviews ← j.getObjValAs? Nat "minReviews"
     if h : reviewerShareDen > 0 then
       return { contributorCap, reviewerCap, emission, reviewerShareNum,
-               reviewerShareDen, reviewerShareDen_pos := h, rankStep,
-               bootstrapScore, reviewerThreshold, minReviews }
+               reviewerShareDen, reviewerShareDen_pos := h,
+               reviewerThreshold, minReviews }
     else
       .error "RewardParams.reviewerShareDen must be > 0"
 
