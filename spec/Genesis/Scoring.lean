@@ -251,11 +251,11 @@ def extractPairwise [GenesisVariant] (review : EmbeddedReview) : List (CommitId 
     acc ++ (commits.drop (i + 1)).map (fun loser => (winner, loser))
   ) []
 
-/-- Accumulate pairwise wins from reviews into a map: commitId → set of commitIds it beats. -/
-def accumulatePairwise [GenesisVariant]
-    (reviews : List EmbeddedReview)
+/-- Accumulate pairwise wins from a single review into a map: commitId → set of commitIds it beats. -/
+def accumulatePairwiseFromReview [GenesisVariant]
+    (review : EmbeddedReview)
     (existing : List (CommitId × List CommitId)) : List (CommitId × List CommitId) :=
-  let pairs := reviews.foldl (fun acc r => acc ++ extractPairwise r) []
+  let pairs := extractPairwise review
   pairs.foldl (fun acc (winner, loser) =>
     match acc.find? (fun (c, _) => c == winner) with
     | some (_, losers) =>
@@ -263,6 +263,43 @@ def accumulatePairwise [GenesisVariant]
       else acc.map (fun (c, ls) => if c == winner then (c, ls ++ [loser]) else (c, ls))
     | none => acc ++ [(winner, [loser])]
   ) existing
+
+/-- Select the 1/3 quantile reviewer for a commit.
+    Mirrors the scoring system's Sybil resistance: sort reviewers by how
+    conservatively they ranked the current commit (worst position first),
+    walk from most conservative accumulating weight, pick the reviewer
+    whose cumulative weight crosses the 1/3 threshold.
+
+    With a single reviewer, always picks that reviewer.
+    With 2/3 Sybil inflating, picks an honest conservative reviewer. -/
+def selectQuantileReviewer [gv : GenesisVariant]
+    (reviews : List EmbeddedReview)
+    (getWeight : ContributorId → Nat)
+    (commitId : CommitId) : Option EmbeddedReview :=
+  -- Filter to weighted reviewers
+  let weighted := reviews.filterMap fun r =>
+    let w := getWeight r.reviewer
+    if w == 0 then none else some (r, w)
+  if weighted.isEmpty then none
+  else
+    -- For each reviewer, find currentPR's position in their aggregate ranking
+    -- Higher position = more conservative (ranked it worse)
+    let withPos := weighted.map fun (r, w) =>
+      let ranked := aggregateReviewRanking r
+      let arr := ranked.toArray.qsort (fun a b => a.2 < b.2)
+      let commits : List CommitId := arr.toList.map Prod.fst
+      let pos := commits.findIdx? (· == commitId) |>.getD commits.length
+      (r, w, pos)
+    -- Sort by position descending (most conservative first = highest position)
+    let sorted := withPos.toArray.qsort (fun (_, _, p1) (_, _, p2) => p1 > p2) |>.toList
+    let totalWeight := sorted.foldl (fun acc (_, w, _) => acc + w) 0
+    let target := totalWeight * gv.quantileNum / gv.quantileDen
+    -- Walk from most conservative, pick at 1/3 threshold
+    let (_, result) := sorted.foldl (fun (cumWeight, best) (r, w, _) =>
+      let newCum := cumWeight + w
+      if cumWeight ≤ target then (newCum, some r) else (newCum, best)
+    ) (0, none)
+    result
 
 /-- Compute net-wins for each commit: |commits beaten| - |commits lost to|. -/
 def computeNetWins (commits : List CommitId)
@@ -278,14 +315,20 @@ def computeNetWins (commits : List CommitId)
     ) 0
     (c, (beaten : Int) - (lostTo : Int))
 
-/-- Compute global ranking from a list of signed commits.
-    Returns commit hashes ordered best to worst. -/
-def computeRanking [GenesisVariant] (signedCommits : List SignedCommit) : List CommitId :=
+/-- Compute global ranking from signed commits with per-commit weight functions.
+    For each commit, selects the 1/3 quantile reviewer (Sybil-resistant) and
+    uses only their pairwise evidence. Returns commit hashes best to worst. -/
+def computeRanking [GenesisVariant]
+    (signedCommits : List SignedCommit)
+    (weightFns : List (ContributorId → Nat)) : List CommitId :=
   let allCommitIds := signedCommits.map (·.id)
-  -- Accumulate all pairwise evidence
-  let pairwiseWins := signedCommits.foldl (fun acc commit =>
-    accumulatePairwise commit.reviews acc
-  ) []
+  -- Accumulate pairwise evidence using quantile-selected reviewer per commit
+  let pairwiseWins := signedCommits.zip weightFns |>.foldl
+    (fun acc (commit, getWeight) =>
+      match selectQuantileReviewer commit.reviews getWeight commit.id with
+      | some review => accumulatePairwiseFromReview review acc
+      | none => acc  -- no weighted reviewers
+    ) ([] : List (CommitId × List CommitId))
   -- Compute net-wins and sort
   let netWins := computeNetWins allCommitIds pairwiseWins
   let indexed := netWins.zip (List.range netWins.length)
