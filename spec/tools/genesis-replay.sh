@@ -84,7 +84,8 @@ if [ "$MODE" = "--rebuild" ]; then
     REBUILT=$(echo "$REBUILT" | jq --argjson idx "$INDEX" '. + [$idx]')
     # Compute ranking snapshot at this point
     COMMITS_SO_FAR=$(echo "$COMMITS_SO_FAR" | jq --argjson c "$COMMIT" '. + [$c]')
-    SNAPSHOT=$(echo "{\"signedCommits\":$COMMITS_SO_FAR}" | .lake/build/bin/genesis_ranking | jq -c '.ranking')
+    SNAPSHOT=$(jq -n --argjson sc "$COMMITS_SO_FAR" --argjson idx "$REBUILT" \
+      '{signedCommits: $sc, indices: $idx}' | .lake/build/bin/genesis_ranking | jq -c '.ranking')
     COMMIT_HASH=$(echo "$INDEX" | jq -r '.commitHash')
     RANKING_MAP=$(echo "$RANKING_MAP" | jq --arg key "$COMMIT_HASH" --argjson val "$SNAPSHOT" '. + {($key): $val}')
   done
@@ -123,7 +124,8 @@ elif [ "$MODE" = "--verify-cache" ]; then
     REBUILT=$(echo "$REBUILT" | jq --argjson idx "$INDEX" '. + [$idx]')
     # Compute ranking snapshot
     COMMITS_SO_FAR=$(echo "$COMMITS_SO_FAR" | jq --argjson c "$COMMIT" '. + [$c]')
-    SNAPSHOT=$(echo "{\"signedCommits\":$COMMITS_SO_FAR}" | .lake/build/bin/genesis_ranking | jq -c '.ranking')
+    SNAPSHOT=$(jq -n --argjson sc "$COMMITS_SO_FAR" --argjson idx "$REBUILT" \
+      '{signedCommits: $sc, indices: $idx}' | .lake/build/bin/genesis_ranking | jq -c '.ranking')
     COMMIT_HASH=$(echo "$INDEX" | jq -r '.commitHash')
     RANKING_MAP=$(echo "$RANKING_MAP" | jq --arg key "$COMMIT_HASH" --argjson val "$SNAPSHOT" '. + {($key): $val}')
   done
