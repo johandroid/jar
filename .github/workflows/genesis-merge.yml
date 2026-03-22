@@ -243,7 +243,8 @@ jobs:
               SIGNED_COMMITS=$(echo "$SIGNED_COMMITS" | jq --argjson c "$COMMIT_LINE" '. + [$c]')
             fi
           done
-          NEW_RANKING=$(echo "{\"signedCommits\":$SIGNED_COMMITS}" | .lake/build/bin/genesis_ranking | jq -c '.ranking')
+          NEW_RANKING=$(jq -n --argjson sc "$SIGNED_COMMITS" --argjson idx "$UPDATED_CACHE" \
+            '{signedCommits: $sc, indices: $idx}' | .lake/build/bin/genesis_ranking | jq -c '.ranking')
           NEW_COMMIT_HASH=$(echo "$INDEX" | jq -r '.commitHash')
 
           # Update ranking.json: add new entry keyed by the new commit hash

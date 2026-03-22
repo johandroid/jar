@@ -251,43 +251,70 @@ def extractPairwise [GenesisVariant] (review : EmbeddedReview) : List (CommitId 
     acc ++ (commits.drop (i + 1)).map (fun loser => (winner, loser))
   ) []
 
-/-- Accumulate pairwise wins from reviews into a map: commitId → set of commitIds it beats. -/
-def accumulatePairwise [GenesisVariant]
+/-- Weighted pairwise evidence: (commitA, commitB, netWeight).
+    Positive netWeight means A beats B with that weight of evidence. -/
+abbrev PairwiseEvidence := List (CommitId × CommitId × Int)
+
+/-- Accumulate normalized weighted pairwise evidence from reviews.
+    Each reviewer's contribution is normalized by total reviewer weight
+    for this commit's reviews, so reviews at different points in time
+    (when total weight differs) contribute equally per-commit.
+    Uses fixed-point scaling (×10000) to avoid precision loss with integers. -/
+def accumulateWeightedPairwise [GenesisVariant]
     (reviews : List EmbeddedReview)
-    (existing : List (CommitId × List CommitId)) : List (CommitId × List CommitId) :=
-  let pairs := reviews.foldl (fun acc r => acc ++ extractPairwise r) []
-  pairs.foldl (fun acc (winner, loser) =>
-    match acc.find? (fun (c, _) => c == winner) with
-    | some (_, losers) =>
-      if losers.contains loser then acc
-      else acc.map (fun (c, ls) => if c == winner then (c, ls ++ [loser]) else (c, ls))
-    | none => acc ++ [(winner, [loser])]
-  ) existing
+    (getWeight : ContributorId → Nat)
+    (existing : PairwiseEvidence) : PairwiseEvidence :=
+  -- Compute total reviewer weight for normalization
+  let totalWeight := reviews.foldl (fun acc r => acc + getWeight r.reviewer) 0
+  if totalWeight == 0 then existing
+  else
+    reviews.foldl (fun acc review =>
+      let w := getWeight review.reviewer
+      if w == 0 then acc  -- non-reviewer, skip
+      else
+        -- Normalized weight: (w / totalWeight) × 10000
+        let normW : Int := (w * 10000 / totalWeight : Nat)
+        let pairs := extractPairwise review
+        pairs.foldl (fun acc2 (winner, loser) =>
+          match acc2.find? (fun (a, b, _) => a == winner && b == loser) with
+          | some _ =>
+            acc2.map (fun (a, b, ew) =>
+              if a == winner && b == loser then (a, b, ew + normW) else (a, b, ew))
+          | none =>
+            match acc2.find? (fun (a, b, _) => a == loser && b == winner) with
+            | some _ =>
+              acc2.map (fun (a, b, ew) =>
+                if a == loser && b == winner then (a, b, ew - normW) else (a, b, ew))
+            | none => acc2 ++ [(winner, loser, normW)]
+        ) acc
+    ) existing
 
-/-- Compute net-wins for each commit: |commits beaten| - |commits lost to|. -/
-def computeNetWins (commits : List CommitId)
-    (wins : List (CommitId × List CommitId)) : List (CommitId × Int) :=
+/-- Compute weighted net-wins for each commit.
+    For commit C: sum of all evidence weights where C is the winner. -/
+def computeWeightedNetWins (commits : List CommitId)
+    (evidence : PairwiseEvidence) : List (CommitId × Int) :=
   commits.map fun c =>
-    let beaten := match wins.find? (fun (w, _) => w == c) with
-      | some (_, losers) => losers.filter (commits.contains ·) |>.length
-      | none => 0
-    let lostTo := commits.foldl (fun acc other =>
-      match wins.find? (fun (w, _) => w == other) with
-      | some (_, losers) => if losers.contains c then acc + 1 else acc
-      | none => acc
-    ) 0
-    (c, (beaten : Int) - (lostTo : Int))
+    let net := evidence.foldl (fun acc (a, b, w) =>
+      if a == c && commits.contains b then acc + w
+      else if b == c && commits.contains a then acc - w
+      else acc
+    ) (0 : Int)
+    (c, net)
 
-/-- Compute global ranking from a list of signed commits.
+/-- Compute global ranking from signed commits with per-commit weight functions.
+    Each entry in `weightFns` provides the reviewer weight function at that commit's evaluation time.
     Returns commit hashes ordered best to worst. -/
-def computeRanking [GenesisVariant] (signedCommits : List SignedCommit) : List CommitId :=
+def computeRanking [GenesisVariant]
+    (signedCommits : List SignedCommit)
+    (weightFns : List (ContributorId → Nat)) : List CommitId :=
   let allCommitIds := signedCommits.map (·.id)
-  -- Accumulate all pairwise evidence
-  let pairwiseWins := signedCommits.foldl (fun acc commit =>
-    accumulatePairwise commit.reviews acc
-  ) []
-  -- Compute net-wins and sort
-  let netWins := computeNetWins allCommitIds pairwiseWins
+  -- Accumulate weighted pairwise evidence
+  let evidence := signedCommits.zip weightFns |>.foldl
+    (fun ev (commit, getWeight) =>
+      accumulateWeightedPairwise commit.reviews getWeight ev
+    ) ([] : PairwiseEvidence)
+  -- Compute weighted net-wins and sort
+  let netWins := computeWeightedNetWins allCommitIds evidence
   let indexed := netWins.zip (List.range netWins.length)
   let sorted := indexed.toArray.qsort (fun ((_, nw1), i1) ((_, nw2), i2) =>
     if nw1 != nw2 then nw1 > nw2 else i1 < i2
