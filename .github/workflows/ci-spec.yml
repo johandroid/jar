@@ -65,7 +65,7 @@ jobs:
 
       - name: Build genesis tools
         working-directory: spec
-        run: lake build genesis_select_targets genesis_evaluate genesis_check_merge genesis_finalize genesis_validate
+        run: lake build genesis_select_targets genesis_evaluate genesis_check_merge genesis_finalize genesis_validate genesis_ranking
 
       - name: Smoke test CLI tools
         working-directory: spec
