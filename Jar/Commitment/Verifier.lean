@@ -119,7 +119,7 @@ def verify (config : VerifierConfig) (proof : LigeritoProof)
     if i == config.recursiveSteps - 1 then
       ts := absorbGF128s ts proof.finalOpening.yr
 
-      let (finalQueries, ts') := distinctQueries ts
+      let (_finalQueries, ts') := distinctQueries ts
         (1 <<< (config.logDims[i]! + LOG_INV_RATE)) config.numQueries
       ts := ts'
 

@@ -269,7 +269,7 @@ private def dbgHex (ba : ByteArray) : String := Id.run do
     let b := ba.get! i
     let hi := b.toNat / 16; let lo := b.toNat % 16
     let hexChar (n : Nat) : Char := if n < 10 then Char.ofNat (48 + n) else Char.ofNat (87 + n)
-    s := s ++ String.mk [hexChar hi, hexChar lo]
+    s := s ++ String.ofList [hexChar hi, hexChar lo]
   return s
 
 private def getReg (regs : PVM.Registers) (i : Nat) : UInt64 :=
