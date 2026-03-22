@@ -293,6 +293,28 @@ fn translate_branch(&mut self, funct3: u32, rs1: u8, rs2: u8, target: u64) -> Re
     fn translate_store(&mut self, funct3: u32, rs1: u8, rs2: u8, imm: i32) -> Result<(), TranspileError> {
         // store_ind: store rD (data) to [rA + imm]
         // In RISC-V: store rs2 to [rs1 + imm]
+
+        // RISC-V x0 is hardwired to zero, but PVM reg 0 is RA.
+        // Use store_imm_ind_* to store a literal zero instead.
+        if rs2 == 0 {
+            let pvm_rs1 = self.require_reg(rs1)?;
+            let pvm_opcode = match funct3 {
+                0 => 70,  // SB x0 → store_imm_ind_u8(0)
+                1 => 71,  // SH x0 → store_imm_ind_u16(0)
+                2 => 72,  // SW x0 → store_imm_ind_u32(0)
+                3 => 73,  // SD x0 → store_imm_ind_u64(0)
+                _ => return Err(TranspileError::UnsupportedInstruction {
+                    offset: 0, detail: format!("store funct3={}", funct3),
+                }),
+            };
+            // OneRegTwoImm: reg_byte = ra | (lx << 4), imm_x = offset, imm_y = 0
+            // lx=4 for 4-byte offset, ly=0 so imm_y decodes as 0 (the value to store)
+            self.emit_inst(pvm_opcode);
+            self.emit_data(pvm_rs1 | (4 << 4));
+            self.emit_imm32(imm);
+            return Ok(());
+        }
+
         let pvm_rs2 = self.require_reg(rs2)?; // data register → rD
         let pvm_rs1 = self.require_reg(rs1)?; // base register → rA
 
