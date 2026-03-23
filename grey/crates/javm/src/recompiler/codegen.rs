@@ -5,8 +5,8 @@
 //! mapped to x86-64 registers for the duration of execution.
 //!
 //! Register mapping (PVM φ[i] → x86-64):
-//!   φ[0]  → RBX   (callee-saved)
-//!   φ[1]  → RBP   (callee-saved)
+//!   φ[0]  → RBP   (callee-saved) — RA, rarely used as memory base
+//!   φ[1]  → RBX   (callee-saved) — SP, avoids RBP encoding penalty
 //!   φ[2]  → R12   (callee-saved)
 //!   φ[3]  → R13   (callee-saved)
 //!   φ[4]  → R14   (callee-saved)
@@ -51,8 +51,8 @@ fn compute_skip(pc: usize, bitmask: &[u8]) -> usize {
 /// Map PVM register index (0..12) to x86-64 register.
 /// All 13 PVM registers live in x86 registers.
 const REG_MAP: [Reg; 13] = [
-    Reg::RBX,  // φ[0]
-    Reg::RBP,  // φ[1]
+    Reg::RBP,  // φ[0] — RA (rarely used as memory base, so RBP encoding penalty is acceptable)
+    Reg::RBX,  // φ[1] — SP (frequently used as memory base, RBX avoids RBP disp8 penalty)
     Reg::R12,  // φ[2]
     Reg::R13,  // φ[3]
     Reg::R14,  // φ[4]
