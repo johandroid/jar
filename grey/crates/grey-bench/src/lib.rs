@@ -438,48 +438,24 @@ pub fn polkavm_hostcall_blob(n: u64) -> Vec<u8> {
 
 // ---------------------------------------------------------------------------
 // Ecrecover benchmark: secp256k1 ECDSA public key recovery (k256 crate)
-// Same RISC-V ELF compiled for both grey (via transpiler) and polkavm (via linker).
+// ELFs are auto-built by build.rs via build-javm and build-pvm crates.
 // ---------------------------------------------------------------------------
 
-/// Grey rv64em ELF (bin target, +e,+m features).
-const GREY_ECRECOVER_ELF: &[u8] = include_bytes!(
-    "../../../services/bench-ecrecover/target/riscv64em-javm/release/bench-ecrecover.elf"
-);
+include!(concat!(env!("OUT_DIR"), "/guest_blobs.rs"));
 
-/// PolkaVM rv64emac ELF (cdylib target, full ISA features, per-function sections).
-const POLKAVM_ECRECOVER_ELF: &[u8] = include_bytes!(
-    "../../../services/bench-ecrecover/target/riscv64emac-polkavm/release/bench_ecrecover.elf"
-);
-
-/// Grey PVM blob for ecrecover (rv64em ELF → PVM via linker).
-///
-/// To regenerate the ELF:
-/// ```sh
-/// cd services/bench-ecrecover
-/// cargo +nightly build --release --bin bench-ecrecover --target ../riscv64em-javm.json -Zbuild-std=core,alloc -Zjson-target-spec
-/// ```
-pub fn grey_ecrecover_blob() -> Vec<u8> {
-    grey_transpiler::link_elf(GREY_ECRECOVER_ELF).expect("link ecrecover ELF for grey PVM")
+/// Grey PVM blob for ecrecover (pre-built and transpiled at compile time).
+pub fn grey_ecrecover_blob() -> &'static [u8] {
+    GREY_ECRECOVER_BLOB
 }
 
-/// PolkaVM blob for ecrecover (rv64emac cdylib ELF → polkavm blob).
-///
-/// To regenerate the ELF:
-/// ```sh
-/// cd services/bench-ecrecover
-/// RUSTFLAGS="-Zunstable-options -Cpanic=immediate-abort" RUSTC_BOOTSTRAP=1 CARGO_PROFILE_RELEASE_STRIP=false \
-///   cargo +nightly build --release --lib --target ../riscv64emac-polkavm.json -Zbuild-std=core,alloc -Zjson-target-spec
-/// ```
-pub fn polkavm_ecrecover_blob() -> Vec<u8> {
-    let mut config = polkavm_linker::Config::default();
-    config.set_strip(true);
-    config.set_min_stack_size(65536);
-    polkavm_linker::program_from_elf(
-        config,
-        polkavm_linker::TargetInstructionSet::JamV1,
-        POLKAVM_ECRECOVER_ELF,
-    )
-    .expect("link ecrecover ELF for polkavm")
+/// PolkaVM blob for ecrecover (pre-built and linked at compile time).
+pub fn polkavm_ecrecover_blob() -> &'static [u8] {
+    POLKAVM_ECRECOVER_BLOB
+}
+
+/// Grey PVM service blob for sample-service (refine at PC=0, accumulate at PC=5).
+pub fn sample_service_blob() -> &'static [u8] {
+    SAMPLE_SERVICE_BLOB
 }
 
 #[cfg(test)]
@@ -545,6 +521,41 @@ mod tests_sort {
                 javm::ExitReason::HostCall(_) => continue,
                 other => panic!("unexpected exit: {:?}", other),
             }
+        }
+    }
+
+    #[test]
+    fn test_sample_service_loadable() {
+        let blob = sample_service_blob();
+        assert!(!blob.is_empty());
+        let pvm = javm::program::initialize_program(blob, &[], 10_000);
+        assert!(pvm.is_some(), "sample service blob should be loadable by PVM");
+    }
+
+    #[test]
+    fn test_sample_service_refine_halts() {
+        let blob = sample_service_blob();
+        let mut pvm = javm::program::initialize_program(blob, &[], 10_000)
+            .expect("blob should be loadable");
+        let (result, _gas) = pvm.run();
+        assert!(
+            result == javm::ExitReason::Halt || result == javm::ExitReason::Panic,
+            "refine should halt or panic; got {:?}", result
+        );
+    }
+
+    #[test]
+    fn test_sample_service_accumulate_host_write() {
+        let blob = sample_service_blob();
+        let mut pvm = javm::program::initialize_program(blob, &[], 10_000)
+            .expect("blob should be loadable");
+        pvm.pc = 5;
+        let (result, _gas) = pvm.run();
+        match result {
+            javm::ExitReason::HostCall(id) => {
+                assert_eq!(id, 4, "expected host_write (ID=4), got ID={}", id);
+            }
+            other => panic!("expected HostCall(4), got {:?}", other),
         }
     }
 }
