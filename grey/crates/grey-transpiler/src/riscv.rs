@@ -467,7 +467,7 @@ impl TranslationContext {
             // add rd, x0, rs2 → mv rd, rs2
             let pvm_rd = self.require_reg(rd)?;
             let pvm_rs2 = self.require_reg(rs2)?;
-            self.emit_inst(52); // move_reg
+            self.emit_inst(100); // move_reg
             self.emit_data(pvm_rd | (pvm_rs2 << 4));
             return Ok(());
         }
@@ -475,7 +475,7 @@ impl TranslationContext {
             // add rd, rs1, x0 → mv rd, rs1
             let pvm_rd = self.require_reg(rd)?;
             let pvm_rs1 = self.require_reg(rs1)?;
-            self.emit_inst(52); // move_reg
+            self.emit_inst(100); // move_reg
             self.emit_data(pvm_rd | (pvm_rs1 << 4));
             return Ok(());
         }
@@ -500,7 +500,7 @@ impl TranslationContext {
                 }
                 (0, 4) | (0, 6) => {
                     // XOR/OR rd, x0, rs2 → rs2
-                    self.emit_inst(52);
+                    self.emit_inst(100); // move_reg
                     self.emit_data(pvm_rd | (pvm_rs2 << 4));
                     return Ok(());
                 }
@@ -510,7 +510,11 @@ impl TranslationContext {
                 }
                 (0, 3) => {
                     // SLTU rd, x0, rs2 → snez rd, rs2
-                    self.emit_load_imm(rd, 0)?;
+                    // When rd == rs2, skip the load_imm to avoid clobbering
+                    // the value before the conditional check.
+                    if pvm_rd != pvm_rs2 {
+                        self.emit_load_imm(rd, 0)?;
+                    }
                     self.emit_inst(148); // cmov_nz_imm: if rs2 != 0 then rd = imm
                     self.emit_data(pvm_rd | (pvm_rs2 << 4));
                     self.emit_imm32(1);
@@ -542,7 +546,7 @@ impl TranslationContext {
                 }
                 (0x20, 0) | (0, 4) | (0, 6) => {
                     // SUB/XOR/OR rd, rs1, x0 → rs1 op 0 = rs1 → move
-                    self.emit_inst(52);
+                    self.emit_inst(100); // move_reg
                     self.emit_data(pvm_rd | (pvm_rs1 << 4));
                     return Ok(());
                 }
@@ -552,7 +556,7 @@ impl TranslationContext {
                 }
                 (0, 1) | (0, 5) | (0x20, 5) => {
                     // SLL/SRL/SRA rd, rs1, x0 → shift by 0 = rs1 → move
-                    self.emit_inst(52);
+                    self.emit_inst(100); // move_reg
                     self.emit_data(pvm_rd | (pvm_rs1 << 4));
                     return Ok(());
                 }
