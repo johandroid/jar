@@ -658,6 +658,51 @@ impl TranslationContext {
 
     fn translate_op_32(&mut self, funct3: u32, funct7: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), TranspileError> {
         if rd == 0 { return Ok(()); }
+
+        // Handle x0 as source: PVM reg 0 = RA, not zero.
+        if rs1 == 0 {
+            let pvm_rd = self.require_reg(rd)?;
+            let pvm_rs2 = self.require_reg(rs2)?;
+            match (funct7, funct3) {
+                (0, 0) => {
+                    // ADDW rd, x0, rs2 → sext.w rd, rs2 (sign-extend lower 32 bits)
+                    self.emit_inst(131); // add_imm_32
+                    self.emit_data(pvm_rd | (pvm_rs2 << 4));
+                    self.emit_imm32(0);
+                    return Ok(());
+                }
+                (0x20, 0) => {
+                    // SUBW rd, x0, rs2 → negw rd, rs2
+                    self.emit_inst(141); // neg_add_imm_32
+                    self.emit_data(pvm_rd | (pvm_rs2 << 4));
+                    self.emit_imm32(0);
+                    return Ok(());
+                }
+                _ => {} // fall through to normal handling
+            }
+        }
+        if rs2 == 0 {
+            let pvm_rd = self.require_reg(rd)?;
+            let pvm_rs1 = self.require_reg(rs1)?;
+            match (funct7, funct3) {
+                (0, 0) => {
+                    // ADDW rd, rs1, x0 → sext.w rd, rs1
+                    self.emit_inst(131); // add_imm_32
+                    self.emit_data(pvm_rd | (pvm_rs1 << 4));
+                    self.emit_imm32(0);
+                    return Ok(());
+                }
+                (0x20, 0) => {
+                    // SUBW rd, rs1, x0 → sext.w rd, rs1 (subtract zero)
+                    self.emit_inst(131); // add_imm_32
+                    self.emit_data(pvm_rd | (pvm_rs1 << 4));
+                    self.emit_imm32(0);
+                    return Ok(());
+                }
+                _ => {} // fall through
+            }
+        }
+
         let pvm_rd = self.require_reg(rd)?;
         let pvm_rs1 = self.require_reg(rs1)?;
         let pvm_rs2 = self.require_reg(rs2)?;
