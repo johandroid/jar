@@ -251,18 +251,11 @@ impl Compiler {
         // Emit prologue
         self.emit_prologue();
 
-        // Gas block starts: pre-mark PC=0 and jump table targets, then discover
-        // branch targets inline during the compile loop.
-        let mut gas_starts = vec![false; code_len];
-        if code_len > 0 {
-            gas_starts[0] = true;
-        }
-        for &target in &self.jump_table {
-            let t = target as usize;
-            if t < code_len && t < bitmask.len() && bitmask[t] == 1 {
-                gas_starts[t] = true;
-            }
-        }
+        // Gas block starts: use the same basic block analysis as the interpreter.
+        // This ensures gas charging matches exactly. The inline discovery missed
+        // forward-reference targets (e.g., a branch at PC=664 targeting PC=604
+        // wouldn't be discovered before PC=604 is compiled).
+        let mut gas_starts = crate::vm::compute_basic_block_starts(code, bitmask);
 
         // Single streaming pass: decode + gas blocks + codegen
         let mut gas_sim = GasSimulator::new();
