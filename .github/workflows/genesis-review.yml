@@ -21,9 +21,10 @@ jobs:
       - name: Check for protected file changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
         run: |
-          PR_AUTHOR=$(gh pr view ${{ github.event.issue.number }} --json author --jq '.author.login')
-          CHANGED=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}/files --paginate --jq '.[].filename')
+          PR_AUTHOR=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
+          CHANGED=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
           if echo "$CHANGED" | grep -qE '^\.github/workflows/genesis-'; then
             if [ "$PR_AUTHOR" != "sorpaas" ]; then
               echo "Protected files modified by non-founder — skipping genesis review"
@@ -55,10 +56,11 @@ jobs:
       - name: Process review
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
         run: |
           cargo run -p jar-genesis -- workflow review \
-            --pr ${{ github.event.issue.number }} \
+            --pr "$PR_NUMBER" \
             --comment-author "$COMMENT_AUTHOR" \
             --comment-body "$COMMENT_BODY"
