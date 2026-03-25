@@ -1678,5 +1678,25 @@
       "novelty": 0
     },
     "weightDelta": 16
+  },
+  {
+    "commitHash": "d9a2f8ccbdf84b33e9b9dd974378b52a6e391158",
+    "contributor": "josepot",
+    "epoch": 1774477350,
+    "founderOverride": false,
+    "mergeVotes": [
+      "sorpaas"
+    ],
+    "metaReviews": [],
+    "rejectVotes": [],
+    "reviewers": [
+      "sorpaas"
+    ],
+    "score": {
+      "designQuality": 71,
+      "difficulty": 28,
+      "novelty": 28
+    },
+    "weightDelta": 53
   }
 ]
