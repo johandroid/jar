@@ -226,7 +226,7 @@ jobs:
 
           # Merge synchronously (--match-head-commit ensures atomicity:
           # GitHub rejects the merge if HEAD changed since we evaluated)
-          HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
+          HEAD_SHA=$(cat /tmp/genesis_commit.json | jq -r '.id')
           gh pr merge "$PR_NUMBER" --merge --match-head-commit "$HEAD_SHA" --subject "Merge PR #${PR_NUMBER}
 
           Genesis-Commit: $(echo "$COMMIT_DATA" | jq -c .)
