@@ -178,8 +178,7 @@ jobs:
           ALL_WARNINGS=$(echo "$ALL_WARNINGS" | sed '/^$/d')
           if [ -n "$ALL_WARNINGS" ]; then
             WARNING_BODY=$(echo "$ALL_WARNINGS" | sed 's/^/- /')
-            gh pr comment "$PR_NUMBER" --body "**JAR Bot:** Evaluation warnings:
-          ${WARNING_BODY}"
+            gh pr comment "$PR_NUMBER" --body "$(printf '**JAR Bot:** Evaluation warnings:\n%s' "$WARNING_BODY")"
           fi
 
           # Save for merge step (strip warnings from INDEX for trailer)
@@ -232,10 +231,7 @@ jobs:
             exit 1
           fi
 
-          gh pr comment "$PR_NUMBER" --body \
-            "**JAR Bot:** Merged (${MERGE_TYPE}).
-            Score: ${SCORE}
-            Weight delta: ${WEIGHT_DELTA}"
+          gh pr comment "$PR_NUMBER" --body "$(printf '**JAR Bot:** Merged (%s).\nScore: %s\nWeight delta: %s' "$MERGE_TYPE" "$SCORE" "$WEIGHT_DELTA")"
 
       - name: Update genesis-state cache
         working-directory: spec

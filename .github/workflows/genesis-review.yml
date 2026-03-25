@@ -104,10 +104,7 @@ jobs:
           # Surface collection warnings
           if [ -n "$COLLECT_WARNINGS" ]; then
             WARNING_BODY=$(echo "$COLLECT_WARNINGS" | sed 's/^/- /')
-            gh pr comment "$PR_NUMBER" --body "**JAR Bot:** Review warnings:
-          ${WARNING_BODY}
-
-          The review was recorded but these issues may affect scoring."
+            gh pr comment "$PR_NUMBER" --body "$(printf '**JAR Bot:** Review warnings:\n%s\n\nThe review was recorded but these issues may affect scoring.' "$WARNING_BODY")"
           fi
 
           # Check merge readiness
@@ -124,15 +121,11 @@ jobs:
           TOTAL_W=$(echo "$RESULT" | jq -r '.totalWeight')
 
           if [ "$READY" = "true" ]; then
-            gh pr comment "$PR_NUMBER" --body \
-              "**JAR Bot:** Review recorded from @${COMMENT_AUTHOR} (${REVIEW_COUNT} reviews, ${META_COUNT} meta-reviews).
-              Merge weight: ${MERGE_W}/${TOTAL_W}. Quorum reached — merging."
+            gh pr comment "$PR_NUMBER" --body "**JAR Bot:** Review recorded from @${COMMENT_AUTHOR} (${REVIEW_COUNT} reviews, ${META_COUNT} meta-reviews). Merge weight: ${MERGE_W}/${TOTAL_W}. Quorum reached — merging."
 
             # Trigger the merge workflow
             gh workflow run genesis-merge.yml \
               -f pr_number="$PR_NUMBER"
           else
-            gh pr comment "$PR_NUMBER" --body \
-              "**JAR Bot:** Review recorded from @${COMMENT_AUTHOR} (${REVIEW_COUNT} reviews, ${META_COUNT} meta-reviews).
-              Merge weight: ${MERGE_W}/${TOTAL_W} (need >50%)."
+            gh pr comment "$PR_NUMBER" --body "**JAR Bot:** Review recorded from @${COMMENT_AUTHOR} (${REVIEW_COUNT} reviews, ${META_COUNT} meta-reviews). Merge weight: ${MERGE_W}/${TOTAL_W} (need >50%)."
           fi

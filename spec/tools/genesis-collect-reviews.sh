@@ -61,10 +61,10 @@ expand_hashes() {
 parse_review() {
   local BODY="$1"
   local AUTHOR="$2"
-  local RAW_DIFF=$(echo "$BODY" | grep -i '^difficulty:' | sed 's/^difficulty:\s*//' | tr -d ' ')
-  local RAW_NOV=$(echo "$BODY" | grep -i '^novelty:' | sed 's/^novelty:\s*//' | tr -d ' ')
-  local RAW_DES=$(echo "$BODY" | grep -i '^design:' | sed 's/^design:\s*//' | tr -d ' ')
-  local VERD=$(echo "$BODY" | grep -i '^verdict:' | sed 's/^verdict:\s*//' | tr -d ' ')
+  local RAW_DIFF=$(echo "$BODY" | grep -i '^difficulty:' | sed 's/^difficulty:\s*//' | tr -d ' \r')
+  local RAW_NOV=$(echo "$BODY" | grep -i '^novelty:' | sed 's/^novelty:\s*//' | tr -d ' \r')
+  local RAW_DES=$(echo "$BODY" | grep -i '^design:' | sed 's/^design:\s*//' | tr -d ' \r')
+  local VERD=$(echo "$BODY" | grep -i '^verdict:' | sed 's/^verdict:\s*//' | tr -d ' \r')
   # Replace "currentPR" with actual commit SHA if provided
   if [ -n "$HEAD_SHA" ]; then
     local DIFF=$(echo "$RAW_DIFF" | sed "s/currentPR/$HEAD_SHA/g")
