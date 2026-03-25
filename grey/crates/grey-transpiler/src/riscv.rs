@@ -552,9 +552,17 @@ impl TranslationContext {
         // RV32 uses 32-bit PVM ops; RV64 uses 64-bit PVM ops
         let pvm_opcode = match funct3 {
             0 => if self.is_64bit { 149 } else { 131 }, // ADDI → add_imm_64/32
-            1 => { // SLLI
+            1 => {
+                if funct7 == 0x30 { // Zbb unary: clz/ctz/cpop/sext.b/sext.h
+                    let rs2 = (imm & 0x1F) as u8;
+                    let opc = match rs2 { 0 => if self.is_64bit {104} else {105}, 1 => if self.is_64bit {106} else {107},
+                        2 => if self.is_64bit {102} else {103}, 4 => 108, 5 => 109,
+                        _ => return Err(TranspileError::UnsupportedInstruction { offset: 0, detail: format!("Zbb rs2={}", rs2) }) };
+                    self.emit_inst(opc); self.emit_data(pvm_rd | (pvm_rs1 << 4)); return Ok(());
+                }
+                // SLLI (funct7=0x00)
                 let shamt = imm & if self.is_64bit { 0x3F } else { 0x1F };
-                self.emit_inst(if self.is_64bit { 151 } else { 138 }); // shlo_l_imm_64/32
+                self.emit_inst(if self.is_64bit { 151 } else { 138 });
                 self.emit_data(pvm_rd | (pvm_rs1 << 4));
                 self.emit_var_imm(shamt);
                 return Ok(());
@@ -562,12 +570,27 @@ impl TranslationContext {
             2 => 137, // SLTI → set_lt_s_imm
             3 => 136, // SLTIU → set_lt_u_imm
             4 => 133, // XORI → xor_imm
-            5 => { // SRLI/SRAI
+            5 => {
+                if (funct7 == 0x35 || funct7 == 0x34) && (imm & 0x1F) == 0x18 { // Zbb rev8 (RV64: 0x35, RV32: 0x34)
+                    self.emit_inst(111); self.emit_data(pvm_rd | (pvm_rs1 << 4)); return Ok(());
+                }
+                if funct7 == 0x30 { // Zbb rori
+                    let shamt = imm & if self.is_64bit { 0x3F } else { 0x1F };
+                    self.emit_inst(if self.is_64bit { 158 } else { 160 });
+                    self.emit_data(pvm_rd | (pvm_rs1 << 4)); self.emit_var_imm(shamt); return Ok(());
+                }
+                if funct7 == 0x14 { // Zbb orc.b — OR-combine bytes
+                    // No PVM equivalent; emit as trap (rare instruction)
+                    return Err(TranspileError::UnsupportedInstruction {
+                        offset: 0, detail: "Zbb orc.b not yet supported".into(),
+                    });
+                }
+                // SRLI (funct7=0x00) / SRAI (funct7=0x20+)
                 let shamt = imm & if self.is_64bit { 0x3F } else { 0x1F };
                 if funct7 & 0x20 != 0 {
-                    self.emit_inst(if self.is_64bit { 153 } else { 140 }); // shar_r_imm_64/32
+                    self.emit_inst(if self.is_64bit { 153 } else { 140 }); // shar_r_imm
                 } else {
-                    self.emit_inst(if self.is_64bit { 152 } else { 139 }); // shlo_r_imm_64/32
+                    self.emit_inst(if self.is_64bit { 152 } else { 139 }); // shlo_r_imm
                 }
                 self.emit_data(pvm_rd | (pvm_rs1 << 4));
                 self.emit_var_imm(shamt);
@@ -762,22 +785,44 @@ impl TranslationContext {
             match funct3 {
                 0 => if self.is_64bit { 201 } else { 191 }, // SUB
                 5 => if self.is_64bit { 209 } else { 199 }, // SRA
+                7 | 6 | 4 => { // Zbb ANDN/ORN/XNOR: rd = rs1 OP ~rs2
+                    if rd == rs1 && rd == rs2 {
+                        return self.emit_load_imm(rd, if funct3 == 7 { 0 } else { -1i64 });
+                    }
+                    let alu: u8 = match funct3 { 7 => 210, 6 => 212, _ => 211 };
+                    if rd != rs1 { // use rd as temp for ~rs2
+                        self.emit_inst(133); self.emit_data(pvm_rd | (pvm_rs2 << 4)); self.emit_var_imm(-1);
+                        self.emit_inst(alu); self.emit_data(pvm_rs1 | (pvm_rd << 4)); self.emit_data(pvm_rd);
+                    } else { // rd==rs1: NOT rs2 in-place, OP, restore
+                        self.emit_inst(133); self.emit_data(pvm_rs2 | (pvm_rs2 << 4)); self.emit_var_imm(-1);
+                        self.emit_inst(alu); self.emit_data(pvm_rd | (pvm_rs2 << 4)); self.emit_data(pvm_rd);
+                        self.emit_inst(133); self.emit_data(pvm_rs2 | (pvm_rs2 << 4)); self.emit_var_imm(-1);
+                    }
+                    return Ok(());
+                }
                 _ => return Err(TranspileError::UnsupportedInstruction {
                     offset: 0, detail: format!("OP funct7=0x20 funct3={}", funct3),
                 }),
             }
-        } else {
+        } else if funct7 == 0x05 { // Zbb min/max
+            match funct3 { 4 => 229, 5 => 230, 6 => 227, 7 => 228,
+                _ => return Err(TranspileError::UnsupportedInstruction { offset: 0, detail: format!("Zbb f7=5 f3={}", funct3) }) }
+        } else if funct7 == 0x30 { // Zbb rotations — emit and return early
+            let opc = match funct3 { 1 => if self.is_64bit { 220 } else { 221 }, 5 => if self.is_64bit { 222 } else { 223 },
+                _ => return Err(TranspileError::UnsupportedInstruction { offset: 0, detail: format!("Zbb f7=30 f3={}", funct3) }) };
+            self.emit_inst(opc); self.emit_data(pvm_rs1 | (pvm_rs2 << 4)); self.emit_data(pvm_rd); return Ok(());
+        } else if funct7 == 0 {
             match funct3 {
                 0 => if self.is_64bit { 200 } else { 190 }, // ADD
                 1 => if self.is_64bit { 207 } else { 197 }, // SLL
-                2 => 217, // SLT → set_lt_s
-                3 => 216, // SLTU → set_lt_u
-                4 => 211, // XOR → xor
-                5 => if self.is_64bit { 208 } else { 198 }, // SRL
-                6 => 212, // OR → or
-                7 => 210, // AND → and
+                2 => 217, 3 => 216, 4 => 211, 5 => if self.is_64bit { 208 } else { 198 },
+                6 => 212, 7 => 210,
                 _ => unreachable!(),
             }
+        } else {
+            return Err(TranspileError::UnsupportedInstruction {
+                offset: 0, detail: format!("OP funct7={:#x} funct3={}", funct7, funct3),
+            });
         };
 
         // ThreeReg encoding: byte1 = rA | (rB << 4), byte2 = rD
@@ -799,21 +844,28 @@ impl TranslationContext {
                 self.emit_data(pvm_rd | (pvm_rs1 << 4));
                 self.emit_var_imm(imm);
             }
-            1 => { // SLLIW
-                let shamt = imm & 0x1F;
-                self.emit_inst(138); // shlo_l_imm_32
-                self.emit_data(pvm_rd | (pvm_rs1 << 4));
-                self.emit_var_imm(shamt);
-            }
-            5 => { // SRLIW/SRAIW
-                let shamt = imm & 0x1F;
-                if funct7 & 0x20 != 0 {
-                    self.emit_inst(140); // shar_r_imm_32
-                } else {
-                    self.emit_inst(139); // shlo_r_imm_32
+            1 => {
+                if funct7 == 0x30 { // Zbb: clzw(rs2=0), ctzw(rs2=1), cpopw(rs2=2)
+                    let rs2 = (imm & 0x1F) as u8;
+                    let opc = match rs2 { 0 => 105, 1 => 107, 2 => 103,
+                        _ => return Err(TranspileError::UnsupportedInstruction { offset: 0, detail: format!("Zbb-W rs2={}", rs2) }) };
+                    self.emit_inst(opc); self.emit_data(pvm_rd | (pvm_rs1 << 4));
+                } else { // SLLIW (funct7=0x00)
+                    let shamt = imm & 0x1F;
+                    self.emit_inst(138); self.emit_data(pvm_rd | (pvm_rs1 << 4)); self.emit_var_imm(shamt);
                 }
-                self.emit_data(pvm_rd | (pvm_rs1 << 4));
-                self.emit_var_imm(shamt);
+            }
+            5 => {
+                if funct7 == 0x30 { // Zbb roriw
+                    let shamt = imm & 0x1F;
+                    self.emit_inst(160); self.emit_data(pvm_rd | (pvm_rs1 << 4)); self.emit_var_imm(shamt);
+                } else if funct7 & 0x20 != 0 { // SRAIW (funct7=0x20)
+                    let shamt = imm & 0x1F;
+                    self.emit_inst(140); self.emit_data(pvm_rd | (pvm_rs1 << 4)); self.emit_var_imm(shamt);
+                } else { // SRLIW (funct7=0x00)
+                    let shamt = imm & 0x1F;
+                    self.emit_inst(139); self.emit_data(pvm_rd | (pvm_rs1 << 4)); self.emit_var_imm(shamt);
+                }
             }
             _ => return Err(TranspileError::UnsupportedInstruction {
                 offset: 0, detail: format!("OP-IMM-32 funct3={}", funct3),
@@ -845,7 +897,11 @@ impl TranslationContext {
                     self.emit_var_imm(0);
                     return Ok(());
                 }
-                _ => {} // fall through to normal handling
+                _ => {
+                    return Err(TranspileError::UnsupportedInstruction {
+                        offset: 0, detail: format!("OP-32 x0-as-rs1: funct7={:#x} funct3={}", funct7, funct3),
+                    });
+                }
             }
         }
         if rs2 == 0 {
@@ -866,7 +922,11 @@ impl TranslationContext {
                     self.emit_var_imm(0);
                     return Ok(());
                 }
-                _ => {} // fall through
+                _ => {
+                    return Err(TranspileError::UnsupportedInstruction {
+                        offset: 0, detail: format!("OP-32 x0-as-rs2: funct7={:#x} funct3={}", funct7, funct3),
+                    });
+                }
             }
         }
 
@@ -893,7 +953,13 @@ impl TranslationContext {
                     offset: 0, detail: format!("OP-32 funct7=0x20 funct3={}", funct3),
                 }),
             }
-        } else {
+        } else if funct7 == 0x30 { // Zbb rolw/rorw
+            let opc = match funct3 { 1 => 221, 5 => 223,
+                _ => return Err(TranspileError::UnsupportedInstruction { offset: 0, detail: format!("OP-32 f7=30 f3={}", funct3) }) };
+            self.emit_inst(opc); self.emit_data(pvm_rs1 | (pvm_rs2 << 4)); self.emit_data(pvm_rd); return Ok(());
+        } else if funct7 == 0x04 && funct3 == 4 { // Zbb zext.h
+            self.emit_inst(110); self.emit_data(pvm_rd | (pvm_rs1 << 4)); return Ok(());
+        } else if funct7 == 0 {
             match funct3 {
                 0 => 190, // ADDW → add_32
                 1 => 197, // SLLW → shlo_l_32
@@ -902,6 +968,10 @@ impl TranslationContext {
                     offset: 0, detail: format!("OP-32 funct3={}", funct3),
                 }),
             }
+        } else {
+            return Err(TranspileError::UnsupportedInstruction {
+                offset: 0, detail: format!("OP-32 funct7={:#x} funct3={}", funct7, funct3),
+            });
         };
 
         // ThreeReg encoding: byte1 = rA | (rB << 4), byte2 = rD
