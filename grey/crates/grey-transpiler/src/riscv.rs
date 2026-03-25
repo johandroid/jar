@@ -462,11 +462,12 @@ impl TranslationContext {
                 }),
             };
             // Format: OneRegTwoImm — reg_byte encodes ra + imm_x length
-            // reg_byte = ra | (lx << 4), lx=4 for 4-byte imm_x (offset)
+            // reg_byte = ra | (lx << 4)
             // imm_y has length 0, which decodes as 0 (the value we want to store)
+            let (lx, imm_bytes) = encode_var_imm(imm);
             self.emit_inst(pvm_opcode);
-            self.emit_data(pvm_rs1 | (4 << 4));
-            self.emit_imm32(imm);
+            self.emit_data(pvm_rs1 | (lx << 4));
+            for b in &imm_bytes { self.emit_data(*b); }
             return Ok(());
         }
 
