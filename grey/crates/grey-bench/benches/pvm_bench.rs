@@ -414,11 +414,15 @@ fn bench_ecrecover(c: &mut Criterion) {
                 inst.reg(PReg::A0)
             })
         });
+        let pvm_config = polkavm_config(BackendKind::Compiler);
         group.bench_function("polkavm-compiler-compile", |b| {
             b.iter(|| {
+                // Include Engine::new to match grey's FlatMemory + assembler mmap.
+                // In JAM, each work-package is compiled from scratch.
+                let engine = Engine::new(&pvm_config).unwrap();
                 let mut mc = ModuleConfig::new();
                 mc.set_gas_metering(Some(GasMeteringKind::Sync));
-                std::hint::black_box(Module::new(engine, &mc, pvm_blob.clone().into()).unwrap());
+                std::hint::black_box(Module::new(&engine, &mc, pvm_blob.clone().into()).unwrap());
             })
         });
         group.bench_function("polkavm-compiler-full", |b| {
