@@ -14,16 +14,22 @@ pub struct TestnetProcess {
 
 impl TestnetProcess {
     /// Spawn `grey --testnet 0 --rpc-cors`, writing output to a log file.
-    pub async fn spawn() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn spawn(seq: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let grey_bin = Self::find_binary()?;
         let log_path = std::env::temp_dir().join("grey-harness-testnet.log");
         let log_file = std::fs::File::create(&log_path)?;
         let log_stderr = log_file.try_clone()?;
 
-        info!("starting testnet (bin={}, log={})", grey_bin.display(), log_path.display());
+        let mode = if seq { "seq-testnet" } else { "testnet" };
+        info!("starting {mode} (bin={}, log={})", grey_bin.display(), log_path.display());
 
-        let child = Command::new(&grey_bin)
-            .args(["--testnet", "0", "--rpc-cors"])
+        let mut cmd = Command::new(&grey_bin);
+        if seq {
+            cmd.args(["--seq-testnet", "--rpc-cors"]);
+        } else {
+            cmd.args(["--testnet", "0", "--rpc-cors"]);
+        }
+        let child = cmd
             .stdout(Stdio::from(log_file))
             .stderr(Stdio::from(log_stderr))
             .kill_on_drop(true)

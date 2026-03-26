@@ -11,6 +11,7 @@ mod chainspec;
 mod finality;
 mod guarantor;
 mod node;
+mod seq_testnet;
 #[allow(dead_code)]
 mod testnet;
 mod tickets;
@@ -61,6 +62,10 @@ struct Cli {
     /// Run a networked testnet for this many seconds (0 = run until Ctrl+C)
     #[arg(long)]
     testnet: Option<u64>,
+
+    /// Run a deterministic sequential testnet (single-threaded, no wall-clock delays)
+    #[arg(long)]
+    seq_testnet: bool,
 
     /// Database path for persistent storage
     #[arg(long, default_value = "./grey-db")]
@@ -113,6 +118,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 std::process::exit(1);
             }
         }
+    }
+
+    // Deterministic sequential testnet
+    if cli.seq_testnet {
+        tracing::info!("Running deterministic sequential testnet");
+        return seq_testnet::run_seq_testnet(cli.rpc_port, cli.rpc_cors)
+            .await
+            .map_err(|e| e.into());
     }
 
     // Networked testnet mode
