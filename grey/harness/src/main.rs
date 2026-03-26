@@ -25,6 +25,10 @@ struct Cli {
     #[arg(long)]
     no_testnet: bool,
 
+    /// Use deterministic sequential testnet (fast, single-threaded).
+    #[arg(long)]
+    seq_testnet: bool,
+
     /// RPC endpoint URL.
     #[arg(long, default_value = "http://localhost:9933")]
     rpc: String,
@@ -58,7 +62,7 @@ async fn main() {
     // Spawn testnet if needed.
     let mut _testnet = None;
     if !cli.no_testnet {
-        match testnet::TestnetProcess::spawn().await {
+        match testnet::TestnetProcess::spawn(cli.seq_testnet).await {
             Ok(proc) => {
                 info!("testnet log: {}", proc.log_path().display());
                 _testnet = Some(proc);

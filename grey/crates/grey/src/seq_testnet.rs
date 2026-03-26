@@ -262,9 +262,11 @@ pub async fn run_seq_testnet(
             }
         }
 
-        // Yield to tokio periodically for RPC
-        if slot % 5 == 0 {
-            tokio::task::yield_now().await;
+        // Yield to tokio periodically so the RPC server can process requests.
+        // Without this, the slot loop monopolizes the runtime and RPC calls
+        // never get a chance to execute.
+        if slot % 2 == 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
 
     }
