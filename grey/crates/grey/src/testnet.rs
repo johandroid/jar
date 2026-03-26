@@ -523,7 +523,7 @@ pub fn run_sequential_test(num_blocks: u32) -> Result<SequentialTestResult, Stri
 /// Build a test guarantee extrinsic for a work package on the given core.
 ///
 /// Returns (Guarantee, package_hash).
-fn build_test_guarantee(
+pub fn build_test_guarantee(
     state: &grey_types::state::State,
     config: &Config,
     secrets: &[grey_consensus::genesis::ValidatorSecrets],
@@ -539,7 +539,7 @@ fn build_test_guarantee(
 }
 
 /// Build a test guarantee with a specific payload/result.
-fn build_test_guarantee_with_payload(
+pub fn build_test_guarantee_with_payload(
     state: &grey_types::state::State,
     _config: &Config,
     secrets: &[grey_consensus::genesis::ValidatorSecrets],
@@ -635,7 +635,7 @@ fn build_test_guarantee_with_payload(
 }
 
 /// Build availability assurances from a super-majority of validators for the given core.
-fn build_test_assurances(
+pub fn build_test_assurances(
     config: &Config,
     secrets: &[grey_consensus::genesis::ValidatorSecrets],
     parent_hash: Hash,
