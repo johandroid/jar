@@ -15,11 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,15 +62,19 @@ jobs:
       - name: Copy JarBook into site
         run: cp -r spec/_out/html-multi site/spec
 
-      # -- Deploy (master only) --
-      - uses: actions/configure-pages@v5
-        if: github.ref == 'refs/heads/master'
-
       - uses: actions/upload-pages-artifact@v4
         if: github.ref == 'refs/heads/master'
         with:
           path: site
 
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
       - uses: actions/deploy-pages@v4
         id: deployment
-        if: github.ref == 'refs/heads/master'
