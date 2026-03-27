@@ -2226,9 +2226,13 @@ pub fn compute_basic_block_starts_bitset(code: &[u8], bitmask: &[u8]) -> (BitSet
 /// Like compute_basic_block_starts_bitset but does NOT allocate a skip_table.
 /// Returns only the gas_starts BitSet. The caller should use `skip_for_bitmask()`
 /// to compute skip inline during the main compilation loop.
-/// Lightweight gas block start discovery — builds only the BitSet, no skip_table.
-/// Used by the recompiler to replace the full `compute_basic_block_starts_bitset`
-/// prepass, saving the 110KB skip_table allocation and reducing scan overhead.
+/// Compute gas block starts per the JAM spec (Lean/GP PR #508):
+///   ϖ = {0} ∪ {pc + 1 + skip(pc) | pc is instruction start ∧ code[pc] ∈ T}
+/// where T = set of terminator opcodes (including fallthrough/unlikely).
+///
+/// Branch targets are NOT gas block starts — they're only a validation
+/// constraint (branch to non-ϖ → panic). This enables single-pass compilation
+/// since all gas block starts are post-terminator PCs, discoverable inline.
 pub fn compute_gas_starts_only(code: &[u8], bitmask: &[u8]) -> BitSet {
     let len = code.len();
     if len == 0 {
@@ -2238,75 +2242,31 @@ pub fn compute_gas_starts_only(code: &[u8], bitmask: &[u8]) -> BitSet {
     let mut starts = BitSet::new(len);
     let bm_len = bitmask.len();
 
+    // PC=0 is always a gas block start if it's a valid instruction.
     if bm_len > 0 && bitmask[0] == 1 {
         if Opcode::from_byte(code[0]).is_some() {
             starts.set(0);
         }
     }
 
-    use crate::instruction::{decode_opcode_fast, InstructionCategory};
-
+    // Mark post-terminator PCs as gas block starts.
+    // ALL terminators (including fallthrough/unlikely) start a new gas block
+    // at the next instruction, per spec. No branch target extraction needed.
     let mut i = 0;
     while i < len {
         if i >= bm_len || bitmask[i] != 1 { i += 1; continue; }
         let raw = code[i];
-        let (op, cat) = match decode_opcode_fast(raw) {
-            Some(oc) => oc,
+        let op = match Opcode::from_byte(raw) {
+            Some(op) => op,
             None => { i += 1; continue; }
         };
         let skip = skip_for_bitmask(bitmask, i);
 
-        // Mark post-terminator and post-ecalli PCs as gas block starts.
-        let next = i + 1 + skip;
-        if next < len && next < bm_len && bitmask[next] == 1 {
-            let is_term_not_fallthrough = op.is_terminator()
-                && !matches!(op, Opcode::Fallthrough | Opcode::Unlikely);
-            if is_term_not_fallthrough || matches!(op, Opcode::Ecalli) {
+        if op.is_terminator() {
+            let next = i + 1 + skip;
+            if next < len && next < bm_len && bitmask[next] == 1 {
                 starts.set(next);
             }
-        }
-        // Extract branch target and mark as gas block start.
-        // Uses same offset extraction logic as compute_basic_block_starts_bitset.
-        match cat {
-            InstructionCategory::OneOffset => {
-                if i + 5 <= len {
-                    let off = i32::from_le_bytes([code[i+1], code[i+2], code[i+3], code[i+4]]);
-                    let target = (i as i64 + off as i64) as usize;
-                    if target < len && target < bm_len && bitmask[target] == 1 {
-                        starts.set(target);
-                    }
-                }
-            }
-            InstructionCategory::TwoRegOneOffset => {
-                if i + 6 <= len {
-                    let off = i32::from_le_bytes([code[i+2], code[i+3], code[i+4], code[i+5]]);
-                    let target = (i as i64 + off as i64) as usize;
-                    if target < len && target < bm_len && bitmask[target] == 1 {
-                        starts.set(target);
-                    }
-                }
-            }
-            InstructionCategory::OneRegImmOffset => {
-                if i + 2 <= len {
-                    let reg_byte = code[i + 1];
-                    let lx = ((reg_byte as usize / 16) % 8).min(4);
-                    let ly = if skip > lx + 1 { (skip - lx - 1).min(4) } else { 0 };
-                    let off_start = i + 2 + lx;
-                    if ly > 0 && off_start + ly <= len {
-                        let mut buf = [0u8; 4];
-                        buf[..ly].copy_from_slice(&code[off_start..off_start + ly]);
-                        if ly < 4 && buf[ly - 1] & 0x80 != 0 {
-                            for b in &mut buf[ly..4] { *b = 0xFF; }
-                        }
-                        let off = i32::from_le_bytes(buf);
-                        let target = (i as i64 + off as i64) as usize;
-                        if target < len && target < bm_len && bitmask[target] == 1 {
-                            starts.set(target);
-                        }
-                    }
-                }
-            }
-            _ => {}
         }
 
         i += 1 + skip;

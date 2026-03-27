@@ -274,20 +274,9 @@ impl Compiler {
         // Emit prologue
         self.emit_prologue();
 
-        // Lightweight gas block start discovery — no skip_table allocation.
-        // Scans only branch/terminator opcodes to find gas block start PCs.
-        // Skip is computed inline in the main loop via skip_for_bitmask().
-        let gas_starts = {
-            let mut gs = crate::vm::compute_gas_starts_only(code, bitmask);
-            let jt_len = self.jump_table_len;
-            for i in 0..jt_len {
-                let target_pc = unsafe { *self.jump_table_ptr.add(i) } as usize;
-                if target_pc < code_len {
-                    gs.set(target_pc);
-                }
-            }
-            gs
-        };
+        // Gas block starts per spec: ϖ = {0} ∪ {post-terminator PCs}.
+        // No branch targets, no jump table entries — those are validation only.
+        let gas_starts = crate::vm::compute_gas_starts_only(code, bitmask);
 
         // Pre-create labels for ALL gas block starts using ranked bitset.
         // This replaces the 448KB dense block_labels Vec with ~87KB of compact
