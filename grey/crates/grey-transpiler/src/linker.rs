@@ -560,10 +560,8 @@ fn translate_section_linked(
                     let jalr_rd = ((jalr >> 7) & 0x1f) as u8;
                     let ret_addr = rv_addr + 8;
 
-                    // Emit return address into link register
-                    ctx.emit_return_address_jt(jalr_rd, ret_addr)?;
-                    // Emit jump to target
-                    ctx.emit_jump(target_addr);
+                    // Fused load_imm_jump: set return address and jump in one instruction
+                    ctx.emit_call(jalr_rd, ret_addr, target_addr)?;
                     // Map the JALR address too
                     ctx.address_map.insert(rv_addr + 4, ctx.code.len() as u32);
                     offset += 8; // skip both AUIPC and JALR
