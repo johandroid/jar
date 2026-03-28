@@ -1249,6 +1249,7 @@ impl Compiler {
 
     /// Compile a single PVM instruction.
     /// Caller must ensure the assembler has sufficient capacity (at least 256 bytes).
+    #[inline(always)]
     fn compile_instruction(&mut self, opcode: Opcode, args: &Args, pc: u32, next_pc: u32) {
         match opcode {
             // === A.5.1: No arguments ===
