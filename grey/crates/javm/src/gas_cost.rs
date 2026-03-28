@@ -2490,6 +2490,7 @@ pub fn fast_cost_lut(
 /// Like `fast_cost_lut` but takes pre-extracted register bytes to avoid
 /// re-reading code[pc+1] and code[pc+2] (already decoded by the caller).
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 pub fn fast_cost_lut_regs(
     opcode_byte: u8,
     args: &crate::args::Args,

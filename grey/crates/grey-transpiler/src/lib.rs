@@ -159,7 +159,7 @@ pub fn peephole_fuse_load_imm_alu(
                 if i + 1 < len {
                     let load_reg_byte = code[i + 1];
                     let load_rd = load_reg_byte & 0x0F;
-                    let lx = if s > 1 { s - 1 } else { 0 };
+                    let lx = s.saturating_sub(1);
                     let mut imm_buf = [0u8; 8];
                     for k in 0..lx.min(8) {
                         if i + 2 + k < len {
@@ -211,8 +211,8 @@ pub fn peephole_fuse_load_imm_alu(
                                 }
                                 // bitmask[i] stays 1 (instruction start)
                                 // Clear bitmask for all continuation bytes including old ALU start
-                                for k in (i + 1)..end_of_pair {
-                                    bitmask[k] = 0;
+                                for b in &mut bitmask[(i + 1)..end_of_pair] {
+                                    *b = 0;
                                 }
 
                                 fused += 1;

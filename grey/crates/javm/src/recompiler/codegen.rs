@@ -199,7 +199,7 @@ pub struct Compiler {
 impl Compiler {
     pub fn new(
         bitmask: &[u8],
-        jump_table: &[u32],
+        _jump_table: &[u32],
         helpers: HelperFns,
         code_len: usize,
         use_mmap: bool,
