@@ -1,10 +1,13 @@
 //! PVM benchmark: grey interpreter/recompiler vs polkavm interpreter/compiler.
 //!
-//! Five workloads:
+//! Eight workloads:
 //!   - fib: compute-intensive iterative Fibonacci (1M iterations)
 //!   - hostcall: host-call-heavy (100K ecalli invocations)
 //!   - sort: insertion sort of 1K u32 elements (compute + memory interleaved)
 //!   - sieve: Sieve of Eratosthenes up to 100K (memory + branching)
+//!   - blake2b: Blake2b-256 hash of 1KB message (crypto)
+//!   - keccak: Keccak-256 hash of 1KB message (crypto)
+//!   - ed25519: Ed25519 signature verification (crypto)
 //!   - ecrecover: secp256k1 ECDSA public key recovery (crypto-heavy)
 //!
 //! ## Benchmark fairness
@@ -142,9 +145,11 @@ fn validate(name: &str, grey_blob: &[u8], pvm_blob: &[u8]) {
     eprintln!(
         "{name}: grey result={gi_result} gas={gi_gas}, polkavm result={pvm_result} gas={pvm_gas}"
     );
+    // Compare lower 32 bits only: RISC-V ABI sign-extends u32 returns to 64 bits
+    // on rv64, but polkavm may zero-extend. Both produce the same 32-bit result.
     assert_eq!(
-        gi_result, pvm_result,
-        "{name}: grey/polkavm result mismatch"
+        gi_result as u32, pvm_result as u32,
+        "{name}: grey/polkavm result mismatch (grey=0x{gi_result:X}, polkavm=0x{pvm_result:X})"
     );
     // Gas values differ: JAVM uses pipeline gas (JAR v0.8.0),
     // polkavm uses per-instruction gas (GP v0.7.2).
@@ -154,27 +159,22 @@ fn validate(name: &str, grey_blob: &[u8], pvm_blob: &[u8]) {
 // Benchmarks
 // ---------------------------------------------------------------------------
 
-fn bench_fib(c: &mut Criterion) {
-    let grey_blob = grey_fib_blob(FIB_N);
-    let pvm_blob = polkavm_fib_blob(FIB_N);
+/// Standard benchmark group: grey interpreter + recompiler + polkavm interpreter + compiler.
+fn bench_standard(c: &mut Criterion, name: &str, grey_blob: &[u8], pvm_blob: &[u8]) {
+    validate(name, grey_blob, pvm_blob);
 
-    validate("fib", &grey_blob, &pvm_blob);
-
-    let (_, pvm_interp_mod) = try_make_polkavm_module(&pvm_blob, BackendKind::Interpreter)
+    let (_, pvm_interp_mod) = try_make_polkavm_module(pvm_blob, BackendKind::Interpreter)
         .expect("polkavm interpreter should always work");
-    let pvm_compiler = try_make_polkavm_module(&pvm_blob, BackendKind::Compiler);
-    if pvm_compiler.is_none() {
-        eprintln!("polkavm compiler backend unavailable (sandbox/platform restriction), skipping");
-    }
+    let pvm_compiler = try_make_polkavm_module(pvm_blob, BackendKind::Compiler);
 
-    let mut group = c.benchmark_group("fib");
+    let mut group = c.benchmark_group(name);
 
     group.bench_function("grey-interpreter", |b| {
-        b.iter(|| run_grey_interpreter(&grey_blob))
+        b.iter(|| run_grey_interpreter(grey_blob))
     });
 
     group.bench_function("grey-recompiler", |b| {
-        b.iter(|| run_grey_recompiler(&grey_blob))
+        b.iter(|| run_grey_recompiler(grey_blob))
     });
 
     group.bench_function("polkavm-interpreter", |b| {
@@ -182,125 +182,49 @@ fn bench_fib(c: &mut Criterion) {
     });
 
     if let Some((ref engine, ref pvm_mod)) = pvm_compiler {
-        // Execution-only (pre-compiled module, amortized compilation cost)
         group.bench_function("polkavm-compiler-exec", |b| {
             b.iter(|| run_polkavm_module(pvm_mod))
         });
-        // Compile + execute (fair comparison with grey-recompiler)
         group.bench_function("polkavm-compiler-full", |b| {
-            b.iter(|| run_polkavm_compile_and_run(&pvm_blob, engine))
+            b.iter(|| run_polkavm_compile_and_run(pvm_blob, engine))
         });
     }
 
     group.finish();
+}
+
+fn bench_fib(c: &mut Criterion) {
+    let grey_blob = grey_fib_blob(FIB_N);
+    let pvm_blob = polkavm_fib_blob(FIB_N);
+    bench_standard(c, "fib", &grey_blob, &pvm_blob);
 }
 
 fn bench_hostcall(c: &mut Criterion) {
     let grey_blob = grey_hostcall_blob(HOSTCALL_N);
     let pvm_blob = polkavm_hostcall_blob(HOSTCALL_N);
-
-    validate("hostcall", &grey_blob, &pvm_blob);
-
-    let (_, pvm_interp_mod) = try_make_polkavm_module(&pvm_blob, BackendKind::Interpreter)
-        .expect("polkavm interpreter should always work");
-    let pvm_compiler = try_make_polkavm_module(&pvm_blob, BackendKind::Compiler);
-
-    let mut group = c.benchmark_group("hostcall");
-
-    group.bench_function("grey-interpreter", |b| {
-        b.iter(|| run_grey_interpreter(&grey_blob))
-    });
-
-    group.bench_function("grey-recompiler", |b| {
-        b.iter(|| run_grey_recompiler(&grey_blob))
-    });
-
-    group.bench_function("polkavm-interpreter", |b| {
-        b.iter(|| run_polkavm_module(&pvm_interp_mod))
-    });
-
-    if let Some((ref engine, ref pvm_mod)) = pvm_compiler {
-        group.bench_function("polkavm-compiler-exec", |b| {
-            b.iter(|| run_polkavm_module(pvm_mod))
-        });
-        group.bench_function("polkavm-compiler-full", |b| {
-            b.iter(|| run_polkavm_compile_and_run(&pvm_blob, engine))
-        });
-    }
-
-    group.finish();
+    bench_standard(c, "hostcall", &grey_blob, &pvm_blob);
 }
 
 fn bench_sort(c: &mut Criterion) {
     let grey_blob = grey_sort_blob(SORT_N);
     let pvm_blob = polkavm_sort_blob(SORT_N);
-
-    validate("sort", &grey_blob, &pvm_blob);
-
-    let (_, pvm_interp_mod) = try_make_polkavm_module(&pvm_blob, BackendKind::Interpreter)
-        .expect("polkavm interpreter should always work");
-    let pvm_compiler = try_make_polkavm_module(&pvm_blob, BackendKind::Compiler);
-
-    let mut group = c.benchmark_group("sort");
-
-    group.bench_function("grey-interpreter", |b| {
-        b.iter(|| run_grey_interpreter(&grey_blob))
-    });
-
-    group.bench_function("grey-recompiler", |b| {
-        b.iter(|| run_grey_recompiler(&grey_blob))
-    });
-
-    group.bench_function("polkavm-interpreter", |b| {
-        b.iter(|| run_polkavm_module(&pvm_interp_mod))
-    });
-
-    if let Some((ref engine, ref pvm_mod)) = pvm_compiler {
-        group.bench_function("polkavm-compiler-exec", |b| {
-            b.iter(|| run_polkavm_module(pvm_mod))
-        });
-        group.bench_function("polkavm-compiler-full", |b| {
-            b.iter(|| run_polkavm_compile_and_run(&pvm_blob, engine))
-        });
-    }
-
-    group.finish();
+    bench_standard(c, "sort", &grey_blob, &pvm_blob);
 }
 
 fn bench_sieve(c: &mut Criterion) {
-    let grey_blob = grey_sieve_blob().to_vec();
-    let pvm_blob = polkavm_sieve_blob().to_vec();
+    bench_standard(c, "sieve", grey_sieve_blob(), polkavm_sieve_blob());
+}
 
-    validate("sieve", &grey_blob, &pvm_blob);
+fn bench_blake2b(c: &mut Criterion) {
+    bench_standard(c, "blake2b", grey_blake2b_blob(), polkavm_blake2b_blob());
+}
 
-    let (_, pvm_interp_mod) = try_make_polkavm_module(&pvm_blob, BackendKind::Interpreter)
-        .expect("polkavm interpreter should always work");
-    let pvm_compiler = try_make_polkavm_module(&pvm_blob, BackendKind::Compiler);
+fn bench_keccak(c: &mut Criterion) {
+    bench_standard(c, "keccak", grey_keccak_blob(), polkavm_keccak_blob());
+}
 
-    let mut group = c.benchmark_group("sieve");
-
-    group.bench_function("grey-interpreter", |b| {
-        b.iter(|| run_grey_interpreter(&grey_blob))
-    });
-
-    group.bench_function("grey-recompiler", |b| {
-        b.iter(|| run_grey_recompiler(&grey_blob))
-    });
-
-    group.bench_function("polkavm-interpreter", |b| {
-        b.iter(|| run_polkavm_module(&pvm_interp_mod))
-    });
-
-    if let Some((ref engine, ref pvm_mod)) = pvm_compiler {
-        group.bench_function("polkavm-compiler-exec", |b| {
-            b.iter(|| run_polkavm_module(pvm_mod))
-        });
-        group.bench_function("polkavm-compiler-full", |b| {
-            b.iter(|| run_polkavm_compile_and_run(&pvm_blob, engine))
-        });
-    }
-
-    group.finish();
+fn bench_ed25519(c: &mut Criterion) {
+    bench_standard(c, "ed25519", grey_ed25519_blob(), polkavm_ed25519_blob());
 }
 
 fn bench_ecrecover(c: &mut Criterion) {
@@ -492,6 +416,9 @@ criterion_group!(
     bench_hostcall,
     bench_sort,
     bench_sieve,
+    bench_blake2b,
+    bench_keccak,
+    bench_ed25519,
     bench_ecrecover
 );
 criterion_main!(benches);

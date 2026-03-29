@@ -517,13 +517,17 @@ impl Compiler {
                 Opcode::Add64 => {
                     self.try_fuse_scaled_index_raw(code, bitmask, pc, &decoded_args, &mut gas_sim)
                 }
-                Opcode::Mul64 => {
-                    self.try_fuse_mul_pair_raw(code, bitmask, pc, &decoded_args, &mut gas_sim)
-                }
+                // Mul64+MulUpper fusion disabled: corrupts results when φ[11] (RAX)
+                // is involved as both source and destination. The push/restore sequence
+                // conflicts with rd_hi/rd_lo assignments when they alias RAX.
+                // Opcode::Mul64 => {
+                //     self.try_fuse_mul_pair_raw(code, bitmask, pc, &decoded_args, &mut gas_sim)
+                // }
                 _ => None,
             };
 
             if let Some(advance) = fused {
+                self.last_add_cf = None; // fused instruction clobbers flags
                 pc += advance;
                 continue;
             }
@@ -598,6 +602,7 @@ impl Compiler {
             self.asm.patch_i32(patch_offset, cost as i32);
             self.oog_stubs.push((stub_label, block_pc, cost));
         }
+
         // Emit epilogue and exit sequences
         self.emit_exit_sequences();
 
@@ -822,6 +827,9 @@ impl Compiler {
     }
 
     /// Peephole: fuse Mul64 + MulUpper from raw code.
+    /// Currently disabled: corrupts results when φ[11] (RAX) is both source and destination.
+    /// Kept for future fix (needs proper RAX aliasing handling in push/pop sequence).
+    #[allow(dead_code)]
     fn try_fuse_mul_pair_raw(
         &mut self,
         code: &[u8],

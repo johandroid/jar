@@ -531,6 +531,25 @@ pub fn polkavm_sieve_blob() -> &'static [u8] {
     POLKAVM_SIEVE_BLOB
 }
 
+pub fn grey_ed25519_blob() -> &'static [u8] {
+    GREY_ED25519_BLOB
+}
+pub fn polkavm_ed25519_blob() -> &'static [u8] {
+    POLKAVM_ED25519_BLOB
+}
+pub fn grey_blake2b_blob() -> &'static [u8] {
+    GREY_BLAKE2B_BLOB
+}
+pub fn polkavm_blake2b_blob() -> &'static [u8] {
+    POLKAVM_BLAKE2B_BLOB
+}
+pub fn grey_keccak_blob() -> &'static [u8] {
+    GREY_KECCAK_BLOB
+}
+pub fn polkavm_keccak_blob() -> &'static [u8] {
+    POLKAVM_KECCAK_BLOB
+}
+
 /// Grey PVM service blob for sample-service (refine at PC=0, accumulate at PC=5).
 pub fn sample_service_blob() -> &'static [u8] {
     SAMPLE_SERVICE_BLOB
@@ -613,7 +632,7 @@ mod tests_sort {
     }
 
     /// Run blob on both interpreter and recompiler, assert a0 and gas match.
-    fn assert_interp_recomp_match(blob: &[u8], expected_a0: u64, name: &str) {
+    fn assert_interp_recomp(blob: &[u8], expected_a0: u64, min_gas: u64, name: &str) {
         let gas = 100_000_000_000u64;
 
         // Run interpreter
@@ -631,6 +650,8 @@ mod tests_sort {
         let interp_gas = gas - interp.gas;
         let interp_a0 = interp.registers[7];
 
+        assert_eq!(interp_a0, expected_a0, "{name}: interpreter a0 mismatch");
+
         // Run recompiler
         let mut recomp = javm::recompiler::initialize_program_recompiled(blob, &[], gas).unwrap();
         loop {
@@ -644,11 +665,10 @@ mod tests_sort {
         let recomp_gas = gas - recomp.gas();
         let recomp_a0 = recomp.registers()[7];
 
-        assert_eq!(interp_a0, expected_a0, "{name}: interpreter a0 mismatch");
-        assert_eq!(recomp_a0, expected_a0, "{name}: recompiler a0 mismatch");
+        assert_eq!(recomp_a0, interp_a0, "{name}: recompiler a0 mismatch");
         assert!(
-            interp_gas > 100_000,
-            "{name}: should use >100K gas, got {interp_gas}"
+            interp_gas > min_gas,
+            "{name}: should use >{min_gas} gas, got {interp_gas}"
         );
         assert_eq!(
             interp_gas, recomp_gas,
@@ -658,12 +678,29 @@ mod tests_sort {
 
     #[test]
     fn test_grey_ecrecover_recompiler() {
-        assert_interp_recomp_match(grey_ecrecover_blob(), 1, "ecrecover");
+        assert_interp_recomp(grey_ecrecover_blob(), 1, 100_000, "ecrecover");
     }
 
     #[test]
     fn test_grey_prime_sieve_recompiler() {
-        assert_interp_recomp_match(grey_sieve_blob(), 9592, "prime_sieve");
+        assert_interp_recomp(grey_sieve_blob(), 9592, 100_000, "prime_sieve");
+    }
+
+    #[test]
+    fn test_grey_ed25519_recompiler() {
+        assert_interp_recomp(grey_ed25519_blob(), 1, 1_000, "ed25519");
+    }
+
+    #[test]
+    fn test_grey_blake2b_recompiler() {
+        // blake2b-256 of [0x00..0xFF]*4: first 4 bytes LE = 0xEE1F55F1, sign-extended on rv64
+        assert_interp_recomp(grey_blake2b_blob(), 0xFFFFFFFFEE1F55F1, 10_000, "blake2b");
+    }
+
+    #[test]
+    fn test_grey_keccak_recompiler() {
+        // keccak-256 of [0x00..0xFF]*4: first 4 bytes LE = 0x39E50259
+        assert_interp_recomp(grey_keccak_blob(), 0x39E50259, 10_000, "keccak");
     }
 
     #[test]
