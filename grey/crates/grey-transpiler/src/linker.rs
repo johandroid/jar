@@ -19,6 +19,10 @@ use std::collections::HashMap;
 /// RISC-V relocation types we care about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RelocType {
+    /// R_RISCV_32 (1): Absolute 32-bit address
+    Abs32,
+    /// R_RISCV_64 (2): Absolute 64-bit address
+    Abs64,
     /// R_RISCV_CALL_PLT (19): AUIPC+JALR pair for function calls
     CallPlt,
     /// R_RISCV_PCREL_HI20 (23): Upper 20 bits of PC-relative address (AUIPC)
@@ -27,15 +31,23 @@ enum RelocType {
     PcrelLo12I,
     /// R_RISCV_PCREL_LO12_S (25): Lower 12 bits, S-type (store)
     PcrelLo12S,
+    /// R_RISCV_ADD32 (35): Add 32-bit (paired with SUB32 for relative jump tables)
+    Add32,
+    /// R_RISCV_SUB32 (39): Subtract 32-bit (paired with ADD32 for relative jump tables)
+    Sub32,
 }
 
 impl RelocType {
     fn from_raw(r: u32) -> Option<Self> {
         match r {
+            1 => Some(Self::Abs32),
+            2 => Some(Self::Abs64),
             19 => Some(Self::CallPlt),
             23 => Some(Self::PcrelHi20),
             24 => Some(Self::PcrelLo12I),
             25 => Some(Self::PcrelLo12S),
+            35 => Some(Self::Add32),
+            39 => Some(Self::Sub32),
             _ => None,
         }
     }
@@ -64,6 +76,15 @@ struct LinkedElf {
     lo12_targets: HashMap<u64, u64>,
     /// CALL_PLT: AUIPC instruction vaddr → target function RISC-V vaddr.
     call_targets: HashMap<u64, u64>,
+    /// Absolute code pointers in data sections: (data_vaddr, target_code_vaddr, entry_size).
+    /// entry_size is 4 for 32-bit or 8 for 64-bit entries.
+    abs_code_ptrs: Vec<(u64, u64, u8)>,
+    /// SUB32 relocations: (data_vaddr, subtracted_addr).
+    /// For LLVM relative jump tables: entry = target - subtracted_addr.
+    /// Combined with the resolved entry value, we can recover the target.
+    sub32_relocs: Vec<(u64, u64)>,
+    /// Code section address ranges for detecting code pointers.
+    code_ranges: Vec<(u64, u64)>,
     /// Symbols
     symbols: Vec<(String, u64)>,
 }
@@ -85,13 +106,18 @@ pub fn link_elf(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
     }
     ctx.apply_fixups();
 
+    // Rewrite absolute code pointers in data sections (LLVM switch tables, vtables).
+    // Build PVM jump table entries for referenced code addresses, then replace
+    // the RISC-V addresses in data with PVM djump addresses.
+    let mut ro_data = elf.ro_data.clone();
+    let mut rw_data = elf.rw_data.clone();
+
+    rewrite_data_code_ptrs(&elf, &mut ctx, &mut ro_data, &mut rw_data);
+
     // Peephole: fuse load_imm + ALU pairs into immediate ALU forms.
     crate::peephole_fuse_load_imm_alu(&mut ctx.code, &mut ctx.bitmask, &ctx.jump_table);
 
     // Post-pass: ensure all PVM branch targets are basic block starts (ϖ).
-    // Insert fallthrough (opcode 1) before any branch target that isn't
-    // preceded by a terminator. This is done on the final PVM code after
-    // fixup resolution, so all branch offsets are resolved.
     crate::ensure_branch_targets_are_block_starts(
         &mut ctx.code,
         &mut ctx.bitmask,
@@ -99,8 +125,8 @@ pub fn link_elf(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
     );
 
     Ok(emitter::build_standard_program(
-        &elf.ro_data,
-        &elf.rw_data,
+        &ro_data,
+        &rw_data,
         elf.heap_pages,
         elf.stack_size,
         &ctx.code,
@@ -148,6 +174,11 @@ pub fn link_elf_service(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
         translate_section_linked(&mut ctx, data, *vaddr, &elf)?;
     }
     ctx.apply_fixups();
+
+    let mut ro_data = elf.ro_data.clone();
+    let mut rw_data = elf.rw_data.clone();
+    rewrite_data_code_ptrs(&elf, &mut ctx, &mut ro_data, &mut rw_data);
+
     crate::peephole_fuse_load_imm_alu(&mut ctx.code, &mut ctx.bitmask, &ctx.jump_table);
     crate::ensure_branch_targets_are_block_starts(
         &mut ctx.code,
@@ -184,8 +215,8 @@ pub fn link_elf_service(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
     ctx.code[6..10].copy_from_slice(&acc_rel.to_le_bytes());
 
     Ok(emitter::build_standard_program(
-        &elf.ro_data,
-        &elf.rw_data,
+        &ro_data,
+        &rw_data,
         elf.heap_pages,
         elf.stack_size,
         &ctx.code,
@@ -438,6 +469,13 @@ fn parse_linked_elf(data: &[u8]) -> Result<LinkedElf, TranspileError> {
 
     // Temporary: collect LO12 entries for pass 2
     let mut lo12_entries: Vec<(u64, u64)> = Vec::new(); // (lo12_addr, hi20_addr)
+    let mut abs64_relocs: Vec<(u64, u64, u8)> = Vec::new(); // (offset, target, entry_size)
+    let mut sub32_relocs: Vec<(u64, u64)> = Vec::new();
+    // Code address ranges for detecting code pointers
+    let code_ranges: Vec<(u64, u64)> = code_sections
+        .iter()
+        .map(|(_, vaddr, data)| (*vaddr, *vaddr + data.len() as u64))
+        .collect();
 
     for &ri in &rela_section_indices {
         let rs = &sections[ri];
@@ -467,6 +505,34 @@ fn parse_linked_elf(data: &[u8]) -> Result<LinkedElf, TranspileError> {
             let target_addr = (sym_value as i64 + r_addend) as u64;
 
             match rtype {
+                RelocType::Abs32 => {
+                    let is_code_ptr = code_ranges
+                        .iter()
+                        .any(|(lo, hi)| target_addr >= *lo && target_addr < *hi);
+                    if is_code_ptr {
+                        abs64_relocs.push((r_offset, target_addr, 4));
+                    }
+                }
+                RelocType::Abs64 => {
+                    let is_code_ptr = code_ranges
+                        .iter()
+                        .any(|(lo, hi)| target_addr >= *lo && target_addr < *hi);
+                    if is_code_ptr {
+                        abs64_relocs.push((r_offset, target_addr, 8));
+                    }
+                }
+                RelocType::Add32 => {
+                    let is_code_ptr = code_ranges
+                        .iter()
+                        .any(|(lo, hi)| target_addr >= *lo && target_addr < *hi);
+                    if is_code_ptr {
+                        abs64_relocs.push((r_offset, target_addr, 4));
+                    }
+                }
+                RelocType::Sub32 => {
+                    // R_RISCV_SUB32: the subtracted address (typically table base).
+                    sub32_relocs.push((r_offset, target_addr));
+                }
                 RelocType::CallPlt => {
                     call_targets.insert(r_offset, target_addr);
                 }
@@ -504,11 +570,176 @@ fn parse_linked_elf(data: &[u8]) -> Result<LinkedElf, TranspileError> {
         hi20_targets,
         lo12_targets,
         call_targets,
+        abs_code_ptrs: abs64_relocs,
+        sub32_relocs,
+        code_ranges,
         symbols: named_symbols,
     })
 }
 
 /// Translate a code section with relocation awareness.
+/// Rewrite code pointers in data sections (LLVM switch/jump tables, vtables).
+///
+/// Detects code pointers via:
+/// 1. R_RISCV_32/64 absolute relocations targeting code sections
+/// 2. R_RISCV_SUB32 relocations (relative jump table entries: value = target - table_base)
+/// 3. Heuristic scan for 8-byte values in rodata that match code addresses
+///
+/// Creates PVM jump table entries for each target and rewrites the data
+/// so that the loaded values are valid PVM djump addresses.
+fn rewrite_data_code_ptrs(
+    elf: &LinkedElf,
+    ctx: &mut TranslationContext,
+    ro_data: &mut Vec<u8>,
+    _rw_data: &mut Vec<u8>,
+) {
+    let ro_base = elf.stack_size as u64;
+    let is_code_addr = |addr: u64| -> bool {
+        elf.code_ranges
+            .iter()
+            .any(|(lo, hi)| addr >= *lo && addr < *hi)
+    };
+
+    struct Entry {
+        data_vaddr: u64,
+        rv_target: u64,
+        size: u8,
+        table_base_rv: Option<u64>,
+    }
+    let mut entries: Vec<Entry> = Vec::new();
+
+    // From absolute relocations (R_RISCV_32/64/ADD32).
+    // If a matching SUB32 exists at the same offset, this is a relative entry
+    // (ADD32/SUB32 pair for jump tables). Use the SUB32 target as table base.
+    for &(vaddr, target, size) in &elf.abs_code_ptrs {
+        let table_base = elf
+            .sub32_relocs
+            .iter()
+            .find(|(v, _)| *v == vaddr)
+            .map(|(_, base)| *base);
+        entries.push(Entry {
+            data_vaddr: vaddr,
+            rv_target: target,
+            size,
+            table_base_rv: table_base,
+        });
+    }
+
+    // SUB32 entries without matching ADD32 (shouldn't happen, but handle gracefully).
+    for &(data_vaddr, base_addr) in &elf.sub32_relocs {
+        if entries.iter().any(|e| e.data_vaddr == data_vaddr) {
+            continue; // Already handled via ADD32 pairing above
+        }
+        if data_vaddr >= ro_base {
+            let off = (data_vaddr - ro_base) as usize;
+            if off + 4 <= ro_data.len() {
+                let val = i32::from_le_bytes(ro_data[off..off + 4].try_into().unwrap());
+                let target = (base_addr as i64 + val as i64) as u64;
+                if is_code_addr(target) {
+                    entries.push(Entry {
+                        data_vaddr,
+                        rv_target: target,
+                        size: 4,
+                        table_base_rv: Some(base_addr),
+                    });
+                }
+            }
+        }
+    }
+
+    // Heuristic: 8-byte values in rodata that are code addresses
+    {
+        let mut off = 0;
+        while off + 8 <= ro_data.len() {
+            let val = u64::from_le_bytes(ro_data[off..off + 8].try_into().unwrap());
+            if is_code_addr(val) {
+                let vaddr = ro_base + off as u64;
+                if !entries.iter().any(|e| e.data_vaddr == vaddr) {
+                    entries.push(Entry {
+                        data_vaddr: vaddr,
+                        rv_target: val,
+                        size: 8,
+                        table_base_rv: None,
+                    });
+                }
+            }
+            off += 8;
+        }
+    }
+
+    {
+        use std::io::Write;
+        let mut f = std::fs::File::create("/tmp/transpiler_debug.txt").unwrap();
+        writeln!(f, "abs_code_ptrs={}, sub32_relocs={}, entries={}, code_ranges={:?}",
+            elf.abs_code_ptrs.len(), elf.sub32_relocs.len(), entries.len(), elf.code_ranges).ok();
+        for (i, e) in entries.iter().enumerate() {
+            writeln!(f, "  [{i}] vaddr=0x{:X} target=0x{:X} size={} base={:?}",
+                e.data_vaddr, e.rv_target, e.size, e.table_base_rv).ok();
+        }
+    }
+    if entries.is_empty() {
+        return;
+    }
+
+    let targets: std::collections::HashSet<u64> =
+        entries.iter().map(|e| e.rv_target).collect();
+    let rv_to_jt = ctx.build_function_pointer_map(&targets);
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new().append(true).open("/tmp/transpiler_debug.txt").unwrap();
+        writeln!(f, "targets={}, mapped={}", targets.len(), rv_to_jt.len()).ok();
+        for (rv, jt) in &rv_to_jt {
+            writeln!(f, "  rv=0x{rv:X} → jt={jt} (djump addr)").ok();
+        }
+        // Dump first few entries after rewriting
+        let ro_base = elf.stack_size as u64;
+        let first_off = if !entries.is_empty() { (entries[0].data_vaddr - ro_base) as usize } else { 0 };
+        if first_off + 32 <= ro_data.len() {
+            writeln!(f, "rodata BEFORE rewrite at off {first_off}: {:?}", &ro_data[first_off..first_off+32]).ok();
+        }
+        // Check which targets failed to map
+        for t in &targets {
+            if !rv_to_jt.contains_key(t) {
+                writeln!(f, "  UNMAPPED: rv=0x{t:X}").ok();
+            }
+        }
+    }
+
+    for entry in &entries {
+        if let Some(&jt_addr) = rv_to_jt.get(&entry.rv_target) {
+            if entry.data_vaddr >= ro_base
+                && (entry.data_vaddr - ro_base) as usize + entry.size as usize <= ro_data.len()
+            {
+                let off = (entry.data_vaddr - ro_base) as usize;
+                match (entry.size, entry.table_base_rv) {
+                    (8, _) => {
+                        ro_data[off..off + 8]
+                            .copy_from_slice(&(jt_addr as u64).to_le_bytes());
+                    }
+                    (4, None) => {
+                        ro_data[off..off + 4]
+                            .copy_from_slice(&(jt_addr as u32).to_le_bytes());
+                    }
+                    (4, Some(rv_base)) => {
+                        // Relative entry: code does `lw off, table(idx); add target, off, base; jr target`.
+                        // base = PVM address of table start = rv_base (addresses are identity-mapped).
+                        // new_val + rv_base = jt_addr → new_val = jt_addr - rv_base.
+                        let new_val = (jt_addr as i64 - rv_base as i64) as i32;
+                        let old_val = i32::from_le_bytes(ro_data[off..off + 4].try_into().unwrap());
+                        let _ = std::fs::OpenOptions::new().append(true).create(true)
+                            .open("/tmp/transpiler_debug.txt").map(|mut f| {
+                            use std::io::Write;
+                            writeln!(f, "  REWRITE off={off}: old={old_val} new={new_val} jt={jt_addr} base=0x{rv_base:X}").ok();
+                        });
+                        ro_data[off..off + 4].copy_from_slice(&new_val.to_le_bytes());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 fn translate_section_linked(
     ctx: &mut TranslationContext,
     data: &[u8],
