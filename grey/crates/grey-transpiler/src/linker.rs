@@ -667,16 +667,6 @@ fn rewrite_data_code_ptrs(
         }
     }
 
-    {
-        use std::io::Write;
-        let mut f = std::fs::File::create("/tmp/transpiler_debug.txt").unwrap();
-        writeln!(f, "abs_code_ptrs={}, sub32_relocs={}, entries={}, code_ranges={:?}",
-            elf.abs_code_ptrs.len(), elf.sub32_relocs.len(), entries.len(), elf.code_ranges).ok();
-        for (i, e) in entries.iter().enumerate() {
-            writeln!(f, "  [{i}] vaddr=0x{:X} target=0x{:X} size={} base={:?}",
-                e.data_vaddr, e.rv_target, e.size, e.table_base_rv).ok();
-        }
-    }
     if entries.is_empty() {
         return;
     }
@@ -684,26 +674,6 @@ fn rewrite_data_code_ptrs(
     let targets: std::collections::HashSet<u64> =
         entries.iter().map(|e| e.rv_target).collect();
     let rv_to_jt = ctx.build_function_pointer_map(&targets);
-    {
-        use std::io::Write;
-        let mut f = std::fs::OpenOptions::new().append(true).open("/tmp/transpiler_debug.txt").unwrap();
-        writeln!(f, "targets={}, mapped={}", targets.len(), rv_to_jt.len()).ok();
-        for (rv, jt) in &rv_to_jt {
-            writeln!(f, "  rv=0x{rv:X} → jt={jt} (djump addr)").ok();
-        }
-        // Dump first few entries after rewriting
-        let ro_base = elf.stack_size as u64;
-        let first_off = if !entries.is_empty() { (entries[0].data_vaddr - ro_base) as usize } else { 0 };
-        if first_off + 32 <= ro_data.len() {
-            writeln!(f, "rodata BEFORE rewrite at off {first_off}: {:?}", &ro_data[first_off..first_off+32]).ok();
-        }
-        // Check which targets failed to map
-        for t in &targets {
-            if !rv_to_jt.contains_key(t) {
-                writeln!(f, "  UNMAPPED: rv=0x{t:X}").ok();
-            }
-        }
-    }
 
     for entry in &entries {
         if let Some(&jt_addr) = rv_to_jt.get(&entry.rv_target) {
@@ -722,15 +692,14 @@ fn rewrite_data_code_ptrs(
                     }
                     (4, Some(rv_base)) => {
                         // Relative entry: code does `lw off, table(idx); add target, off, base; jr target`.
-                        // base = PVM address of table start = rv_base (addresses are identity-mapped).
-                        // new_val + rv_base = jt_addr → new_val = jt_addr - rv_base.
-                        let new_val = (jt_addr as i64 - rv_base as i64) as i32;
-                        let old_val = i32::from_le_bytes(ro_data[off..off + 4].try_into().unwrap());
-                        let _ = std::fs::OpenOptions::new().append(true).create(true)
-                            .open("/tmp/transpiler_debug.txt").map(|mut f| {
-                            use std::io::Write;
-                            writeln!(f, "  REWRITE off={off}: old={old_val} new={new_val} jt={jt_addr} base=0x{rv_base:X}").ok();
-                        });
+                        // base register holds the PVM mapping of rv_base (from load_imm).
+                        // new_val + pvm_base = jt_addr → new_val = jt_addr - pvm_base.
+                        let pvm_base = ctx
+                            .address_map
+                            .get(&rv_base)
+                            .copied()
+                            .unwrap_or(rv_base as u32);
+                        let new_val = (jt_addr as i64 - pvm_base as i64) as i32;
                         ro_data[off..off + 4].copy_from_slice(&new_val.to_le_bytes());
                     }
                     _ => {}

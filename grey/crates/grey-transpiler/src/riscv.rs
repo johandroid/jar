@@ -546,8 +546,14 @@ impl TranslationContext {
                     _ => None,
                 };
                 if let Some(opc) = direct_opcode {
-                    self.code.truncate(undo_pos);
-                    self.bitmask.truncate(undo_pos);
+                    // Only truncate the load_imm if the load destination overwrites
+                    // the base register (rd == rs1). If rd != rs1, the base register
+                    // value may be needed later (e.g., RISC-V switch table pattern:
+                    // lw offset, table(base); add target, offset, base; jr target).
+                    if rd == rs1 {
+                        self.code.truncate(undo_pos);
+                        self.bitmask.truncate(undo_pos);
+                    }
                     let pvm_rd = self.require_reg(rd)?;
                     self.emit_inst(opc);
                     self.emit_data(pvm_rd);
@@ -1477,6 +1483,14 @@ impl TranslationContext {
                     self.emit_inst(131); // add_imm_32
                     self.emit_data(pvm_rd | (pvm_rs1 << 4));
                     self.emit_var_imm(0);
+                    return Ok(());
+                }
+                (0x04, 4) => {
+                    // PACKW rd, rs1, x0 = ZEXT.H rd, rs1 (Zbb: zero-extend halfword)
+                    // rd = rs1 & 0xFFFF
+                    self.emit_inst(70); // and_imm
+                    self.emit_data(pvm_rd | (pvm_rs1 << 4));
+                    self.emit_var_imm(0xFFFF);
                     return Ok(());
                 }
                 _ => {
