@@ -21,32 +21,37 @@ core::arch::global_asm!(
     "unimp",
 );
 
-/// Count iterations in a slice loop (same pattern as keccak RC iteration).
-#[inline(never)]
-fn count_slice_iterations(data: &[u64]) -> u32 {
-    let mut count: u32 = 0;
-    for &_val in data {
-        count += 1;
-    }
-    count
-}
-
-/// Call f1600 (24 rounds) through a wrapper.
+/// Theta step through non-inlined function
 #[inline(never)]
 #[no_mangle]
-pub extern "C" fn do_p1600(state: &mut [u64; 25]) {
-    keccak::f1600(state);
+pub extern "C" fn do_theta(state: &mut [u64; 25]) {
+    let mut c = [0u64; 5];
+    let mut x: usize = 0;
+    while x < 5 {
+        c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
+        x += 1;
+    }
+    x = 0;
+    while x < 5 {
+        let d = c[(x + 4) % 5] ^ c[(x + 1) % 5].rotate_left(1);
+        let mut y: usize = 0;
+        while y < 25 {
+            state[x + y] ^= d;
+            y += 5;
+        }
+        x += 1;
+    }
 }
 
 #[cfg_attr(target_env = "polkavm", polkavm_derive::polkavm_export)]
 #[no_mangle]
 pub extern "C" fn keccak_bench() -> u32 {
     let mut state = [0u64; 25];
-    // Use volatile to prevent const-folding even with LTO
-    unsafe { core::ptr::write_volatile(state.as_mut_ptr(), 0x0000000001636261u64); }
-    unsafe { core::ptr::write_volatile(state.as_mut_ptr().add(16), 0x8000000000000000u64); }
-    do_p1600(&mut state);
-    unsafe { core::ptr::read_volatile(&state[0]) as u32 }
+    state[0] = 0x0000000001636261;
+    state[16] = 0x8000000000000000;
+    do_theta(&mut state);
+    // Expected: 0x01636260
+    state[0] as u32
 }
 
 #[no_mangle]

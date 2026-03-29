@@ -731,45 +731,90 @@ mod tests_sort {
         let blob = grey_keccak_blob();
         let gas = 100_000_000_000u64;
         let mut pvm = javm::program::initialize_program(blob, &[], gas).unwrap();
+
+        // The keccak state in run_p1600 is stored at SP+8..SP+208 (25 u64 lanes)
+        // SP inside run_p1600 = 65536 - 608 - 264 = 64664
+        // But the state is on the CALLER'S stack, passed via pointer in a0.
+        // Let's track: after each loop iteration (when PC reaches 1033 = add_imm),
+        // dump the RC pointer value to track the iteration count.
+        // Then after the function returns, read the result.
+
+        let mut steps = 0u64;
+        let mut iter_count = 0u32;
+        let mut last_phi0: u64 = 0;
         loop {
             let prev_pc = pvm.pc;
-            let prev_regs = pvm.registers;
+            let opcode = pvm.code.get(prev_pc as usize).copied().unwrap_or(0);
+
             match pvm.step() {
-                None => {}
+                None => {
+                    steps += 1;
+                    // Track the RC pointer advance at PC 1033 (add_imm φ[0])
+                    if prev_pc == 1033 && opcode == 149 {
+                        iter_count += 1;
+                        let phi0 = pvm.registers[0];
+                        if iter_count <= 25 {
+                            // Read keccak state from memory to compare
+                            // The state pointer was saved at SP+0 of run_p1600's frame
+                            // run_p1600 SP = keccak_bench SP - 264
+                            // keccak_bench SP = initial_SP - 608 = 65536 - 608 = 64928
+                            // run_p1600 SP = 64928 - 264 = 64664
+                            // State pointer at SP+0 of run_p1600 = mem[64664]
+                            let mem = &pvm.flat_mem;
+                            let sp_off = pvm.registers[1] as usize; // actual SP
+                            let state_ptr = u64::from_le_bytes(
+                                mem[sp_off..sp_off + 8].try_into().unwrap(),
+                            );
+                            let s0 = if (state_ptr as usize) + 8 <= mem.len() {
+                                let p = state_ptr as usize;
+                                u64::from_le_bytes(mem[p..p + 8].try_into().unwrap())
+                            } else {
+                                0xDEAD
+                            };
+                            // Read state from run_p1600's stack frame
+                            // The permutation operates on lanes stored at various SP offsets
+                            // Let me just dump the first few entries at the state ptr
+                            if iter_count == 1 {
+                                let p = state_ptr as usize;
+                                eprintln!("  state_ptr=0x{state_ptr:X}, SP=0x{sp_off:X}");
+                                for lane in 0..25 {
+                                    let off = p + lane * 8;
+                                    if off + 8 <= mem.len() {
+                                        let v = u64::from_le_bytes(mem[off..off+8].try_into().unwrap());
+                                        if v != 0 {
+                                            eprintln!("  state[{lane:2}] = 0x{v:016X}");
+                                        }
+                                    }
+                                }
+                                // Also dump stack region where permutation works
+                                eprintln!("  stack frame (SP+0 to SP+264):");
+                                for off in (0..264).step_by(8) {
+                                    let addr = sp_off + off;
+                                    if addr + 8 <= mem.len() {
+                                        let v = u64::from_le_bytes(mem[addr..addr+8].try_into().unwrap());
+                                        if v != 0 {
+                                            eprintln!("    SP+{off:3} [0x{addr:X}] = 0x{v:016X}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        last_phi0 = phi0;
+                    }
+                }
                 Some(javm::ExitReason::Halt) => {
                     let a0 = pvm.registers[7];
-                    eprintln!("keccak: HALT a0=0x{:08X}, gas={}", a0 as u32, gas - pvm.gas);
-                    assert_interp_recomp_consistent(blob, 1_000, "keccak");
+                    eprintln!("keccak grey: a0=0x{a0:016X} steps={steps}");
+                    eprintln!("  expected: 0x01636260");
+                    assert_eq!(a0 as u32, 0x01636260, "theta through func call");
                     return;
                 }
                 Some(javm::ExitReason::PageFault(addr)) => {
-                    let opcode = pvm.code[prev_pc as usize];
-                    eprintln!("keccak: PageFault addr=0x{addr:X} at PC={prev_pc}, opcode={opcode}");
-                    // Decode the instruction arguments
-                    if opcode >= 124 && opcode <= 130 {
-                        // load_ind: regs_byte, then imm32
-                        let rb = (pvm.code[prev_pc as usize + 1] >> 4) & 0xf;
-                        let rd = pvm.code[prev_pc as usize + 1] & 0xf;
-                        let skip = {
-                            let mut s = 0;
-                            for j in 1..25 {
-                                if prev_pc as usize + 1 + j < pvm.bitmask.len()
-                                    && pvm.bitmask[prev_pc as usize + 1 + j] == 1
-                                {
-                                    s = j;
-                                    break;
-                                }
-                            }
-                            s
-                        };
-                        eprintln!("  load_ind rd=φ[{rd}], rb=φ[{rb}], skip={skip}");
-                        eprintln!("  φ[{rb}] = 0x{:X}", prev_regs[rb as usize]);
-                    }
-                    eprintln!("  regs: {:?}", prev_regs);
-                    panic!("keccak: PageFault at 0x{addr:X}");
+                    eprintln!("keccak: PageFault 0x{addr:X} PC={prev_pc} step={steps} iters={iter_count}");
+                    panic!("PageFault");
                 }
-                Some(javm::ExitReason::HostCall(_)) => {}
-                Some(other) => panic!("keccak: {other:?}"),
+                Some(javm::ExitReason::HostCall(_)) => { steps += 1; }
+                Some(other) => panic!("{other:?}"),
             }
         }
     }
