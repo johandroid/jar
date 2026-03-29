@@ -17,19 +17,17 @@ fn run_test(test_id: u32, args: &[u8]) {
     let host_output = unsafe { javm_guest_tests::read_output(host_len) }.to_vec();
 
     // --- Interpreter ---
-    // Initialize with empty args, then write input directly to the args region.
-    // This avoids shifting ro_data addresses (the PVM inserts a page-rounded
-    // args section between stack and rodata, but the transpiler's load_imm
-    // addresses assume rodata is right after the stack).
+    // Initialize with empty args to keep rodata at the correct PVM address.
+    // Write input to the heap area (after rodata+rwdata) where it won't
+    // conflict with the stack or data sections.
     let gas = 100_000_000_000u64;
     let mut interp = javm::program::initialize_program(GUEST_TESTS_BLOB, &[], gas)
         .expect("blob should be loadable");
-    // Write input to the args region (starts at stack_size = φ[1] initial value)
-    // Write args to the top of the stack area (SP points here).
-    let arg_addr = interp.registers[1] as usize;
+    // Place input at the end of accessible memory minus a page
+    let arg_addr = interp.flat_mem.len() - 4096;
     interp.flat_mem[arg_addr..arg_addr + input.len()].copy_from_slice(&input);
-    interp.registers[7] = arg_addr as u64; // a0 = input ptr
-    interp.registers[8] = input.len() as u64; // a1 = input len
+    interp.registers[7] = arg_addr as u64;
+    interp.registers[8] = input.len() as u64;
     loop {
         match interp.run().0 {
             javm::ExitReason::Halt => break,
@@ -59,8 +57,8 @@ fn run_test(test_id: u32, args: &[u8]) {
     let mut recomp =
         javm::recompiler::initialize_program_recompiled(GUEST_TESTS_BLOB, &[], gas)
             .expect("blob should be loadable");
-    // Write input to stack area (same approach as interpreter)
-    let arg_addr = recomp.registers()[1] as u32;
+    // Place input in heap area (same as interpreter)
+    let arg_addr = (interp.flat_mem.len() - 4096) as u32;
     recomp.write_bytes(arg_addr, &input);
     recomp.registers_mut()[7] = arg_addr as u64;
     recomp.registers_mut()[8] = input.len() as u64;
