@@ -2228,6 +2228,17 @@ name = "javm-builtins"
 version = "0.1.0"
 
 [[package]]
+name = "javm-guest-tests"
+version = "0.1.0"
+dependencies = [
+ "blake2",
+ "build-javm",
+ "javm",
+ "javm-builtins",
+ "sha3",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"

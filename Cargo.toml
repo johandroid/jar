@@ -31,6 +31,7 @@ members = [
     "grey/services/sample-service",
     "grey/services/pixels-service",
     "grey/services/pixels-authorizer",
+    "grey/services/javm-guest-tests",
 ]
 exclude = [
     "spec/crypto-ffi",

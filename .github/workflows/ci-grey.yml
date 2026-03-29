@@ -28,7 +28,7 @@ jobs:
         run: cargo fmt --all --check
 
       - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --features javm/signals -- -D warnings
         env:
           SKIP_GUEST_BUILD: 1
 
@@ -49,6 +49,11 @@ jobs:
 
       - name: Workspace tests (recompiler)
         run: cargo test --workspace
+        env:
+          GREY_PVM: recompiler
+
+      - name: Workspace tests (recompiler + signals)
+        run: cargo test --workspace --features javm/signals
         env:
           GREY_PVM: recompiler
 

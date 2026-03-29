@@ -951,6 +951,7 @@ impl Compiler {
                 _ => unreachable!(),
             }
             self.fault_stubs.push((fault_label, pvm_pc));
+            #[allow(clippy::needless_return)]
             return;
         }
 
@@ -994,6 +995,7 @@ impl Compiler {
                 _ => unreachable!(),
             }
             self.fault_stubs.push((fault_label, pvm_pc));
+            #[allow(clippy::needless_return)]
             return;
         }
 
