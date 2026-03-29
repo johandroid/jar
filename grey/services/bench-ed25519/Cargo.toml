@@ -1,0 +1,21 @@
+[package]
+name = "bench-ed25519"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "bench_ed25519"
+path = "src/main.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+ed25519-compact = { version = "2", default-features = false }
+
+[target.'cfg(target_env = "polkavm")'.dependencies]
+polkavm-derive = "0.32.0"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true
+panic = "abort"

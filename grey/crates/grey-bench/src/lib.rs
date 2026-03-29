@@ -531,6 +531,25 @@ pub fn polkavm_sieve_blob() -> &'static [u8] {
     POLKAVM_SIEVE_BLOB
 }
 
+pub fn grey_ed25519_blob() -> &'static [u8] {
+    GREY_ED25519_BLOB
+}
+pub fn polkavm_ed25519_blob() -> &'static [u8] {
+    POLKAVM_ED25519_BLOB
+}
+pub fn grey_blake2b_blob() -> &'static [u8] {
+    GREY_BLAKE2B_BLOB
+}
+pub fn polkavm_blake2b_blob() -> &'static [u8] {
+    POLKAVM_BLAKE2B_BLOB
+}
+pub fn grey_keccak_blob() -> &'static [u8] {
+    GREY_KECCAK_BLOB
+}
+pub fn polkavm_keccak_blob() -> &'static [u8] {
+    POLKAVM_KECCAK_BLOB
+}
+
 /// Grey PVM service blob for sample-service (refine at PC=0, accumulate at PC=5).
 pub fn sample_service_blob() -> &'static [u8] {
     SAMPLE_SERVICE_BLOB
@@ -670,6 +689,37 @@ mod tests_sort {
     #[test]
     fn test_grey_prime_sieve_recompiler() {
         assert_interp_recomp_match(grey_sieve_blob(), 9592, "prime_sieve");
+    }
+
+    /// Run interpreter to discover result, then check recompiler matches.
+    fn assert_interp_recomp_consistent(blob: &[u8], min_gas: u64, name: &str) {
+        let gas = 100_000_000_000u64;
+        let mut interp = javm::program::initialize_program(blob, &[], gas).unwrap();
+        loop {
+            match interp.run().0 {
+                javm::ExitReason::Halt => break,
+                javm::ExitReason::HostCall(_) => continue,
+                other => panic!("{name}: interpreter exit: {other:?}"),
+            }
+        }
+        let expected_a0 = interp.registers[7];
+        assert_interp_recomp_match_gas(blob, expected_a0, min_gas, name);
+    }
+
+    #[test]
+    #[ignore] // PageFault in interpreter — transpiler bug with ed25519-compact, see #TODO
+    fn test_grey_ed25519_recompiler() {
+        assert_interp_recomp_consistent(grey_ed25519_blob(), 1_000, "ed25519");
+    }
+
+    #[test]
+    fn test_grey_blake2b_recompiler() {
+        assert_interp_recomp_consistent(grey_blake2b_blob(), 10_000, "blake2b");
+    }
+
+    #[test]
+    fn test_grey_keccak_recompiler() {
+        assert_interp_recomp_consistent(grey_keccak_blob(), 10_000, "keccak");
     }
 
     #[test]

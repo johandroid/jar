@@ -28,6 +28,9 @@ exclude = [
     "grey/services/pixels-authorizer",
     "grey/services/bench-ecrecover",
     "grey/services/bench-prime-sieve",
+    "grey/services/bench-ed25519",
+    "grey/services/bench-blake2b",
+    "grey/services/bench-keccak",
     "spec/crypto-ffi",
     "spec/fuzz",
 ]
