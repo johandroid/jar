@@ -36,12 +36,10 @@ mod service {
         ".type _start, @function",
         "_start:",
         "j refine",
-
         ".global refine",
         ".type refine, @function",
         "refine:",
         "ret",
-
         ".global accumulate",
         ".type accumulate, @function",
         "accumulate:",

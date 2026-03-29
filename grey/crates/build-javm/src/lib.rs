@@ -39,9 +39,15 @@ pub fn build(manifest_dir: &str, bin_name: &str) -> PathBuf {
         extra_rustflags,
         extra_rustc_args: vec![],
         env_overrides: vec![
-            ("CARGO_PROFILE_RELEASE_OPT_LEVEL".to_string(), "3".to_string()),
+            (
+                "CARGO_PROFILE_RELEASE_OPT_LEVEL".to_string(),
+                "3".to_string(),
+            ),
             ("CARGO_PROFILE_RELEASE_LTO".to_string(), "true".to_string()),
-            ("CARGO_PROFILE_RELEASE_CODEGEN_UNITS".to_string(), "1".to_string()),
+            (
+                "CARGO_PROFILE_RELEASE_CODEGEN_UNITS".to_string(),
+                "1".to_string(),
+            ),
         ],
         rustc_bootstrap: true,
     };
@@ -81,7 +87,10 @@ pub fn build_service(manifest_dir: &str, bin_name: &str) -> PathBuf {
         extra_rustflags,
         extra_rustc_args: vec![],
         env_overrides: vec![
-            ("CARGO_PROFILE_RELEASE_OPT_LEVEL".to_string(), "s".to_string()),
+            (
+                "CARGO_PROFILE_RELEASE_OPT_LEVEL".to_string(),
+                "s".to_string(),
+            ),
             ("CARGO_PROFILE_RELEASE_LTO".to_string(), "false".to_string()),
         ],
         rustc_bootstrap: true,

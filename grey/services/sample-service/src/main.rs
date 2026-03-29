@@ -15,8 +15,7 @@ mod service {
         ".global _start",
         ".type _start, @function",
         "_start:",
-        "j refine",      // jump to refine by default
-
+        "j refine", // jump to refine by default
         // === refine: echo input as output ===
         // a0 = input_ptr, a1 = input_len (already set by PVM)
         // Just return — a0, a1 are the output.
@@ -24,28 +23,27 @@ mod service {
         ".type refine, @function",
         "refine:",
         "ret",
-
         // === accumulate: write marker to storage ===
         // Allocate stack, store key/value, call host_write, return
         ".global accumulate",
         ".type accumulate, @function",
         "accumulate:",
-        "addi sp, sp, -16",     // allocate 16 bytes on stack
-        "sd ra, 8(sp)",         // save return address
-        "li t0, 0x01",          // key byte
-        "sb t0, 0(sp)",         // store at sp+0
-        "li t0, 0x42",          // value byte
-        "sb t0, 8(sp)",         // store at sp+8
+        "addi sp, sp, -16", // allocate 16 bytes on stack
+        "sd ra, 8(sp)",     // save return address
+        "li t0, 0x01",      // key byte
+        "sb t0, 0(sp)",     // store at sp+0
+        "li t0, 0x42",      // value byte
+        "sb t0, 8(sp)",     // store at sp+8
         // host_write(key_ptr=sp, key_len=1, val_ptr=sp+8, val_len=1)
-        "mv a0, sp",            // a0 = key_ptr
-        "li a1, 1",             // a1 = key_len
-        "addi a2, sp, 8",       // a2 = val_ptr
-        "li a3, 1",             // a3 = val_len
-        "li t0, 4",             // host call ID = 4 (host_write)
-        "ecall",                // invoke host
+        "mv a0, sp",      // a0 = key_ptr
+        "li a1, 1",       // a1 = key_len
+        "addi a2, sp, 8", // a2 = val_ptr
+        "li a3, 1",       // a3 = val_len
+        "li t0, 4",       // host call ID = 4 (host_write)
+        "ecall",          // invoke host
         // Clean up and return
-        "ld ra, 8(sp)",         // restore ra
-        "addi sp, sp, 16",      // deallocate stack
+        "ld ra, 8(sp)",    // restore ra
+        "addi sp, sp, 16", // deallocate stack
         "ret",
     );
 
