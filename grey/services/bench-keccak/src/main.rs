@@ -21,21 +21,32 @@ core::arch::global_asm!(
     "unimp",
 );
 
-/// Helper: run p1600 on provided state. #[inline(never)] prevents const-folding.
+/// Count iterations in a slice loop (same pattern as keccak RC iteration).
 #[inline(never)]
-fn run_p1600(state: &mut [u64; 25]) {
-    keccak::p1600(state, 24);
+fn count_slice_iterations(data: &[u64]) -> u32 {
+    let mut count: u32 = 0;
+    for &_val in data {
+        count += 1;
+    }
+    count
 }
 
-/// Test: p1600 with block buffer on stack.
+/// Call f1600 (24 rounds) through a wrapper.
+#[inline(never)]
+#[no_mangle]
+pub extern "C" fn do_p1600(state: &mut [u64; 25]) {
+    keccak::f1600(state);
+}
+
 #[cfg_attr(target_env = "polkavm", polkavm_derive::polkavm_export)]
 #[no_mangle]
 pub extern "C" fn keccak_bench() -> u32 {
     let mut state = [0u64; 25];
-    state[0] = 0x0000000001636261;
-    state[16] = 0x8000000000000000;
-    run_p1600(&mut state);
-    state[0] as u32
+    // Use volatile to prevent const-folding even with LTO
+    unsafe { core::ptr::write_volatile(state.as_mut_ptr(), 0x0000000001636261u64); }
+    unsafe { core::ptr::write_volatile(state.as_mut_ptr().add(16), 0x8000000000000000u64); }
+    do_p1600(&mut state);
+    unsafe { core::ptr::read_volatile(&state[0]) as u32 }
 }
 
 #[no_mangle]
