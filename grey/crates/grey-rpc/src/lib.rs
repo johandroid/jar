@@ -53,6 +53,10 @@ pub struct RpcState {
     pub config: Config,
     pub status: RwLock<NodeStatus>,
     pub commands: mpsc::Sender<RpcCommand>,
+    /// Broadcast channel for new block notifications (WebSocket subscriptions).
+    pub block_notifications: tokio::sync::broadcast::Sender<serde_json::Value>,
+    /// Broadcast channel for finalization notifications (WebSocket subscriptions).
+    pub finality_notifications: tokio::sync::broadcast::Sender<serde_json::Value>,
 }
 
 #[rpc(server)]
@@ -121,6 +125,18 @@ pub trait JamRpc {
         &self,
         set: Option<String>,
     ) -> Result<serde_json::Value, ErrorObjectOwned>;
+}
+
+/// WebSocket subscription API.
+#[rpc(server)]
+pub trait JamSubscriptions {
+    /// Subscribe to new block notifications (WebSocket only).
+    #[subscription(name = "subscribeNewBlocks" => "newBlock", unsubscribe = "unsubscribeNewBlocks", item = serde_json::Value)]
+    async fn subscribe_new_blocks(&self) -> jsonrpsee::core::SubscriptionResult;
+
+    /// Subscribe to finalization notifications (WebSocket only).
+    #[subscription(name = "subscribeFinalized" => "finalized", unsubscribe = "unsubscribeFinalized", item = serde_json::Value)]
+    async fn subscribe_finalized(&self) -> jsonrpsee::core::SubscriptionResult;
 }
 
 struct RpcImpl {
@@ -524,6 +540,45 @@ impl JamRpcServer for RpcImpl {
     }
 }
 
+#[async_trait]
+impl JamSubscriptionsServer for RpcImpl {
+    async fn subscribe_new_blocks(
+        &self,
+        pending: jsonrpsee::PendingSubscriptionSink,
+    ) -> jsonrpsee::core::SubscriptionResult {
+        let sink = pending.accept().await?;
+        let mut rx = self.state.block_notifications.subscribe();
+        tokio::spawn(async move {
+            while let Ok(notification) = rx.recv().await {
+                let msg =
+                    jsonrpsee::SubscriptionMessage::from_json(&notification).expect("valid JSON");
+                if sink.send(msg).await.is_err() {
+                    break; // client disconnected
+                }
+            }
+        });
+        Ok(())
+    }
+
+    async fn subscribe_finalized(
+        &self,
+        pending: jsonrpsee::PendingSubscriptionSink,
+    ) -> jsonrpsee::core::SubscriptionResult {
+        let sink = pending.accept().await?;
+        let mut rx = self.state.finality_notifications.subscribe();
+        tokio::spawn(async move {
+            while let Ok(notification) = rx.recv().await {
+                let msg =
+                    jsonrpsee::SubscriptionMessage::from_json(&notification).expect("valid JSON");
+                if sink.send(msg).await.is_err() {
+                    break; // client disconnected
+                }
+            }
+        });
+        Ok(())
+    }
+}
+
 // ── Health / readiness HTTP endpoints ─────────────────────────────────
 
 /// Tower layer that intercepts GET `/health` and `/ready` before they
@@ -803,9 +858,18 @@ pub async fn start_rpc_server(
         .await?;
     let bound_addr = server.local_addr()?;
 
-    let rpc_impl = RpcImpl { state };
+    let rpc_impl = RpcImpl {
+        state: state.clone(),
+    };
+    let sub_impl = RpcImpl { state };
 
-    let handle = server.start(rpc_impl.into_rpc());
+    // Merge regular RPC methods and subscription methods into one module
+    let mut module = JamRpcServer::into_rpc(rpc_impl);
+    module
+        .merge(JamSubscriptionsServer::into_rpc(sub_impl))
+        .expect("merge subscription methods");
+
+    let handle = server.start(module);
 
     let join = tokio::spawn(async move {
         handle.stopped().await;
@@ -830,6 +894,9 @@ pub fn create_rpc_channel(
 ) -> (Arc<RpcState>, mpsc::Receiver<RpcCommand>) {
     let (tx, rx) = mpsc::channel(256);
 
+    let (block_tx, _) = tokio::sync::broadcast::channel(64);
+    let (finality_tx, _) = tokio::sync::broadcast::channel(64);
+
     let state = Arc::new(RpcState {
         store,
         config,
@@ -843,6 +910,8 @@ pub fn create_rpc_channel(
             validator_index,
         }),
         commands: tx,
+        block_notifications: block_tx,
+        finality_notifications: finality_tx,
     });
 
     (state, rx)
