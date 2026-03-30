@@ -32,17 +32,21 @@ pub fn dispatch(input: &[u8]) -> usize {
     tests::dispatch_by_id(test_id, args, output)
 }
 
-/// Get a pointer to the output buffer (for host-side reading).
+/// Get a pointer to the output buffer (for PVM-side reading).
 pub fn output_buffer() -> *const u8 {
     (&raw const OUTPUT).cast()
 }
 
-/// Read output bytes after a host-side `dispatch()` call.
-///
-/// # Safety
-/// `len` must be <= 65536 and must be the value returned by `dispatch()`.
-pub unsafe fn read_output(len: usize) -> &'static [u8] {
-    unsafe { core::slice::from_raw_parts(output_buffer(), len) }
+/// Run a test and return the output as a Vec (thread-safe for host tests).
+/// On host, uses a local buffer to avoid data races on the global OUTPUT.
+#[cfg(not(target_os = "none"))]
+pub fn dispatch_to_vec(input: &[u8]) -> Vec<u8> {
+    let test_id = u32::from_le_bytes([input[0], input[1], input[2], input[3]]);
+    let args = &input[4..];
+    let mut output = vec![0u8; 4096];
+    let len = tests::dispatch_by_id(test_id, args, &mut output);
+    output.truncate(len);
+    output
 }
 
 // -- Helpers for test functions -----------------------------------------------
