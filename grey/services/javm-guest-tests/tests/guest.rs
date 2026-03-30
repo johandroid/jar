@@ -13,8 +13,7 @@ fn run_test(test_id: u32, args: &[u8]) {
     input.extend_from_slice(args);
 
     // --- Host ---
-    let host_len = javm_guest_tests::dispatch(&input);
-    let host_output = unsafe { javm_guest_tests::read_output(host_len) }.to_vec();
+    let host_output = javm_guest_tests::dispatch_to_vec(&input);
 
     // --- Interpreter ---
     let gas = 100_000_000_000u64;
