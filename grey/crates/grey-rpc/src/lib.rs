@@ -894,8 +894,8 @@ pub fn create_rpc_channel(
 ) -> (Arc<RpcState>, mpsc::Receiver<RpcCommand>) {
     let (tx, rx) = mpsc::channel(256);
 
-    let (block_tx, _) = tokio::sync::broadcast::channel(64);
-    let (finality_tx, _) = tokio::sync::broadcast::channel(64);
+    let (block_tx, _) = tokio::sync::broadcast::channel::<serde_json::Value>(64);
+    let (finality_tx, _) = tokio::sync::broadcast::channel::<serde_json::Value>(64);
 
     let state = Arc::new(RpcState {
         store,
