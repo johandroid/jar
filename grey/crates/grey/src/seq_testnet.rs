@@ -255,8 +255,10 @@ pub async fn run_seq_testnet(
                         blocks_produced += 1;
 
                         if blocks_produced.is_multiple_of(10) || blocks_produced <= 5 {
+                            let db_size_mb = get_file_size_mb(&db_path);
+                            let rss_mb = get_rss_mb();
                             tracing::info!(
-                                "Slot {slot}: block #{blocks_produced} by v{author_idx}, hash=0x{}",
+                                "Slot {slot}: block #{blocks_produced} by v{author_idx}, hash=0x{}, db={db_size_mb:.1}MB, rss={rss_mb:.1}MB",
                                 hex::encode(&header_hash.0[..8])
                             );
                         }
@@ -337,5 +339,31 @@ fn install_services(state: &mut State, config: &Config) {
         if state.auth_pool[core].is_empty() {
             state.auth_pool[core].push(Hash::ZERO);
         }
+    }
+}
+
+/// Get the size of a file in megabytes. Returns 0 if the file doesn't exist.
+fn get_file_size_mb(path: &std::path::Path) -> f64 {
+    std::fs::metadata(path)
+        .map(|m| m.len() as f64 / (1024.0 * 1024.0))
+        .unwrap_or(0.0)
+}
+
+/// Get the current process RSS (Resident Set Size) in megabytes.
+/// Reads from /proc/self/statm on Linux; returns 0 on other platforms.
+fn get_rss_mb() -> f64 {
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(statm) = std::fs::read_to_string("/proc/self/statm")
+            && let Some(rss_pages) = statm.split_whitespace().nth(1)
+            && let Ok(pages) = rss_pages.parse::<u64>()
+        {
+            return (pages * 4096) as f64 / (1024.0 * 1024.0);
+        }
+        0.0
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        0.0
     }
 }
