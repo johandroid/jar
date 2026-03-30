@@ -507,34 +507,18 @@ fn serialize_statistics(stats: &ValidatorStatistics, config: &Config) -> Vec<u8>
     // π_C: C core records, compact-encoded fields (GP field order: d, p, i, x, z, e, l, u)
     for core_idx in 0..config.core_count as usize {
         let cs = stats.core_stats.get(core_idx).cloned().unwrap_or_default();
-        encode_compact(cs.da_load, &mut buf);
-        encode_compact(cs.popularity, &mut buf);
-        encode_compact(cs.imports, &mut buf);
-        encode_compact(cs.extrinsic_count, &mut buf);
-        encode_compact(cs.extrinsic_size, &mut buf);
-        encode_compact(cs.exports, &mut buf);
-        encode_compact(cs.bundle_size, &mut buf);
-        encode_compact(cs.gas_used, &mut buf);
+        for v in cs.as_compact_fields() {
+            encode_compact(v, &mut buf);
+        }
     }
 
     // π_S: sorted map of service stats (GP field order: p, r, i, x, z, e, a)
     encode_compact(stats.service_stats.len() as u64, &mut buf);
     for (&service_id, ss) in &stats.service_stats {
         buf.extend_from_slice(&service_id.to_le_bytes());
-        // p: (provided_count, provided_size)
-        encode_compact(ss.provided_count, &mut buf);
-        encode_compact(ss.provided_size, &mut buf);
-        // r: (refinement_count, refinement_gas_used)
-        encode_compact(ss.refinement_count, &mut buf);
-        encode_compact(ss.refinement_gas_used, &mut buf);
-        // i, x, z, e
-        encode_compact(ss.imports, &mut buf);
-        encode_compact(ss.extrinsic_count, &mut buf);
-        encode_compact(ss.extrinsic_size, &mut buf);
-        encode_compact(ss.exports, &mut buf);
-        // a: (accumulate_count, accumulate_gas_used)
-        encode_compact(ss.accumulate_count, &mut buf);
-        encode_compact(ss.accumulate_gas_used, &mut buf);
+        for v in ss.as_compact_fields() {
+            encode_compact(v, &mut buf);
+        }
     }
 
     buf
@@ -856,6 +840,77 @@ fn decode_hash_set(
         set.insert(read_hash(data, pos)?);
     }
     Ok(set)
+}
+
+/// Extension trait for compact field encoding of statistics types.
+trait CompactFields {
+    type Fields;
+    fn as_compact_fields(&self) -> Self::Fields;
+    fn from_compact_fields(data: &[u8], pos: &mut usize) -> Result<Self, String>
+    where
+        Self: Sized;
+}
+
+impl CompactFields for CoreStatistics {
+    type Fields = [u64; 8];
+    fn as_compact_fields(&self) -> [u64; 8] {
+        [
+            self.da_load,
+            self.popularity,
+            self.imports,
+            self.extrinsic_count,
+            self.extrinsic_size,
+            self.exports,
+            self.bundle_size,
+            self.gas_used,
+        ]
+    }
+
+    fn from_compact_fields(data: &[u8], pos: &mut usize) -> Result<Self, String> {
+        Ok(Self {
+            da_load: decode_compact(data, pos)?,
+            popularity: decode_compact(data, pos)?,
+            imports: decode_compact(data, pos)?,
+            extrinsic_count: decode_compact(data, pos)?,
+            extrinsic_size: decode_compact(data, pos)?,
+            exports: decode_compact(data, pos)?,
+            bundle_size: decode_compact(data, pos)?,
+            gas_used: decode_compact(data, pos)?,
+        })
+    }
+}
+
+impl CompactFields for ServiceStatistics {
+    type Fields = [u64; 10];
+    fn as_compact_fields(&self) -> [u64; 10] {
+        [
+            self.provided_count,
+            self.provided_size,
+            self.refinement_count,
+            self.refinement_gas_used,
+            self.imports,
+            self.extrinsic_count,
+            self.extrinsic_size,
+            self.exports,
+            self.accumulate_count,
+            self.accumulate_gas_used,
+        ]
+    }
+
+    fn from_compact_fields(data: &[u8], pos: &mut usize) -> Result<Self, String> {
+        Ok(Self {
+            provided_count: decode_compact(data, pos)?,
+            provided_size: decode_compact(data, pos)?,
+            refinement_count: decode_compact(data, pos)?,
+            refinement_gas_used: decode_compact(data, pos)?,
+            imports: decode_compact(data, pos)?,
+            extrinsic_count: decode_compact(data, pos)?,
+            extrinsic_size: decode_compact(data, pos)?,
+            exports: decode_compact(data, pos)?,
+            accumulate_count: decode_compact(data, pos)?,
+            accumulate_gas_used: decode_compact(data, pos)?,
+        })
+    }
 }
 
 fn read_u32(data: &[u8], pos: &mut usize) -> Result<u32, String> {
@@ -1203,24 +1258,7 @@ fn deserialize_statistics(data: &[u8], config: &Config) -> Result<ValidatorStati
     // π_C: C core records, compact-encoded (GP field order: d, p, i, x, z, e, l, u)
     let mut core_stats = Vec::with_capacity(c);
     for _ in 0..c {
-        let da_load = decode_compact(data, &mut pos)?;
-        let popularity = decode_compact(data, &mut pos)?;
-        let imports = decode_compact(data, &mut pos)?;
-        let extrinsic_count = decode_compact(data, &mut pos)?;
-        let extrinsic_size = decode_compact(data, &mut pos)?;
-        let exports = decode_compact(data, &mut pos)?;
-        let bundle_size = decode_compact(data, &mut pos)?;
-        let gas_used = decode_compact(data, &mut pos)?;
-        core_stats.push(CoreStatistics {
-            da_load,
-            popularity,
-            imports,
-            extrinsic_count,
-            extrinsic_size,
-            exports,
-            bundle_size,
-            gas_used,
-        });
+        core_stats.push(CoreStatistics::from_compact_fields(data, &mut pos)?);
     }
 
     // π_S: sorted map (GP field order: p, r, i, x, z, e, a)
@@ -1228,30 +1266,9 @@ fn deserialize_statistics(data: &[u8], config: &Config) -> Result<ValidatorStati
     let mut service_stats = BTreeMap::new();
     for _ in 0..s_count {
         let service_id = read_u32(data, &mut pos)?;
-        let provided_count = decode_compact(data, &mut pos)?;
-        let provided_size = decode_compact(data, &mut pos)?;
-        let refinement_count = decode_compact(data, &mut pos)?;
-        let refinement_gas_used = decode_compact(data, &mut pos)?;
-        let imports = decode_compact(data, &mut pos)?;
-        let extrinsic_count = decode_compact(data, &mut pos)?;
-        let extrinsic_size = decode_compact(data, &mut pos)?;
-        let exports = decode_compact(data, &mut pos)?;
-        let accumulate_count = decode_compact(data, &mut pos)?;
-        let accumulate_gas_used = decode_compact(data, &mut pos)?;
         service_stats.insert(
             service_id,
-            ServiceStatistics {
-                provided_count,
-                provided_size,
-                refinement_count,
-                refinement_gas_used,
-                imports,
-                extrinsic_count,
-                extrinsic_size,
-                exports,
-                accumulate_count,
-                accumulate_gas_used,
-            },
+            ServiceStatistics::from_compact_fields(data, &mut pos)?,
         );
     }
 
