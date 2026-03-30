@@ -157,6 +157,10 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
     let shutdown = tokio::signal::ctrl_c();
     tokio::pin!(shutdown);
 
+    // SIGUSR1: dump debug state to log
+    let mut sigusr1 = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+        .expect("failed to register SIGUSR1 handler");
+
     // Main loop: check timeslots every 500ms
     let mut interval = tokio::time::interval(Duration::from_millis(500));
     let mut last_authored_slot: Timeslot = 0;
@@ -186,6 +190,39 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                     grandpa.finalized_slot
                 );
                 break;
+            }
+            // SIGUSR1: dump debug state snapshot to log
+            _ = sigusr1.recv() => {
+                let head_hash = state
+                    .recent_blocks
+                    .headers
+                    .last()
+                    .map(|h| hex::encode(&h.header_hash.0[..8]))
+                    .unwrap_or_else(|| "none".into());
+                tracing::info!(
+                    "=== SIGUSR1 debug dump (validator {}) ===\n\
+                     State: slot={}, head=0x{}, services={}\n\
+                     Finality: round={}, finalized_slot={}, prevotes={}, precommits={}\n\
+                     Guarantor: pending_guarantees={}, available_cores={}, received_chunks={}\n\
+                     Assurances: collected={}\n\
+                     Pending blocks: {}\n\
+                     Counters: authored={}, imported={}",
+                    config.validator_index,
+                    state.timeslot,
+                    head_hash,
+                    state.services.len(),
+                    grandpa.round,
+                    grandpa.finalized_slot,
+                    grandpa.prevotes.len(),
+                    grandpa.precommits.len(),
+                    guarantor_state.pending_guarantees.len(),
+                    guarantor_state.available_cores.len(),
+                    guarantor_state.received_chunks.len(),
+                    collected_assurances.len(),
+                    pending_blocks.len(),
+                    blocks_authored,
+                    blocks_imported,
+                );
             }
             _ = interval.tick() => {
                 let now = SystemTime::now()
