@@ -3874,5 +3874,25 @@
       "novelty": 71
     },
     "weightDelta": 76
+  },
+  {
+    "commitHash": "8088260c81850c6eb028281a3c0bc51e95cd84b7",
+    "contributor": "sorpaas",
+    "epoch": 1774883884,
+    "founderOverride": false,
+    "mergeVotes": [
+      "sorpaas"
+    ],
+    "metaReviews": [],
+    "rejectVotes": [],
+    "reviewers": [
+      "sorpaas"
+    ],
+    "score": {
+      "designQuality": 57,
+      "difficulty": 28,
+      "novelty": 57
+    },
+    "weightDelta": 51
   }
 ]
