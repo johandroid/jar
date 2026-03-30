@@ -1529,6 +1529,7 @@ dependencies = [
  "hex",
  "javm",
  "libp2p",
+ "proptest",
  "serde",
  "serde_json",
  "tokio",
