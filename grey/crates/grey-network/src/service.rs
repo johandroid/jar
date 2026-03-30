@@ -376,7 +376,7 @@ fn build_swarm() -> Result<Swarm<JamBehaviour>, Box<dyn std::error::Error + Send
 
             let gossipsub_config = gossipsub::ConfigBuilder::default()
                 .heartbeat_interval(Duration::from_secs(1))
-                .validation_mode(gossipsub::ValidationMode::Permissive)
+                .validation_mode(gossipsub::ValidationMode::Strict)
                 .message_id_fn(message_id_fn)
                 .build()
                 .expect("Valid gossipsub config");
