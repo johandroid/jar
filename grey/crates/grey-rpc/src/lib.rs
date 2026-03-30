@@ -53,6 +53,10 @@ pub struct RpcState {
     pub config: Config,
     pub status: RwLock<NodeStatus>,
     pub commands: mpsc::Sender<RpcCommand>,
+    /// Broadcast channel for new block notifications (WebSocket subscriptions).
+    pub block_notifications: tokio::sync::broadcast::Sender<serde_json::Value>,
+    /// Broadcast channel for finalization notifications (WebSocket subscriptions).
+    pub finality_notifications: tokio::sync::broadcast::Sender<serde_json::Value>,
 }
 
 #[rpc(server)]
@@ -829,6 +833,8 @@ pub fn create_rpc_channel(
     validator_index: u16,
 ) -> (Arc<RpcState>, mpsc::Receiver<RpcCommand>) {
     let (tx, rx) = mpsc::channel(256);
+    let (block_tx, _) = tokio::sync::broadcast::channel(64);
+    let (finality_tx, _) = tokio::sync::broadcast::channel(64);
 
     let state = Arc::new(RpcState {
         store,
@@ -843,6 +849,8 @@ pub fn create_rpc_channel(
             validator_index,
         }),
         commands: tx,
+        block_notifications: block_tx,
+        finality_notifications: finality_tx,
     });
 
     (state, rx)
