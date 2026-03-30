@@ -84,7 +84,7 @@ A task is **available** if none of the above apply.
 
 **Interactive mode:** Present available issues (atomic) and available chunks (chunked) with brief descriptions. Ask the user which one to work on.
 
-**Auto mode:** Pick the most straightforward available item. Prefer atomic issues and small chunks over large ones. The ~500-line guard applies per-chunk, not per-issue — a big issue is fine as long as each PR is small. If no available chunk is small enough, skip the issue.
+**Auto mode:** Pick the most straightforward available item. Prefer atomic issues and small chunks over large ones.
 
 ### 2. Claim the issue
 
@@ -115,7 +115,7 @@ Remember the comment URL/ID so you can edit it later if needed.
 
 5. **Interactive mode:** If the implementation is complex or ambiguous, pause and explain the approach to the user. Ask for confirmation before proceeding.
 
-   **Auto mode:** Proceed with the most conservative correct approach. If the task is too complex (would require more than ~500 lines of changes or touches security-critical code), stop and comment on the issue explaining why. For chunked issues, the ~500-line limit applies to the selected chunk.
+   **Auto mode:** Proceed with the most conservative correct approach. If the task touches security-critical code, stop and comment on the issue explaining why.
 
 ### 4. Submit results
 
