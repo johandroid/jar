@@ -12,7 +12,7 @@ grey-crypto = { workspace = true }
 grey-store = { workspace = true }
 jsonrpsee = { version = "0.24", features = ["server", "macros"] }
 tower-http = { version = "0.5", features = ["cors"] }
-tower = "0.4"
+tower = { version = "0.4", features = ["timeout"] }
 http = "1"
 tokio = { workspace = true }
 tracing = { workspace = true }

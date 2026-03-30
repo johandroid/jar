@@ -15,8 +15,13 @@ use jsonrpsee::server::Server;
 use jsonrpsee::types::ErrorObjectOwned;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
+
+/// Maximum time an individual RPC request can take before being cancelled.
+/// Prevents slow or hanging queries from blocking the server indefinitely.
+const RPC_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Commands sent from RPC to the node event loop.
 #[derive(Debug)]
@@ -549,6 +554,7 @@ pub async fn start_rpc_server(
     };
     let middleware = tower::ServiceBuilder::new()
         .layer(cors_layer)
+        .layer(tower::timeout::TimeoutLayer::new(RPC_QUERY_TIMEOUT))
         .layer(health_layer);
     // Work packages can be up to ~14MB (MAX_WORK_PACKAGE_BLOB_SIZE), and hex
     // encoding doubles the size. Allow 30MB to accommodate the largest valid
