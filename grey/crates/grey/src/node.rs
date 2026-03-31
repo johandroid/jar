@@ -59,6 +59,8 @@ pub struct NodeConfig {
     pub rpc_port: u16,
     /// Enable CORS on the RPC server.
     pub rpc_cors: bool,
+    /// Maximum RPC requests per IP per minute (0 = unlimited).
+    pub rpc_rate_limit: u64,
     /// Optional pre-configured genesis state (with services installed, etc.).
     /// If None, the default genesis from create_genesis is used.
     pub genesis_state: Option<State>,
@@ -155,8 +157,13 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
             config.validator_index,
         );
         rpc_state = Some(state_arc.clone());
-        let (_addr, _handle) =
-            grey_rpc::start_rpc_server(config.rpc_port, state_arc, config.rpc_cors).await?;
+        let (_addr, _handle) = grey_rpc::start_rpc_server(
+            config.rpc_port,
+            state_arc,
+            config.rpc_cors,
+            config.rpc_rate_limit,
+        )
+        .await?;
         rpc_rx = Some(rx);
     } else {
         rpc_state = None;

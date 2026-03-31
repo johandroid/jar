@@ -139,6 +139,10 @@ struct Cli {
     #[arg(long, default_value_t = 9933)]
     rpc_port: u16,
 
+    /// Maximum RPC requests per IP per minute (0 to disable rate limiting).
+    #[arg(long, default_value_t = 1000)]
+    rpc_rate_limit: u64,
+
     /// Enable permissive CORS on the RPC server
     #[arg(long)]
     rpc_cors: bool,
@@ -199,6 +203,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             && !cli.rpc_cors
         {
             cli.rpc_cors = v;
+        }
+        if let Some(v) = cfg.rpc.rate_limit
+            && cli.rpc_rate_limit == 1000
+        {
+            cli.rpc_rate_limit = v;
         }
         if let Some(ref peers) = cfg.network.boot_peers
             && cli.peers.is_empty()
@@ -410,6 +419,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         db_path: cli.db_path,
         rpc_port: cli.rpc_port,
         rpc_cors: cli.rpc_cors,
+        rpc_rate_limit: cli.rpc_rate_limit,
         genesis_state: None,
         pruning_depth: cli.pruning_depth,
         keystore_path: cli.keystore_path,
