@@ -45,6 +45,7 @@ Documentation = [
     { Introduction = "introduction.md" },
     { Genesis = "genesis.md" },
     { Coinless = "coinless.md" },
+    { Benchmark = "benchmark.md" },
 ]
 
 [[project.nav]]
