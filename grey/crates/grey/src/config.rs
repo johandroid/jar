@@ -40,6 +40,7 @@ pub struct RpcConfig {
     pub port: Option<u16>,
     pub host: Option<String>,
     pub cors: Option<bool>,
+    pub rate_limit: Option<u64>,
 }
 
 /// Network configuration section.

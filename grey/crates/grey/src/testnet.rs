@@ -171,6 +171,7 @@ pub async fn run_testnet(
                 db_path: format!("/tmp/grey-testnet-{}", genesis_time),
                 rpc_port: 9933 + i,
                 rpc_cors,
+                rpc_rate_limit: 0, // No rate limiting in testnet
                 genesis_state: Some(genesis_clone),
                 pruning_depth: 0, // No pruning in testnet
                 keystore_path: None,

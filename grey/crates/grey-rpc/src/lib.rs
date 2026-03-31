@@ -23,8 +23,8 @@ use tokio::sync::mpsc;
 /// Prevents slow or hanging queries from blocking the server indefinitely.
 const RPC_QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Maximum RPC requests per IP per window. Returns HTTP 429 when exceeded.
-const RATE_LIMIT_MAX_REQUESTS: u64 = 1000;
+/// Default maximum RPC requests per IP per window. Returns HTTP 429 when exceeded.
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS: u64 = 1000;
 /// Rate limit window duration.
 const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
 
@@ -795,12 +795,14 @@ struct RateLimitLayer {
     state: Arc<
         std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, (u64, std::time::Instant)>>,
     >,
+    max_requests: u64,
 }
 
 impl RateLimitLayer {
-    fn new() -> Self {
+    fn new(max_requests: u64) -> Self {
         Self {
             state: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            max_requests,
         }
     }
 }
@@ -811,6 +813,7 @@ impl<S> tower::Layer<S> for RateLimitLayer {
         RateLimitService {
             inner,
             state: self.state.clone(),
+            max_requests: self.max_requests,
         }
     }
 }
@@ -821,6 +824,7 @@ struct RateLimitService<S> {
     state: Arc<
         std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, (u64, std::time::Instant)>>,
     >,
+    max_requests: u64,
 }
 
 impl<S, ReqBody> tower::Service<http::Request<ReqBody>> for RateLimitService<S>
@@ -867,7 +871,7 @@ where
             }
 
             entry.0 += 1;
-            if entry.0 > RATE_LIMIT_MAX_REQUESTS {
+            if entry.0 > self.max_requests {
                 tracing::warn!("Rate limit exceeded for IP {}: {}/min", ip, entry.0);
                 let body = serde_json::json!({
                     "error": "rate limit exceeded",
@@ -895,6 +899,7 @@ pub async fn start_rpc_server(
     port: u16,
     state: Arc<RpcState>,
     cors: bool,
+    rate_limit: u64,
 ) -> Result<(SocketAddr, tokio::task::JoinHandle<()>), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("0.0.0.0:{}", port);
     let cors_layer = if cors {
@@ -906,7 +911,12 @@ pub async fn start_rpc_server(
     let health_layer = HealthLayer {
         state: state.clone(),
     };
-    let rate_limiter = RateLimitLayer::new();
+    let max_requests = if rate_limit == 0 {
+        u64::MAX
+    } else {
+        rate_limit
+    };
+    let rate_limiter = RateLimitLayer::new(max_requests);
     let middleware = tower::ServiceBuilder::new()
         .layer(cors_layer)
         .layer(rate_limiter)
@@ -949,7 +959,7 @@ pub async fn start_rpc_server(
 pub async fn start_rpc_server_ephemeral(
     state: Arc<RpcState>,
 ) -> Result<(SocketAddr, tokio::task::JoinHandle<()>), Box<dyn std::error::Error + Send + Sync>> {
-    start_rpc_server(0, state, false).await
+    start_rpc_server(0, state, false, DEFAULT_RATE_LIMIT_MAX_REQUESTS).await
 }
 
 /// Create RPC state and command channel.
