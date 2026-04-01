@@ -679,16 +679,21 @@ impl Pvm {
                     self.pc = new_pc;
                 }
             }
-            Opcode::BranchEqImm | Opcode::BranchNeImm
-            | Opcode::BranchLtUImm | Opcode::BranchLeUImm
-            | Opcode::BranchGeUImm | Opcode::BranchGtUImm
-            | Opcode::BranchLtSImm | Opcode::BranchLeSImm
-            | Opcode::BranchGeSImm | Opcode::BranchGtSImm => {
+            Opcode::BranchEqImm
+            | Opcode::BranchNeImm
+            | Opcode::BranchLtUImm
+            | Opcode::BranchLeUImm
+            | Opcode::BranchGeUImm
+            | Opcode::BranchGtUImm
+            | Opcode::BranchLtSImm
+            | Opcode::BranchLeSImm
+            | Opcode::BranchGeSImm
+            | Opcode::BranchGtSImm => {
                 if let Args::RegImmOffset { ra, imm, offset } = args {
                     let (a, b) = (self.registers[ra], imm);
                     let cond = match opcode {
-                        Opcode::BranchEqImm  => a == b,
-                        Opcode::BranchNeImm  => a != b,
+                        Opcode::BranchEqImm => a == b,
+                        Opcode::BranchNeImm => a != b,
                         Opcode::BranchLtUImm => a < b,
                         Opcode::BranchLeUImm => a <= b,
                         Opcode::BranchGeUImm => a >= b,
@@ -1134,14 +1139,17 @@ impl Pvm {
             }
 
             // === A.5.11: Two registers + one offset ===
-            Opcode::BranchEq | Opcode::BranchNe
-            | Opcode::BranchLtU | Opcode::BranchGeU
-            | Opcode::BranchLtS | Opcode::BranchGeS => {
+            Opcode::BranchEq
+            | Opcode::BranchNe
+            | Opcode::BranchLtU
+            | Opcode::BranchGeU
+            | Opcode::BranchLtS
+            | Opcode::BranchGeS => {
                 if let Args::TwoRegOffset { ra, rb, offset } = args {
                     let (a, b) = (self.registers[ra], self.registers[rb]);
                     let cond = match opcode {
-                        Opcode::BranchEq  => a == b,
-                        Opcode::BranchNe  => a != b,
+                        Opcode::BranchEq => a == b,
+                        Opcode::BranchNe => a != b,
                         Opcode::BranchLtU => a < b,
                         Opcode::BranchGeU => a >= b,
                         Opcode::BranchLtS => (a as i64) < (b as i64),
@@ -1800,13 +1808,16 @@ impl Pvm {
                 }
 
                 // === Two registers + one offset (branches) ===
-                Opcode::BranchEq | Opcode::BranchNe
-                | Opcode::BranchLtU | Opcode::BranchGeU
-                | Opcode::BranchLtS | Opcode::BranchGeS => {
+                Opcode::BranchEq
+                | Opcode::BranchNe
+                | Opcode::BranchLtU
+                | Opcode::BranchGeU
+                | Opcode::BranchLtS
+                | Opcode::BranchGeS => {
                     let (a, b) = (self.registers[ra], self.registers[rb]);
                     let cond = match inst.opcode {
-                        Opcode::BranchEq  => a == b,
-                        Opcode::BranchNe  => a != b,
+                        Opcode::BranchEq => a == b,
+                        Opcode::BranchNe => a != b,
                         Opcode::BranchLtU => a < b,
                         Opcode::BranchGeU => a >= b,
                         Opcode::BranchLtS => (a as i64) < (b as i64),
@@ -2319,15 +2330,20 @@ impl Pvm {
                 }
 
                 // === BranchImm variants (cond on reg[ra] vs imm1, target = target_idx) ===
-                Opcode::BranchEqImm | Opcode::BranchNeImm
-                | Opcode::BranchLtUImm | Opcode::BranchLeUImm
-                | Opcode::BranchGeUImm | Opcode::BranchGtUImm
-                | Opcode::BranchLtSImm | Opcode::BranchLeSImm
-                | Opcode::BranchGeSImm | Opcode::BranchGtSImm => {
+                Opcode::BranchEqImm
+                | Opcode::BranchNeImm
+                | Opcode::BranchLtUImm
+                | Opcode::BranchLeUImm
+                | Opcode::BranchGeUImm
+                | Opcode::BranchGtUImm
+                | Opcode::BranchLtSImm
+                | Opcode::BranchLeSImm
+                | Opcode::BranchGeSImm
+                | Opcode::BranchGtSImm => {
                     let (a, b) = (self.registers[ra], imm1);
                     let cond = match inst.opcode {
-                        Opcode::BranchEqImm  => a == b,
-                        Opcode::BranchNeImm  => a != b,
+                        Opcode::BranchEqImm => a == b,
+                        Opcode::BranchNeImm => a != b,
                         Opcode::BranchLtUImm => a < b,
                         Opcode::BranchLeUImm => a <= b,
                         Opcode::BranchGeUImm => a >= b,
@@ -2833,41 +2849,40 @@ fn predecode_instructions(
 
     let mut pc = 0;
     while pc < len {
-        if pc < bitmask.len()
-            && bitmask[pc] == 1
-            && let Some(opcode) = Opcode::from_byte(code[pc])
-        {
-            let skip = skip_at(pc);
-            let next_pc = (pc + 1 + skip) as u32;
-            let category = opcode.category();
-            let args = args::decode_args(code, pc, skip, category);
-            let bb_gas_cost = if pc < gas_block_starts.len() && gas_block_starts[pc] {
-                block_gas_costs[pc]
-            } else {
-                0
-            };
+        if pc < bitmask.len() && bitmask[pc] == 1 {
+            if let Some(opcode) = Opcode::from_byte(code[pc]) {
+                let skip = skip_at(pc);
+                let next_pc = (pc + 1 + skip) as u32;
+                let category = opcode.category();
+                let args = args::decode_args(code, pc, skip, category);
+                let bb_gas_cost = if pc < gas_block_starts.len() && gas_block_starts[pc] {
+                    block_gas_costs[pc]
+                } else {
+                    0
+                };
 
-            // Extract flat operands from decoded args
-            let (ra, rb, rd, imm1, imm2) = flatten_args(&args);
+                // Extract flat operands from decoded args
+                let (ra, rb, rd, imm1, imm2) = flatten_args(&args);
 
-            let idx = insts.len() as u32;
-            pc_to_idx[pc] = idx;
-            insts.push(DecodedInst {
-                opcode,
-                ra,
-                rb,
-                rd,
-                imm1,
-                imm2,
-                pc: pc as u32,
-                next_pc,
-                next_idx: u32::MAX,   // resolved in second pass
-                target_idx: u32::MAX, // resolved in second pass
-                bb_gas_cost,
-            });
+                let idx = insts.len() as u32;
+                pc_to_idx[pc] = idx;
+                insts.push(DecodedInst {
+                    opcode,
+                    ra,
+                    rb,
+                    rd,
+                    imm1,
+                    imm2,
+                    pc: pc as u32,
+                    next_pc,
+                    next_idx: u32::MAX,   // resolved in second pass
+                    target_idx: u32::MAX, // resolved in second pass
+                    bb_gas_cost,
+                });
 
-            pc = next_pc as usize;
-            continue;
+                pc = next_pc as usize;
+                continue;
+            }
         }
         pc += 1;
     }
