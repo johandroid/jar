@@ -119,23 +119,26 @@ instance : EconModel BalanceEcon BalanceTransfer where
       some ({ balance := UInt64.ofNat balance, gratis := UInt64.ofNat gratis }, offset + 16)
     else none
 
-  econToJson e := [("balance", Lean.toJson e.balance), ("gratis", Lean.toJson e.gratis)]
+  econToJson e := [("balance", Lean.Json.num e.balance.toNat), ("gratis", Lean.Json.num e.gratis.toNat)]
 
   econFromJson? j := do
-    let balance ← (Lean.fromJson? (← j.getObjVal? "balance") : Except String Balance)
+    let balJson ← j.getObjVal? "balance"
+    let balNat ← balJson.getNat?
+    let balance : Balance := balNat.toUInt64
     -- Handle legacy "deposit_offset" field name alongside "gratis"
     let gratis : Balance := match j.getObjVal? "gratis" with
-      | .ok v => match Lean.fromJson? v with | .ok n => n | .error _ => 0
+      | .ok v => match v.getNat? with | .ok n => n.toUInt64 | .error _ => 0
       | .error _ => match j.getObjVal? "deposit_offset" with
-        | .ok v => match Lean.fromJson? v with | .ok n => n | .error _ => 0
+        | .ok v => match v.getNat? with | .ok n => n.toUInt64 | .error _ => 0
         | .error _ => 0
     return { balance, gratis }
 
-  xferToJson t := [("amount", Lean.toJson t.amount)]
+  xferToJson t := [("amount", Lean.Json.num t.amount.toNat)]
 
   xferFromJson? j := do
-    let amount ← (Lean.fromJson? (← j.getObjVal? "amount") : Except String Balance)
-    return { amount }
+    let amtJson ← j.getObjVal? "amount"
+    let amtNat ← amtJson.getNat?
+    return { amount := amtNat.toUInt64 }
 
 instance : EconModel QuotaEcon QuotaTransfer where
   canAffordStorage e items bytes _bI _bL _bS :=
@@ -175,11 +178,15 @@ instance : EconModel QuotaEcon QuotaTransfer where
       some ({ quotaItems := UInt64.ofNat quotaItems, quotaBytes := UInt64.ofNat quotaBytes }, offset + 16)
     else none
 
-  econToJson e := [("quota_items", Lean.toJson e.quotaItems), ("quota_bytes", Lean.toJson e.quotaBytes)]
+  econToJson e := [("quota_items", Lean.Json.num e.quotaItems.toNat), ("quota_bytes", Lean.Json.num e.quotaBytes.toNat)]
 
   econFromJson? j := do
-    let quotaItems ← (Lean.fromJson? (← j.getObjVal? "quota_items") : Except String UInt64)
-    let quotaBytes ← (Lean.fromJson? (← j.getObjVal? "quota_bytes") : Except String UInt64)
+    let qiJson ← j.getObjVal? "quota_items"
+    let qiNat ← qiJson.getNat?
+    let quotaItems : UInt64 := qiNat.toUInt64
+    let qbJson ← j.getObjVal? "quota_bytes"
+    let qbNat ← qbJson.getNat?
+    let quotaBytes : UInt64 := qbNat.toUInt64
     return { quotaItems, quotaBytes }
 
   xferToJson _t := []
