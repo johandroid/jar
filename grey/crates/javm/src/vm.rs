@@ -2849,6 +2849,7 @@ fn predecode_instructions(
 
     let mut pc = 0;
     while pc < len {
+        #[allow(clippy::collapsible_if)] // let-chain requires Rust 2024
         if pc < bitmask.len() && bitmask[pc] == 1 {
             if let Some(opcode) = Opcode::from_byte(code[pc]) {
                 let skip = skip_at(pc);
