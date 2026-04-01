@@ -1523,6 +1523,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_service_account_code_hash_matches() {
+        let (url, _state, _rx, store, _dir) = setup().await;
+        let config = Config::tiny();
+        let (mut genesis_state, _secrets) = grey_consensus::genesis::create_genesis(&config);
+
+        // Install a service with code_hash derived from known data
+        let code_data = b"test service bytecode";
+        let expected_hash = grey_crypto::blake2b_256(code_data);
+        let svc = grey_types::state::ServiceAccount {
+            code_hash: expected_hash,
+            balance: 5_000_000,
+            min_accumulate_gas: 50_000,
+            min_on_transfer_gas: 10_000,
+            storage: std::collections::BTreeMap::new(),
+            preimage_lookup: std::collections::BTreeMap::new(),
+            preimage_info: std::collections::BTreeMap::new(),
+            free_storage_offset: 0,
+            total_footprint: 0,
+            accumulation_counter: 0,
+            last_accumulation: 0,
+            last_activity: 0,
+            preimage_count: 3,
+        };
+        genesis_state.services.insert(2000, svc);
+
+        let block = test_block(1);
+        let hash = store.put_block(&block).unwrap();
+        store.put_state(&hash, &genesis_state, &config).unwrap();
+        store.set_head(&hash, 1).unwrap();
+
+        let client = HttpClientBuilder::default().build(&url).unwrap();
+        let result: serde_json::Value = client
+            .request("jam_getServiceAccount", rpc_params![2000u32])
+            .await
+            .unwrap();
+
+        assert_eq!(result["service_id"], 2000);
+        assert_eq!(
+            result["code_hash"].as_str().unwrap(),
+            hex::encode(expected_hash.0),
+            "code_hash should match blake2b of the code data"
+        );
+        assert_eq!(result["balance"], 5_000_000u64);
+        assert_eq!(result["min_accumulate_gas"], 50_000u64);
+        assert_eq!(result["min_on_transfer_gas"], 10_000u64);
+        assert_eq!(result["preimage_count"], 3);
+    }
+
+    #[tokio::test]
     async fn test_get_chain_spec() {
         let (url, _state, _rx, _store, _dir) = setup().await;
         let client = HttpClientBuilder::default().build(&url).unwrap();
