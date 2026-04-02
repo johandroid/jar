@@ -12,7 +12,7 @@ use grey_consensus::genesis::ValidatorSecrets;
 #[cfg(test)]
 use grey_types::config::Config;
 use grey_types::{Ed25519Signature, Hash, Timeslot, ValidatorIndex};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// Signing context for GRANDPA prevotes.
 const PREVOTE_CONTEXT: &[u8] = b"jam_prevote";
@@ -83,6 +83,12 @@ pub struct GrandpaState {
     pending_future_prevotes: Vec<Vote>,
     /// Buffered precommits for future rounds. Replayed when we advance to that round.
     pending_future_precommits: Vec<Vote>,
+    /// Block ancestry: hash → (parent_hash, slot, ticket_sealed).
+    /// Used for chain-selection and GHOST. Pruned on finalization.
+    pub ancestry: HashMap<Hash, (Hash, Timeslot, bool)>,
+    /// Slots at which two different blocks were produced (same-slot equivocation).
+    /// Pruned on finalization.
+    pub chain_equivocations: HashSet<Timeslot>,
 }
 
 impl GrandpaState {
@@ -104,6 +110,8 @@ impl GrandpaState {
             archive_pruned_round: 0,
             pending_future_prevotes: Vec::new(),
             pending_future_precommits: Vec::new(),
+            ancestry: HashMap::new(),
+            chain_equivocations: HashSet::new(),
         }
     }
 
