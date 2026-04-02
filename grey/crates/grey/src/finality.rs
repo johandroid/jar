@@ -228,6 +228,21 @@ impl GrandpaState {
         true
     }
 
+    /// Count ticket-sealed blocks in the unfinalized suffix of this chain (GP §19.4).
+    ///
+    /// Higher metric = more ticket-sealed blocks = preferred chain.
+    fn chain_metric(&self, hash: Hash) -> u32 {
+        self.ancestors(hash)
+            .iter()
+            .filter(|&&h| {
+                self.ancestry
+                    .get(&h)
+                    .map(|&(_, _, sealed)| sealed)
+                    .unwrap_or(false)
+            })
+            .count() as u32
+    }
+
     /// Walk ancestry from `hash` back to `finalized_hash` (inclusive).
     ///
     /// Returns the path as `[hash, parent, grandparent, ..., finalized_hash]`.
@@ -1280,5 +1295,39 @@ mod tests {
         assert!(!grandpa.is_acceptable(hash_d, &BTreeSet::new()));
         // hash_a is at slot 1 (not equivocated) and its chain reaches finalized_hash
         assert!(grandpa.is_acceptable(hash_a, &BTreeSet::new()));
+    }
+
+    #[test]
+    fn test_chain_metric_counts_ticket_sealed() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let hash_b = Hash([2u8; 32]);
+        let hash_c = Hash([3u8; 32]);
+
+        // hash_a: ticket_sealed=false, hash_b: true, hash_c: true
+        grandpa.register_block(hash_a, Hash::ZERO, 1, false);
+        grandpa.register_block(hash_b, hash_a, 2, true);
+        grandpa.register_block(hash_c, hash_b, 3, true);
+
+        // chain of hash_c = [hash_c(true), hash_b(true), hash_a(false)] → metric = 2
+        assert_eq!(grandpa.chain_metric(hash_c), 2);
+        // chain of hash_b = [hash_b(true), hash_a(false)] → metric = 1
+        assert_eq!(grandpa.chain_metric(hash_b), 1);
+        // chain of hash_a = [hash_a(false)] → metric = 0
+        assert_eq!(grandpa.chain_metric(hash_a), 0);
+    }
+
+    #[test]
+    fn test_chain_metric_prefers_more_ticket_sealed() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let hash_b = Hash([2u8; 32]); // fork 1: no ticket-sealed
+        let hash_c = Hash([3u8; 32]); // fork 2: one ticket-sealed
+
+        grandpa.register_block(hash_a, Hash::ZERO, 1, false);
+        grandpa.register_block(hash_b, hash_a, 2, false); // metric = 0
+        grandpa.register_block(hash_c, hash_a, 2, true); // metric = 1
+
+        assert!(grandpa.chain_metric(hash_c) > grandpa.chain_metric(hash_b));
     }
 }
