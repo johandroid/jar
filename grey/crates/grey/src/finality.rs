@@ -177,6 +177,24 @@ impl GrandpaState {
         }
     }
 
+    /// Record a new block in the ancestry map. Detects same-slot equivocations.
+    ///
+    /// Call this for every block (authored or imported) just before update_best_block.
+    pub fn register_block(
+        &mut self,
+        hash: Hash,
+        parent: Hash,
+        slot: Timeslot,
+        ticket_sealed: bool,
+    ) {
+        // Detect same-slot equivocation: another block already registered at this slot
+        let equivocation = self.ancestry.values().any(|&(_, s, _)| s == slot);
+        if equivocation {
+            self.chain_equivocations.insert(slot);
+        }
+        self.ancestry.insert(hash, (parent, slot, ticket_sealed));
+    }
+
     /// Generate a prevote for the current round.
     pub fn create_prevote(
         &mut self,
@@ -1078,5 +1096,30 @@ mod tests {
         assert_eq!(grandpa.round, 3);
         assert_eq!(grandpa.prevotes.len(), 1, "round 3 vote should replay");
         assert_eq!(grandpa.prevotes[&2].block_hash, hash_a);
+    }
+
+    #[test]
+    fn test_register_single_block() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let parent = Hash::ZERO; // genesis parent
+        grandpa.register_block(hash_a, parent, 3, false);
+        assert_eq!(grandpa.ancestry.get(&hash_a), Some(&(parent, 3, false)));
+        assert!(grandpa.chain_equivocations.is_empty());
+    }
+
+    #[test]
+    fn test_chain_equivocation_detected() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let hash_b = Hash([2u8; 32]);
+        let parent = Hash::ZERO;
+        // Two different blocks at slot 5 → equivocation
+        grandpa.register_block(hash_a, parent, 5, false);
+        grandpa.register_block(hash_b, parent, 5, true);
+        assert!(grandpa.chain_equivocations.contains(&5));
+        // Both blocks are still recorded
+        assert!(grandpa.ancestry.contains_key(&hash_a));
+        assert!(grandpa.ancestry.contains_key(&hash_b));
     }
 }
