@@ -198,6 +198,36 @@ impl GrandpaState {
         self.ancestry.insert(hash, (parent, slot, ticket_sealed));
     }
 
+    /// Check GP §19.3 acceptability conditions for a block.
+    ///
+    /// A block is acceptable as a voting candidate if:
+    /// 1. The last finalized block is an ancestor of this block.
+    /// 2. All work reports in the unfinalized suffix have completed audits.
+    ///    (Stubbed — full block→reports mapping deferred to a later PR.)
+    /// 3. No same-slot block equivocations appear in this block's ancestry chain.
+    fn is_acceptable(&self, hash: Hash, completed_audits: &BTreeSet<Hash>) -> bool {
+        let chain = self.ancestors(hash);
+
+        // Check 1: finalized block must be an ancestor
+        if !chain.contains(&self.finalized_hash) {
+            return false;
+        }
+
+        // Check 2: all work reports in unfinalized suffix are audited — stubbed
+        let _ = completed_audits;
+
+        // Check 3: no same-slot equivocations anywhere in this chain
+        for &h in &chain {
+            if let Some(&(_, slot, _)) = self.ancestry.get(&h) {
+                if self.chain_equivocations.contains(&slot) {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     /// Walk ancestry from `hash` back to `finalized_hash` (inclusive).
     ///
     /// Returns the path as `[hash, parent, grandparent, ..., finalized_hash]`.
@@ -1200,5 +1230,55 @@ mod tests {
         // Both blocks are still recorded
         assert!(grandpa.ancestry.contains_key(&hash_a));
         assert!(grandpa.ancestry.contains_key(&hash_b));
+    }
+
+    #[test]
+    fn test_is_acceptable_requires_finalized_ancestor() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let hash_b = Hash([2u8; 32]);
+        let hash_c = Hash([3u8; 32]);
+
+        // finalized_hash starts as Hash::ZERO (set by GrandpaState::new)
+        // Register a chain rooted at hash_a (parent = Hash::ZERO = finalized_hash)
+        grandpa.register_block(hash_a, Hash::ZERO, 1, false);
+        grandpa.register_block(hash_b, hash_a, 2, false);
+
+        // hash_b's chain reaches Hash::ZERO (finalized) — acceptable
+        assert!(grandpa.is_acceptable(hash_b, &BTreeSet::new()));
+
+        // hash_c is registered with parent hash_b but finalized_hash is still Hash::ZERO
+        // hash_c → hash_b → hash_a → Hash::ZERO: still acceptable
+        grandpa.register_block(hash_c, hash_b, 3, false);
+        assert!(grandpa.is_acceptable(hash_c, &BTreeSet::new()));
+
+        // A block with a parent not connected to finalized_hash fails check 1
+        let orphan = Hash([99u8; 32]);
+        grandpa.register_block(orphan, Hash([55u8; 32]), 10, false);
+        assert!(!grandpa.is_acceptable(orphan, &BTreeSet::new()));
+    }
+
+    #[test]
+    fn test_is_acceptable_rejects_equivocating_chain() {
+        let mut grandpa = GrandpaState::new(6);
+        let hash_a = Hash([1u8; 32]);
+        let hash_b = Hash([2u8; 32]);
+        let hash_c = Hash([3u8; 32]);
+        let hash_d = Hash([4u8; 32]);
+
+        // hash_a at slot 1, hash_b and hash_c both at slot 2 (equivocation)
+        grandpa.register_block(hash_a, Hash::ZERO, 1, false);
+        grandpa.register_block(hash_b, hash_a, 2, false);
+        grandpa.register_block(hash_c, hash_a, 2, false); // equivocation at slot 2
+
+        // hash_d extends hash_b — but its chain passes through slot 2 (equivocated)
+        grandpa.register_block(hash_d, hash_b, 3, false);
+
+        // hash_b is directly at the equivocated slot — not acceptable
+        assert!(!grandpa.is_acceptable(hash_b, &BTreeSet::new()));
+        // hash_d's chain contains slot 2 — also not acceptable
+        assert!(!grandpa.is_acceptable(hash_d, &BTreeSet::new()));
+        // hash_a is at slot 1 (not equivocated) and its chain reaches finalized_hash
+        assert!(grandpa.is_acceptable(hash_a, &BTreeSet::new()));
     }
 }
