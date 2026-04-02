@@ -33,6 +33,9 @@ members = [
     "grey/services/pixels-service",
     "grey/services/pixels-authorizer",
     "grey/services/javm-guest-tests",
+    "grey/services/spec-tests/minimal",
+    "grey/services/spec-tests/bootstrap",
+    "grey/services/spec-tests",
 ]
 exclude = [
     "spec/crypto-ffi",

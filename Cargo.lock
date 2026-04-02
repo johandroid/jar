@@ -4603,6 +4603,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spec-bootstrap"
+version = "0.1.0"
+
+[[package]]
+name = "spec-minimal"
+version = "0.1.0"
+
+[[package]]
+name = "spec-tests"
+version = "0.1.0"
+dependencies = [
+ "build-javm",
+]
+
+[[package]]
 name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
