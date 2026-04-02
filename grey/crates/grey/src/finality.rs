@@ -227,10 +227,10 @@ impl GrandpaState {
 
         // Check 3: no same-slot equivocations anywhere in this chain
         for &h in &chain {
-            if let Some(&(_, slot, _)) = self.ancestry.get(&h) {
-                if self.chain_equivocations.contains(&slot) {
-                    return false;
-                }
+            if let Some(&(_, slot, _)) = self.ancestry.get(&h)
+                && self.chain_equivocations.contains(&slot)
+            {
+                return false;
             }
         }
 
