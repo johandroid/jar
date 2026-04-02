@@ -359,21 +359,32 @@ instance : FromJson WorkDigest where
       exportsCount := ← (← j.getObjVal? "exports_count").getNat? }
 
 instance : ToJson AvailabilitySpec where
-  toJson a := Json.mkObj [
-    ("package_hash", toJson a.packageHash),
-    ("bundle_length", toJson a.bundleLength),
-    ("erasure_root", toJson a.erasureRoot),
-    ("segment_root", toJson a.segmentRoot),
-    ("segment_count", Json.num a.segmentCount)]
+  toJson a :=
+    let base := [
+      ("package_hash", toJson a.packageHash),
+      ("bundle_length", toJson a.bundleLength),
+      ("erasure_root", toJson a.erasureRoot),
+      ("segment_root", toJson a.segmentRoot),
+      ("segment_count", Json.num a.segmentCount)]
+    let extra := if JamConfig.variableValidators
+      then [("erasure_shards", Json.num a.erasureShards)]
+      else []
+    Json.mkObj (base ++ extra)
 
 instance : FromJson AvailabilitySpec where
   fromJson? j := do
+    let erasureShards := if JamConfig.variableValidators then
+      match j.getObjVal? "erasure_shards" with
+      | .ok v => match v.getNat? with | .ok n => n | .error _ => V
+      | .error _ => V
+    else V
     return {
       packageHash := ← fromJson? (← j.getObjVal? "package_hash")
       bundleLength := ← fromJson? (← j.getObjVal? "bundle_length")
       erasureRoot := ← fromJson? (← j.getObjVal? "erasure_root")
       segmentRoot := ← fromJson? (← j.getObjVal? "segment_root")
-      segmentCount := ← (← j.getObjVal? "segment_count").getNat? }
+      segmentCount := ← (← j.getObjVal? "segment_count").getNat?
+      erasureShards }
 
 instance : ToJson RefinementContext where
   toJson rc := Json.mkObj [
