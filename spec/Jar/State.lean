@@ -263,9 +263,10 @@ def reportsPostJudgment
 def reportsPostAssurance
     (rhoDag : Array (Option PendingReport))
     (assurances : AssurancesExtrinsic)
-    (t' : Timeslot) : Array (Option PendingReport) × Array WorkReport :=
+    (t' : Timeslot)
+    (validatorCount : Nat := V) : Array (Option PendingReport) × Array WorkReport :=
   let timeout : Nat := U_TIMEOUT
-  let superMajority := V * 2 / 3 + 1
+  let superMajority := validatorCount * 2 / 3 + 1
   let clearCore (reports : Array (Option PendingReport)) (core : CoreIndex) :=
     reports.map fun r => match r with
       | some pr' => if pr'.report.coreIndex == core then none else some pr'
@@ -610,12 +611,13 @@ def CoreStatistics.zero : CoreStatistics :=
 def updateStatistics
     (pi : ActivityStatistics) (h : Header)
     (e : Extrinsic) (t t' : Timeslot)
-    (_kappa' : Array ValidatorKey)
+    (kappa' : Array ValidatorKey)
     (available : Array WorkReport)
     (accStats : Dict ServiceId ServiceStatistics) : ActivityStatistics :=
   let epochChanged := isEpochChange t t'
+  let newValCount := if JamConfig.variableValidators then kappa'.size else V
   let (cur, prev) := if epochChanged
-    then (Array.replicate V ValidatorRecord.zero, pi.current)
+    then (Array.replicate newValCount ValidatorRecord.zero, pi.current)
     else (pi.current, pi.previous)
 
   -- §13.1: Block author stats
@@ -918,14 +920,18 @@ def validateAssuranceOrder (assurances : AssurancesExtrinsic) : Bool :=
           return false
       return true
 
-/-- Validate assurance validator indices are in range. -/
-def validateAssuranceIndices (assurances : AssurancesExtrinsic) : Bool :=
-  assurances.all fun a => a.validatorIndex.val < V
+/-- Validate assurance validator indices are in range.
+    GP#514: bounded by actual active set size when variableValidators. -/
+def validateAssuranceIndices (assurances : AssurancesExtrinsic)
+    (validatorCount : Nat := V) : Bool :=
+  assurances.all fun a => a.validatorIndex.val < validatorCount
 
-/-- Validate guarantee credential validator indices are in range. -/
-def validateGuaranteeIndices (guarantees : GuaranteesExtrinsic) : Bool :=
+/-- Validate guarantee credential validator indices are in range.
+    GP#514: bounded by actual active set size when variableValidators. -/
+def validateGuaranteeIndices (guarantees : GuaranteesExtrinsic)
+    (validatorCount : Nat := V) : Bool :=
   guarantees.all fun g =>
-    g.credentials.all fun (vi, _) => vi.val < V
+    g.credentials.all fun (vi, _) => vi.val < validatorCount
 
 /-- Validate guarantee timeslots: the guarantee timeslot must not be in the future
     relative to the block timeslot. GP eq (11.24): g_t <= H_t.
@@ -1014,7 +1020,7 @@ def stateTransition (s : State) (b : Block) : Option State := do
 
   -- §11 — Reports pipeline
   let rhoDag := reportsPostJudgment s.pendingReports psi'.bad
-  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t'
+  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t' (if JamConfig.variableValidators then s.currentValidators.size else V)
   let rho' := reportsPostGuarantees rhoDDag ext.guarantees t'
 
   -- §7 — Recent history: β†
@@ -1088,9 +1094,10 @@ def stateTransitionWithOpaque (s : State) (b : Block)
   -- Block import validation: assurance ordering (sorted, unique)
   guard (validateAssuranceOrder ext.assurances)
   -- Block import validation: assurance validator indices in range
-  guard (validateAssuranceIndices ext.assurances)
+  let valCount := if JamConfig.variableValidators then s.currentValidators.size else V
+  guard (validateAssuranceIndices ext.assurances valCount)
   -- Block import validation: guarantee credential validator indices in range
-  guard (validateGuaranteeIndices ext.guarantees)
+  guard (validateGuaranteeIndices ext.guarantees valCount)
   -- Block import validation: guarantee timeslots not in future
   guard (validateGuaranteeTimeslots ext.guarantees t')
   -- Block import validation: guarantee credential signatures. GP eq (11.22).
@@ -1123,7 +1130,7 @@ def stateTransitionWithOpaque (s : State) (b : Block)
   let lambda' := updatePreviousValidators s.previousValidators s.currentValidators s.timeslot t'
   let psi' := updateJudgments s.judgments ext.disputes
   let rhoDag := reportsPostJudgment s.pendingReports psi'.bad
-  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t'
+  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t' (if JamConfig.variableValidators then s.currentValidators.size else V)
   -- GP §11: Guarantee validity — core must be free after assurance processing (ρ‡[c] = ∅)
   guard (ext.guarantees.all fun g =>
     let c := g.report.coreIndex.val
@@ -1183,7 +1190,7 @@ def stateTransitionNoSealCheck (s : State) (b : Block)
   let lambda' := updatePreviousValidators s.previousValidators s.currentValidators s.timeslot t'
   let psi' := updateJudgments s.judgments ext.disputes
   let rhoDag := reportsPostJudgment s.pendingReports psi'.bad
-  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t'
+  let (rhoDDag, available) := reportsPostAssurance rhoDag ext.assurances t' (if JamConfig.variableValidators then s.currentValidators.size else V)
   let rho' := reportsPostGuarantees rhoDDag ext.guarantees t'
   let bDag := updateParentStateRoot s.recent h
   let accResult := performAccumulation available s t' opaqueData eta'

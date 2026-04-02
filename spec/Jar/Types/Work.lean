@@ -68,7 +68,7 @@ structure WorkDigest where
 
 /-- 𝕐 : Availability specification for a work-package. GP eq (72–79).
     Y = ⟨p, l, u, e, n⟩ -/
-structure AvailabilitySpec where
+structure AvailabilitySpec [JamConfig] where
   /-- p : Work-package hash. ℍ. -/
   packageHash : Hash
   /-- l : Auditable bundle length. ℕ_L. -/
@@ -79,6 +79,9 @@ structure AvailabilitySpec where
   segmentRoot : Hash
   /-- n : Number of exported segments. ℕ. -/
   segmentCount : Nat
+  /-- v : Number of erasure-coding shards (GP#514). Equals len(κ').
+      Defaults to V for backward compatibility with gp072 variants. -/
+  erasureShards : Nat := V
 
 -- ============================================================================
 -- §11.2 — Refinement Context (eq:workcontext)

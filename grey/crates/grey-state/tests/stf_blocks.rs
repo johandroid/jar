@@ -232,10 +232,10 @@ fn parse_keyvals(v: &serde_json::Value) -> Vec<([u8; 31], Vec<u8>)> {
 /// Run an independent block trace where each block has full keyvals.
 fn run_independent_trace(trace_name: &str) {
     let dir = format!("{BLOCKS_DIR}/{trace_name}");
-    let config = Config::tiny();
+    let config = Config::full();
 
     // Discover block files
-    let variant = "jar080_tiny";
+    let variant = "jar1";
     let suffix = format!(".input.{variant}.json");
     let mut stems: Vec<String> = Vec::new();
     for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("failed to read dir {dir}: {e}"))
@@ -396,8 +396,8 @@ fn run_independent_trace(trace_name: &str) {
 /// Run a sequential block trace where state threads through blocks.
 fn run_sequential_trace(trace_name: &str) {
     let dir = format!("{BLOCKS_DIR}/{trace_name}");
-    let config = Config::tiny();
-    let variant = "jar080_tiny";
+    let config = Config::full();
+    let variant = "jar1";
 
     // Discover block files
     let suffix = format!(".input.{variant}.json");
@@ -486,7 +486,7 @@ fn run_sequential_trace(trace_name: &str) {
 }
 
 // ---------------------------------------------------------------------------
-// Block trace tests — commented out: jar080_tiny block trace vectors not yet available.
+// Block trace tests — commented out: jar1 block trace vectors not yet available.
 // Test pointers kept for when coverage is restored.
 // ---------------------------------------------------------------------------
 

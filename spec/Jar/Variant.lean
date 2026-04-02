@@ -71,16 +71,18 @@ instance JamVariant.gp072_tiny : JamVariant where
   pvmRunWithHostCalls := fun ctx _ prog pc regs mem gas handler context =>
     PVM.runWithHostCalls ctx prog pc regs mem gas handler context
 
-/-- Tiny JAR v0.8.0 variant — contiguous linear memory, basic-block gas, grow_heap, coinless. -/
-instance JamVariant.jar080_tiny : JamVariant where
+/-- JAR v1 variant — contiguous linear memory, basic-block gas, grow_heap, coinless.
+    Uses Params.full with variable validator set support (GP#514). -/
+instance JamVariant.jar1 : JamVariant where
   toJamConfig := {
-    name := "jar080_tiny"
-    config := Params.tiny
-    valid := Params.tiny_valid
+    name := "jar1"
+    config := Params.full
+    valid := Params.full_valid
     memoryModel := .linear
     gasModel := .basicBlockSinglePass
     heapModel := .growHeap
     hostcallVersion := 1
+    variableValidators := true
     EconType := QuotaEcon
     TransferType := QuotaTransfer
   }

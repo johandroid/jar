@@ -1,6 +1,7 @@
 //! Shared test utilities for STF test vectors.
 #![allow(dead_code)]
 
+use grey_types::config::Config;
 use grey_types::validator::ValidatorKey;
 use grey_types::work::{AvailabilitySpec, RefinementContext, WorkDigest, WorkReport, WorkResult};
 use grey_types::{
@@ -107,6 +108,10 @@ pub fn parse_work_report(json: &serde_json::Value) -> WorkReport {
                 .map(hash_from_hex)
                 .unwrap_or_default(),
             exports_count: ps["exports_count"].as_u64().unwrap_or(0) as u16,
+            erasure_shards: ps["erasure_shards"]
+                .as_u64()
+                .unwrap_or(Config::full().validators_count as u64)
+                as u16,
         },
         context: RefinementContext {
             anchor: ctx["anchor"]
@@ -155,7 +160,7 @@ pub fn parse_work_report(json: &serde_json::Value) -> WorkReport {
 /// and `{stem}.output.gp072_tiny.json` (containing `{output, post_state}`).
 /// Returns a Value with all four keys at top level, matching the W3F single-file format.
 pub fn load_jar_test(dir: &str, stem: &str) -> serde_json::Value {
-    let variant = "jar080_tiny";
+    let variant = "jar1";
     let input_path = format!("{dir}/{stem}.input.{variant}.json");
     let output_path = format!("{dir}/{stem}.output.{variant}.json");
 
@@ -180,7 +185,7 @@ pub fn load_jar_test(dir: &str, stem: &str) -> serde_json::Value {
 /// Discover all test stems for a given category directory (gp072_tiny variant).
 /// Returns stems sorted alphabetically.
 pub fn discover_test_stems(dir: &str) -> Vec<String> {
-    let variant = "jar080_tiny";
+    let variant = "jar1";
     let suffix = format!(".input.{variant}.json");
     let mut stems = Vec::new();
     for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("failed to read dir {dir}: {e}"))

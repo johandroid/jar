@@ -58,7 +58,7 @@ fn run_authorizations_test(dir: &str, stem: &str) {
         .collect();
 
     // Apply transition
-    let config = Config::tiny();
+    let config = Config::full();
     let input = AuthorizationInput { slot, auths };
     update_authorizations(&config, &mut auth_pools, &auth_queues, &input);
 

@@ -730,7 +730,7 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
               (alwaysBytes.get! (offset + 11)).toNat * 72057594037927936
             d := d.insert (UInt32.ofNat sid) (UInt64.ofNat gasVal)
           return d
-        -- For jar080_tiny (coinless): read quotaService (4 bytes) after always-acc entries
+        -- For jar1 (coinless): read quotaService (4 bytes) after always-acc entries
         let quotaService : ServiceId :=
           if JamConfig.hostcallVersion == 1 then
             match PVM.readByteArray mem (alwaysPtr + UInt64.ofNat (alwaysCount * 12)) 4 with
@@ -803,13 +803,23 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
       (mkPanic regs mem gas', ctx)
 
   -- ===== designate (16): Set pending validator keys (GP ΩD) =====
-  -- φ[7] = o (pointer to V validator keys, 336 bytes each)
+  -- φ[7] = o (pointer to validator keys, 336 bytes each)
+  -- GP#514: φ[8] = z (validator count) when variableValidators
   -- GP order: read memory FIRST, then check privileges.
   | 16 =>
     let keysPtr := getReg regs 7
     let keySize := 336
-    -- Read V * 336 bytes from memory FIRST (page fault → PANIC)
-    match PVM.readByteArray mem keysPtr (V * keySize) with
+    -- Determine validator count: fixed V or variable from reg[8]
+    let valCount :=
+      if JamConfig.variableValidators then (getReg regs 8).toNat
+      else V
+    -- GP#514: validate count ∈ valcount (multiples of 3 in [6, 3*(C+1)])
+    if JamConfig.variableValidators && !JamConfig.config.isValidValCount valCount then
+      let regs' := setR7 regs PVM.RESULT_HUH
+      (mkResult regs' mem gas', ctx)
+    else
+    -- Read valCount * 336 bytes from memory FIRST (page fault → PANIC)
+    match PVM.readByteArray mem keysPtr (valCount * keySize) with
     | .ok keysBytes =>
       -- Check caller is the designator
       if ctx.serviceId != ctx.state.designator then
@@ -818,7 +828,7 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
       else
         let keys := Id.run do
           let mut arr : Array ValidatorKey := #[]
-          for i in [:V] do
+          for i in [:valCount] do
             let offset := i * keySize
             let kBytes := keysBytes.extract offset (offset + keySize)
             let vk : ValidatorKey := {
@@ -1346,10 +1356,10 @@ def handleHostCall (callId : PVM.Reg) (gas : Gas) (regs : PVM.Registers)
       -- Page fault on data read → panic (GP: ⚡)
       (mkPanic regs mem gas', ctx)
 
-  -- ===== set_quota (27): Set storage quota (jar080_tiny coinless, GP ΩQ) =====
+  -- ===== set_quota (27): Set storage quota (jar1 coinless, GP ΩQ) =====
   -- φ[7] = target service ID, φ[8] = max_items, φ[9] = max_bytes
-  -- Only callable by the quota service (χ_Q). Only functional in jar080_tiny.
-  -- Raw call number in jar080_tiny: 28 (27 + 1 grow_heap shift).
+  -- Only callable by the quota service (χ_Q). Only functional in jar1.
+  -- Raw call number in jar1: 28 (27 + 1 grow_heap shift).
   | 27 =>
     -- Only available in coinless variant
     if JamConfig.hostcallVersion != 1 then

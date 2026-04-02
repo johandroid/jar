@@ -231,7 +231,7 @@ fn run_safrole_test(dir: &str, stem: &str) {
     let pre_state = parse_state(&json["pre_state"]);
     let expected_post = parse_state(&json["post_state"]);
 
-    let config = Config::tiny();
+    let config = Config::full();
 
     let ring_size = pre_state.gamma_k.len();
     let verifier = make_ring_vrf_verifier(ring_size);

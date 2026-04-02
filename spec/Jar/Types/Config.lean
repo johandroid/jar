@@ -76,6 +76,15 @@ structure Params where
   W_P : Nat
 
 -- ============================================================================
+-- Variable Validator Set (GP#514)
+-- ============================================================================
+
+/-- Valid validator count: multiples of 3 in [6, 3*(C+1)]. GP#514 §safrole.
+    V = {3c | c ∈ ℕ, 2 ≤ c ≤ C+1} = {6, 9, 12, ..., 3*(C+1)}. -/
+def Params.isValidValCount (cfg : Params) (z : Nat) : Bool :=
+  z >= 6 && z <= 3 * (cfg.C + 1) && z % 3 == 0
+
+-- ============================================================================
 -- Positivity Proofs
 -- ============================================================================
 
@@ -141,7 +150,7 @@ class EconModel (econ : Type) (xfer : Type) where
   debitTransfer : econ → (amount : UInt64) → Option econ
   /-- Absorb an ejected service's economic value. -/
   absorbEjected : econ → (ejected : econ) → econ
-  /-- Set storage quota (jar080_tiny only).
+  /-- Set storage quota (jar1 only).
       Returns none if not supported by this economic model. -/
   setQuota : econ → (maxItems : UInt64) → (maxBytes : UInt64) → Option econ
   /-- Create transfer payload from the amount register value. -/
@@ -185,6 +194,10 @@ class JamConfig where
   heapModel : HeapModel := .sbrk
   /-- Hostcall numbering version: 0 = v0.7.2, 1 = v0.8.0 (+1 shift for grow_heap). -/
   hostcallVersion : Nat := 0
+  /-- Whether validator set size is variable (GP#514). When true, designate
+      hostcall accepts a length argument and active core count scales with
+      validator count. Default false for gp072 variants. -/
+  variableValidators : Bool := false
   /-- Economic model type for service accounts (BalanceEcon or QuotaEcon). -/
   EconType : Type
   /-- Transfer payload type (BalanceTransfer or QuotaTransfer). -/
