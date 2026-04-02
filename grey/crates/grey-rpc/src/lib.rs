@@ -566,20 +566,18 @@ impl JamRpcServer for RpcImpl {
             .map_err(|e| internal_error(e.to_string()))?
             .unwrap_or_default();
 
-        // Each validator is exactly 336 bytes: bandersnatch(32) + ed25519(32) + bls(144) + metadata(128)
-        if !raw.is_empty() && !raw.len().is_multiple_of(336) {
-            return Err(internal_error(format!(
-                "validator data length {} not a multiple of 336",
-                raw.len()
-            )));
-        }
+        // Decode validators using scale (u32 count prefix + ValidatorKey entries)
+        let validators: Vec<grey_types::validator::ValidatorKey> = if raw.is_empty() {
+            Vec::new()
+        } else {
+            use scale::Decode;
+            Vec::<grey_types::validator::ValidatorKey>::decode(&raw)
+                .map(|(v, _)| v)
+                .map_err(|e| internal_error(format!("validator decode: {e}")))?
+        };
 
-        let count = raw.len() / 336;
-        let mut entries = Vec::with_capacity(count);
-        for i in 0..count {
-            let v = grey_types::validator::ValidatorKey::from_bytes(
-                raw[i * 336..(i + 1) * 336].try_into().unwrap(),
-            );
+        let mut entries = Vec::with_capacity(validators.len());
+        for (i, v) in validators.iter().enumerate() {
             entries.push(serde_json::json!({
                 "index": i,
                 "ed25519": hex::encode(v.ed25519.0),
@@ -588,6 +586,7 @@ impl JamRpcServer for RpcImpl {
                 "metadata": hex::encode(v.metadata),
             }));
         }
+        let count = validators.len();
 
         Ok(serde_json::json!({
             "set": set_name,
