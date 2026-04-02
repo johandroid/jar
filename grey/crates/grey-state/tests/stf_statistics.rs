@@ -155,7 +155,7 @@ fn run_statistics_test(dir: &str, stem: &str) {
     };
 
     // Apply transition using tiny config
-    let config = grey_types::config::Config::tiny();
+    let config = grey_types::config::Config::full();
     let incoming_reports: Vec<&grey_types::work::WorkReport> =
         extrinsic.guarantees.iter().map(|g| &g.report).collect();
     statistics::update_statistics(

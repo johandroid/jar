@@ -196,7 +196,7 @@ fn run_accumulate_test(dir: &str, stem: &str) {
     let json = load_jar_test(dir, stem);
     let path = format!("{dir}/{stem}");
 
-    let config = Config::tiny();
+    let config = Config::full();
     let input = parse_input(&json["input"]);
     let mut state = parse_state(&json["pre_state"]);
     let expected_state = parse_state(&json["post_state"]);

@@ -59,7 +59,7 @@ fn run_assurances_test(dir: &str, stem: &str) {
         .map(|v| serde_json::from_value(v.clone()).expect("failed to parse ValidatorKey"))
         .collect();
 
-    let config = Config::tiny();
+    let config = Config::full();
 
     // Apply transition
     let result = process_assurances(

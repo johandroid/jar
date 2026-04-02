@@ -142,7 +142,7 @@ pub fn apply_with_config(
 fn validate_header(
     state: &State,
     header: &grey_types::header::Header,
-    config: &Config,
+    _config: &Config,
 ) -> Result<(), TransitionError> {
     // Timeslot must advance (eq 6.1: τ' > τ)
     if header.timeslot <= state.timeslot {

@@ -220,7 +220,7 @@ fn run_reports_test(dir: &str, stem: &str) {
         services_statistics: services_statistics.clone(),
     };
 
-    let config = Config::tiny();
+    let config = Config::full();
     let result = process_reports(
         &config,
         &mut state,

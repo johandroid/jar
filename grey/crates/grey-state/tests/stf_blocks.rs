@@ -232,7 +232,7 @@ fn parse_keyvals(v: &serde_json::Value) -> Vec<([u8; 31], Vec<u8>)> {
 /// Run an independent block trace where each block has full keyvals.
 fn run_independent_trace(trace_name: &str) {
     let dir = format!("{BLOCKS_DIR}/{trace_name}");
-    let config = Config::tiny();
+    let config = Config::full();
 
     // Discover block files
     let variant = "jar1";
@@ -396,7 +396,7 @@ fn run_independent_trace(trace_name: &str) {
 /// Run a sequential block trace where state threads through blocks.
 fn run_sequential_trace(trace_name: &str) {
     let dir = format!("{BLOCKS_DIR}/{trace_name}");
-    let config = Config::tiny();
+    let config = Config::full();
     let variant = "jar1";
 
     // Discover block files

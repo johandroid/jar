@@ -94,7 +94,7 @@ impl Config {
 
     /// Valid validator count: multiples of 3 in [6, 3*(C+1)]. GP#514.
     pub fn is_valid_val_count(&self, z: u16) -> bool {
-        z >= 6 && z <= 3 * (self.core_count + 1) && z % 3 == 0
+        z >= 6 && z <= 3 * (self.core_count + 1) && z.is_multiple_of(3)
     }
 
     /// Availability bitfield bytes: ceil(C / 8).
