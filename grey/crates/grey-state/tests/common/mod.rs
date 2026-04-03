@@ -46,19 +46,18 @@ pub fn resolve_blob_files(json: &mut serde_json::Value, base_dir: &Path) {
             None => continue,
         };
         // Resolve code_blob_file in service
-        if let Some(svc) = data.get_mut("service") {
-            if let Some(path) = svc
+        if let Some(svc) = data.get_mut("service")
+            && let Some(path) = svc
                 .get("code_blob_file")
                 .and_then(|v| v.as_str())
                 .map(String::from)
-            {
-                let bytes = std::fs::read(base_dir.join(&path))
-                    .unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
-                let hash = grey_crypto::blake2b_256(&bytes);
-                svc.as_object_mut()
-                    .unwrap()
-                    .insert("code_hash".to_string(), serde_json::json!(hash.to_string()));
-            }
+        {
+            let bytes = std::fs::read(base_dir.join(&path))
+                .unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+            let hash = grey_crypto::blake2b_256(&bytes);
+            svc.as_object_mut()
+                .unwrap()
+                .insert("code_hash".to_string(), serde_json::json!(hash.to_string()));
         }
         // Resolve blob_file in preimage_blobs
         if let Some(blobs) = data
