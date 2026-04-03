@@ -1,12 +1,50 @@
 //! PVM benchmark programs and helpers.
 //!
-//! Provides two guest programs for benchmarking:
+//! Provides guest programs for benchmarking:
 //! - `fib`: compute-intensive iterative Fibonacci
 //! - `hostcall`: host-call-heavy with many ecalli invocations
+//! - `sort`: insertion sort (compute + memory interleaved)
+//! - `mem`: memory cache pressure (sequential + random access patterns)
 //!
 //! Each program is available in both grey-pvm blob format and polkavm blob format.
 
+pub mod mem;
+
 use grey_transpiler::assembler::{Assembler, Reg};
+
+// ---------------------------------------------------------------------------
+// Shared PVM runners
+// ---------------------------------------------------------------------------
+
+/// Default gas limit for standard benchmarks.
+pub const GAS_LIMIT: u64 = 100_000_000;
+
+/// Run a grey-pvm blob on the interpreter (parse + execute). Returns (result, gas_consumed).
+pub fn run_grey_interpreter(blob: &[u8], gas: u64) -> (u64, u64) {
+    let mut pvm = javm::program::initialize_program(blob, &[], gas).unwrap();
+    loop {
+        let (exit, _) = pvm.run();
+        match exit {
+            javm::ExitReason::Halt => break,
+            javm::ExitReason::HostCall(_) => continue,
+            other => panic!("unexpected exit: {:?}", other),
+        }
+    }
+    (pvm.registers[7], gas - pvm.gas)
+}
+
+/// Run a grey-pvm blob on the recompiler (compile + execute). Returns (result, gas_consumed).
+pub fn run_grey_recompiler(blob: &[u8], gas: u64) -> (u64, u64) {
+    let mut pvm = javm::recompiler::initialize_program_recompiled(blob, &[], gas).unwrap();
+    loop {
+        match pvm.run() {
+            javm::ExitReason::Halt => break,
+            javm::ExitReason::HostCall(_) => continue,
+            other => panic!("unexpected exit: {:?}", other),
+        }
+    }
+    (pvm.registers()[7], gas - pvm.gas())
+}
 
 /// Number of Fibonacci iterations for the compute benchmark.
 pub const FIB_N: u64 = 1_000_000;
