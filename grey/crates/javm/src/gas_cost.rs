@@ -1083,6 +1083,7 @@ fn extract_branch_target_raw(code: &[u8], bitmask: &[u8], pc: usize) -> usize {
 /// Default load/store latency (L2 cache hit baseline).
 pub const DEFAULT_MEM_CYCLES: u8 = 25;
 
+#[allow(clippy::too_many_arguments)]
 pub fn fast_cost_from_raw(
     opcode_byte: u8,
     ra: u8,

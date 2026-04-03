@@ -102,7 +102,7 @@ mod tests {
         let blob = build_standard_program(&[], &[], 0, 1, &code, &bitmask, &[]);
 
         // Should be loadable by PVM
-        let pvm = javm::program::initialize_program(&blob, &[], 1000);
+        let pvm = javm::program::initialize_program(&blob, &[], 100_000);
         assert!(pvm.is_some(), "JAR blob should be loadable");
     }
 
@@ -114,7 +114,7 @@ mod tests {
         let bitmask = vec![1, 1, 1];
         let blob = build_standard_program(&ro, &rw, 1, 1, &code, &bitmask, &[]);
 
-        let pvm = javm::program::initialize_program(&blob, &[], 1000);
+        let pvm = javm::program::initialize_program(&blob, &[], 100_000);
         assert!(pvm.is_some());
     }
 }

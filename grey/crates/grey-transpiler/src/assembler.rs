@@ -687,10 +687,10 @@ pub fn build_sample_service_precise() -> Vec<u8> {
 
     // Build the standard program blob
     emitter::build_standard_program(
-        &[],  // no ro_data
-        &[],  // no rw_data
-        1,    // 1 heap page
-        4096, // 4K stack
+        &[], // no ro_data
+        &[], // no rw_data
+        1,   // 1 heap page
+        1,   // 1 stack page (4K)
         &code,
         &bitmask,
         &jump_table,
