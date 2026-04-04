@@ -13,7 +13,6 @@
 pub mod asm;
 pub mod codegen;
 pub mod predecode;
-#[cfg(feature = "signals")]
 pub mod signal;
 
 use crate::vm::ExitReason;
@@ -239,7 +238,6 @@ impl FlatMemory {
 
     /// Mark pages beyond heap_top as PROT_NONE (guard pages).
     /// Pages [0, heap_top) remain PROT_READ|PROT_WRITE.
-    #[cfg(feature = "signals")]
     fn install_guard_pages(&self, heap_top: u32) {
         let heap_top_page = (heap_top as usize).div_ceil(4096);
         // SAFETY: buf points to guest memory base; heap_top_page * 4096 <= FLAT_BUF_SIZE.
@@ -254,7 +252,6 @@ impl FlatMemory {
     }
 
     /// Make pages in [old_top, new_top) accessible after heap growth.
-    #[cfg(feature = "signals")]
     fn update_guard_pages(&self, old_top: u32, new_top: u32) {
         let old_page = (old_top as usize).div_ceil(4096);
         let new_page = (new_top as usize).div_ceil(4096);
@@ -500,8 +497,7 @@ extern "sysv64" fn sbrk_helper(ctx: *mut JitContext, size: u64) -> u64 {
         }
     }
 
-    // With signals feature, make newly accessible pages PROT_READ|PROT_WRITE.
-    #[cfg(feature = "signals")]
+    // Make newly accessible pages PROT_READ|PROT_WRITE.
     if !ctx.flat_buf.is_null() {
         let old_page = (old_top as usize).div_ceil(4096);
         let new_page = (new_top_u32 as usize).div_ceil(4096);
@@ -542,7 +538,6 @@ pub struct RecompiledPvm {
     /// Flat memory for inline JIT access.
     flat_memory: Option<FlatMemory>,
     /// Signal-based bounds checking state.
-    #[cfg(feature = "signals")]
     signal_state: Option<Box<signal::SignalState>>,
 }
 
@@ -687,7 +682,6 @@ impl RecompiledPvm {
         let _t_native = _t3.elapsed();
 
         // Signal-based bounds checking: build trap table and install guard pages.
-        #[cfg(feature = "signals")]
         let signal_state = {
             signal::ensure_installed();
             let ss = Box::new(signal::SignalState {
@@ -724,7 +718,6 @@ impl RecompiledPvm {
             dispatch_table,
             debug,
             flat_memory: Some(flat_memory),
-            #[cfg(feature = "signals")]
             signal_state,
         };
 
@@ -763,8 +756,7 @@ impl RecompiledPvm {
                 self.ctx_mut().exit_reason = 0xDEAD;
             }
 
-            // Execute native code
-            #[cfg(feature = "signals")]
+            // Execute native code — set up signal state for SIGSEGV handler
             if let Some(ref mut ss) = self.signal_state {
                 signal::SIGNAL_STATE.with(|cell| cell.set(&mut **ss as *mut _));
             }
@@ -776,7 +768,6 @@ impl RecompiledPvm {
                 entry(self.ctx);
             }
 
-            #[cfg(feature = "signals")]
             signal::SIGNAL_STATE.with(|cell| cell.set(std::ptr::null_mut()));
 
             if self.debug {
@@ -982,7 +973,6 @@ impl RecompiledPvm {
     }
     /// Set heap top.
     pub fn set_heap_top(&mut self, top: u32) {
-        #[cfg(feature = "signals")]
         if let Some(ref fm) = self.flat_memory {
             let old = self.ctx().heap_top;
             fm.update_guard_pages(old, top);
@@ -1031,7 +1021,6 @@ pub fn initialize_program_recompiled(
     rpvm.ctx_mut().heap_top = parsed.heap_top;
     rpvm.ctx_mut().max_heap_pages = parsed.max_heap_pages;
 
-    #[cfg(feature = "signals")]
     if let Some(ref fm) = rpvm.flat_memory {
         fm.install_guard_pages(parsed.heap_top);
     }
