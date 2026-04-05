@@ -77,6 +77,8 @@ pub struct InvocationKernel {
     pub mem_cycles: u8,
     /// Next CODE cap ID.
     next_code_id: u16,
+    /// Backend selection for CODE cap compilation.
+    pub backend: crate::backend::PvmBackend,
 }
 
 impl InvocationKernel {
@@ -108,6 +110,7 @@ impl InvocationKernel {
             call_stack: Vec::with_capacity(8),
             mem_cycles,
             next_code_id: 0,
+            backend: crate::backend::PvmBackend::Default,
         };
 
         // Build VM 0's cap table from the manifest
@@ -220,15 +223,16 @@ impl InvocationKernel {
                 let code_blob = program_v2::parse_code_blob(code_data)
                     .ok_or(KernelError::InvalidBlob)?;
 
-                // JIT compile to native x86-64
-                let compiled = crate::recompiler::compile_code(
+                // Compile via selected backend (interpreter or recompiler)
+                let compiled = crate::backend::compile(
                     &code_blob.code,
                     &code_blob.bitmask,
                     &code_blob.jump_table,
                     self.mem_cycles,
+                    self.backend,
                 )
                 .map_err(|e| {
-                    tracing::warn!("JIT compile failed: {e}");
+                    tracing::warn!("compile failed: {e}");
                     KernelError::CompileError
                 })?;
 
@@ -897,81 +901,165 @@ impl InvocationKernel {
     /// 2. Executes native code
     /// 3. On ecalli exit, dispatches via dispatch_ecalli
     /// 4. Continues or returns to host
-    pub fn run(&mut self) -> KernelResult {
+    /// Execute one segment via the JIT recompiler backend.
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn run_recompiler_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
         use crate::recompiler::{signal, JitContext};
 
+        let code_cap = &self.code_caps[code_cap_id];
+        let compiled = match &code_cap.compiled {
+            crate::backend::CompiledProgram::Recompiler(c) => c,
+            _ => unreachable!(),
+        };
+        let vm = &self.vms[self.active_vm as usize];
+        let ctx_raw = code_cap.window.ctx_ptr() as *mut JitContext;
+        // SAFETY: ctx_ptr() returns a writable page allocated by CodeWindow::new().
+        unsafe {
+            ctx_raw.write(JitContext {
+                regs: vm.registers,
+                gas: vm.gas as i64,
+                exit_reason: 0,
+                exit_arg: 0,
+                heap_base: 0,
+                heap_top: 0,
+                jt_ptr: code_cap.jump_table.as_ptr(),
+                jt_len: code_cap.jump_table.len() as u32,
+                _pad0: 0,
+                bb_starts: code_cap.bitmask.as_ptr(),
+                bb_len: code_cap.bitmask.len() as u32,
+                _pad1: 0,
+                entry_pc: vm.pc,
+                pc: vm.pc,
+                dispatch_table: compiled.dispatch_table.as_ptr(),
+                code_base: compiled.native_code.ptr as u64,
+                flat_buf: code_cap.window.base(),
+                flat_perms: std::ptr::null(),
+                fast_reentry: 0,
+                _pad2: 0,
+                max_heap_pages: 0,
+                _pad3: 0,
+            });
+        }
+
+        signal::ensure_installed();
+        let mut signal_state = signal::SignalState {
+            code_start: compiled.native_code.ptr as usize,
+            code_end: compiled.native_code.ptr as usize + compiled.native_code.len,
+            exit_label_addr: compiled.native_code.ptr as usize
+                + compiled.exit_label_offset as usize,
+            ctx_ptr: ctx_raw,
+            trap_table: compiled.trap_table.clone(),
+        };
+        signal::SIGNAL_STATE.with(|cell| cell.set(&mut signal_state as *mut _));
+
+        let entry = compiled.native_code.entry();
+        // SAFETY: entry points to valid JIT code; ctx_raw is a valid JitContext.
+        unsafe {
+            entry(ctx_raw);
+        }
+
+        signal::SIGNAL_STATE.with(|cell| cell.set(std::ptr::null_mut()));
+
+        let ctx = unsafe { &*ctx_raw };
+        let exit_reason = ctx.exit_reason;
+        let exit_arg = ctx.exit_arg;
+
+        // Sync registers and gas back to VM
+        let vm = &mut self.vms[self.active_vm as usize];
+        vm.registers = ctx.regs;
+        vm.gas = ctx.gas.max(0) as u64;
+        vm.pc = ctx.pc;
+
+        (exit_reason, exit_arg)
+    }
+
+    /// Execute one segment via the software interpreter backend.
+    fn run_interpreter_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
+        let code_cap = &self.code_caps[code_cap_id];
+        let prog = match &code_cap.compiled {
+            crate::backend::CompiledProgram::Interpreter(p) => p,
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            _ => unreachable!(),
+        };
+        let vm = &mut self.vms[self.active_vm as usize];
+
+        // Build a temporary interpreter from the pre-decoded program + VM state.
+        // The interpreter reads/writes the CODE window memory directly.
+        let mem_size = 1u64 << 32; // 4GB window
+        let flat_mem_ptr = code_cap.window.base();
+
+        // Create a mutable slice over the CODE window's 4GB region.
+        // SAFETY: CodeWindow allocates a 4GB MAP_NORESERVE region; mapped DATA
+        // cap pages are backed by the memfd. Unmapped pages will SIGSEGV if
+        // accessed — the interpreter's bounds-checked reads/writes will return
+        // PageFault before touching unmapped addresses.
+        let _flat_mem = unsafe {
+            std::slice::from_raw_parts_mut(flat_mem_ptr, mem_size as usize)
+        };
+
+        let mut interp = crate::interpreter::Interpreter::new(
+            prog.code.clone(),
+            prog.bitmask.clone(),
+            prog.jump_table.clone(),
+            vm.registers,
+            Vec::new(), // flat_mem not owned — we use window memory via step()
+            vm.gas,
+            prog.mem_cycles,
+        );
+        interp.pc = vm.pc;
+
+        // Override flat_mem to point at the CODE window (swap in the window slice)
+        // The interpreter's flat_mem is a Vec but we need it to use the window.
+        // For now, use the pre-decoded fast path which accesses self.flat_mem.
+        // TODO: refactor interpreter to accept &mut [u8] instead of Vec<u8>
+        interp.flat_mem = unsafe {
+            Vec::from_raw_parts(flat_mem_ptr, mem_size as usize, mem_size as usize)
+        };
+
+        let (exit, _gas_used) = interp.run();
+
+        // Sync state back — but first, prevent Vec::drop from freeing the mmap'd memory
+        let _ = std::mem::ManuallyDrop::new(std::mem::take(&mut interp.flat_mem));
+
+        vm.registers = interp.registers;
+        vm.gas = interp.gas;
+        vm.pc = interp.pc;
+
+        // Convert ExitReason to (exit_code, exit_arg)
+        match exit {
+            crate::ExitReason::Halt => (0, 0),
+            crate::ExitReason::Panic => (1, 0),
+            crate::ExitReason::OutOfGas => (2, 0),
+            crate::ExitReason::PageFault(addr) => (3, addr),
+            crate::ExitReason::HostCall(id) => (4, id),
+        }
+    }
+
+    /// Execute one segment of the active VM using the appropriate backend.
+    fn run_one_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
+        match &self.code_caps[code_cap_id].compiled {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            crate::backend::CompiledProgram::Recompiler(_) => {
+                self.run_recompiler_segment(code_cap_id)
+            }
+            crate::backend::CompiledProgram::Interpreter(_) => {
+                self.run_interpreter_segment(code_cap_id)
+            }
+        }
+    }
+
+    pub fn run(&mut self) -> KernelResult {
         loop {
-            let vm = &self.vms[self.active_vm as usize];
-            let code_cap = &self.code_caps[vm.code_cap_id as usize];
+            let code_cap_id = self.vms[self.active_vm as usize].code_cap_id as usize;
 
-            // Place JitContext at window.ctx_ptr()
-            let ctx_raw = code_cap.window.ctx_ptr() as *mut JitContext;
-            // SAFETY: ctx_ptr() returns a writable page allocated by CodeWindow::new().
-            unsafe {
-                ctx_raw.write(JitContext {
-                    regs: vm.registers,
-                    gas: vm.gas as i64,
-                    exit_reason: 0,
-                    exit_arg: 0,
-                    heap_base: 0,
-                    heap_top: 0,
-                    jt_ptr: code_cap.jump_table.as_ptr(),
-                    jt_len: code_cap.jump_table.len() as u32,
-                    _pad0: 0,
-                    bb_starts: code_cap.bitmask.as_ptr(),
-                    bb_len: code_cap.bitmask.len() as u32,
-                    _pad1: 0,
-                    entry_pc: vm.pc,
-                    pc: vm.pc,
-                    dispatch_table: code_cap.compiled.dispatch_table.as_ptr(),
-                    code_base: code_cap.compiled.native_code.ptr as u64,
-                    flat_buf: code_cap.window.base(),
-                    flat_perms: std::ptr::null(), // not used with signals
-                    fast_reentry: 0,
-                    _pad2: 0,
-                    max_heap_pages: 0,
-                    _pad3: 0,
-                });
-            }
+            // Execute via the compiled backend, returning (exit_reason, exit_arg)
+            let (exit_reason, exit_arg) = self.run_one_segment(code_cap_id);
 
-            // Set up signal state for SIGSEGV handler
-            signal::ensure_installed();
-            let mut signal_state = signal::SignalState {
-                code_start: code_cap.compiled.native_code.ptr as usize,
-                code_end: code_cap.compiled.native_code.ptr as usize
-                    + code_cap.compiled.native_code.len,
-                exit_label_addr: code_cap.compiled.native_code.ptr as usize
-                    + code_cap.compiled.exit_label_offset as usize,
-                ctx_ptr: ctx_raw,
-                trap_table: code_cap.compiled.trap_table.clone(),
-            };
-            signal::SIGNAL_STATE.with(|cell| cell.set(&mut signal_state as *mut _));
-
-            // Execute native code
-            let entry = code_cap.compiled.native_code.entry();
-            // SAFETY: entry points to valid JIT code; ctx_raw is a valid JitContext.
-            unsafe {
-                entry(ctx_raw);
-            }
-
-            // Clear signal state
-            signal::SIGNAL_STATE.with(|cell| cell.set(std::ptr::null_mut()));
-
-            // Read back results
-            let ctx = unsafe { &*ctx_raw };
-            let exit_reason = ctx.exit_reason;
-            let exit_arg = ctx.exit_arg;
-
-            // Sync registers and gas back to VM
-            let vm = &mut self.vms[self.active_vm as usize];
-            vm.registers = ctx.regs;
-            vm.gas = ctx.gas.max(0) as u64;
-            vm.pc = ctx.pc;
+            // Dispatch on the exit reason (shared for both backends).
 
             match exit_reason {
                 4 => {
-                    // HostCall(imm) — ecalli
-                    vm.pc = ctx.pc; // entry_pc for re-entry
+                    // HostCall(imm) — ecalli (pc already synced by backend)
                     match self.dispatch_ecalli(exit_arg) {
                         DispatchResult::Continue => continue,
                         DispatchResult::ProtocolCall { slot, regs, gas } => {
@@ -986,7 +1074,7 @@ impl InvocationKernel {
                 }
                 0 => {
                     // Halt
-                    let value = vm.registers[7];
+                    let value = self.vms[self.active_vm as usize].registers[7];
                     match self.handle_vm_halt(value) {
                         DispatchResult::RootHalt(v) => return KernelResult::Halt(v),
                         DispatchResult::Continue => continue,
@@ -1020,10 +1108,11 @@ impl InvocationKernel {
                 5 => {
                     // Dynamic jump — resolve and re-enter
                     let idx = exit_arg;
-                    if (idx as usize) < code_cap.jump_table.len() {
-                        let target = code_cap.jump_table[idx as usize];
-                        if (target as usize) < code_cap.bitmask.len()
-                            && code_cap.bitmask[target as usize] == 1
+                    let cc = &self.code_caps[code_cap_id];
+                    if (idx as usize) < cc.jump_table.len() {
+                        let target = cc.jump_table[idx as usize];
+                        if (target as usize) < cc.bitmask.len()
+                            && cc.bitmask[target as usize] == 1
                         {
                             self.vms[self.active_vm as usize].pc = target;
                             continue;

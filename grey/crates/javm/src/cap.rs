@@ -110,8 +110,8 @@ pub struct CodeCap {
     pub id: u16,
     /// 4GB virtual window for memory-mapped execution.
     pub window: crate::backing::CodeWindow,
-    /// JIT-compiled native x86-64 code.
-    pub compiled: crate::recompiler::CompiledCode,
+    /// Compiled program — interpreter or recompiler backend.
+    pub compiled: crate::backend::CompiledProgram,
     /// PVM jump table (for dynamic jump resolution).
     pub jump_table: Vec<u32>,
     /// PVM bitmask (basic block starts).
@@ -122,7 +122,7 @@ impl core::fmt::Debug for CodeCap {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("CodeCap")
             .field("id", &self.id)
-            .field("native_len", &self.compiled.native_code.len)
+            .field("compiled", &self.compiled)
             .finish()
     }
 }
