@@ -40,34 +40,29 @@ mod service {
     const PIXEL_DATA_OFFSET: u32 = 142;
 
     // Entry-point: single entrypoint at PC=0.
-    // The transpiler emits: load_imm_64 SP, stack_top; load_imm_64 S0, heap_base
-    // Then the ELF code starts. φ[7]=op dispatches (0=refine, 1=accumulate).
+    // The transpiler emits: load_imm_64 SP; load_imm_64 S0 before the ELF code.
+    // φ[7]=op dispatches (0=refine, 1=accumulate).
     //
-    // _start → service_main → REPLY (ecalli 0xFF)
+    // _start checks a0: if != 1, REPLY immediately (refine = identity).
+    // If a0 == 1, fall through to accumulate_impl, then REPLY.
     core::arch::global_asm!(
         ".global _start",
         ".type _start, @function",
         "_start:",
-        "call service_main",
-        "li t0, 255", // REPLY to kernel
+        // if a0 != 1, skip accumulate (refine = identity)
+        "li t1, 1",
+        "bne a0, t1, .Lreply",
+        // accumulate
+        "jal ra, accumulate_impl",
+        ".Lreply:",
+        // REPLY to kernel
+        "li t0, 255",
         "ecall",
-        "unimp", // trap if resumed
+        "unimp",
     );
 
     #[no_mangle]
-    extern "C" fn service_main() {
-        // φ[7] = op code (0=refine, 1=accumulate)
-        let op: u32;
-        unsafe {
-            core::arch::asm!("mv {0}, a0", out(reg) op);
-        }
-        if op == 1 {
-            accumulate();
-        }
-        // op=0 (refine): just return — identity function
-    }
-
-    fn accumulate() {
+    extern "C" fn accumulate_impl() {
         unsafe {
             // 1. Write storage key [0x00] into heap at KEY_OFF
             write_heap_byte(KEY_OFF, 0x00);

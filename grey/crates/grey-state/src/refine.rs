@@ -117,7 +117,15 @@ pub fn invoke_is_authorized(
                 return Ok((output, gas_used));
             }
             KernelResult::Panic => {
-                return Err(RefineError::AuthorizationFailed("PVM panic".into()));
+                let pc = pvm
+                    .kernel()
+                    .map(|k| k.vms[k.active_vm as usize].pc)
+                    .unwrap_or(0);
+                let gas = pvm.gas();
+                tracing::warn!(pc, gas, "PVM panicked during is-authorized");
+                return Err(RefineError::AuthorizationFailed(format!(
+                    "PVM panic at PC={pc} gas={gas}"
+                )));
             }
             KernelResult::OutOfGas => {
                 return Err(RefineError::AuthorizationFailed("out of gas".into()));

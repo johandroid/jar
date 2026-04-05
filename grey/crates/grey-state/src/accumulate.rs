@@ -716,7 +716,7 @@ fn handle_v2_host_call(
 ) -> bool {
     const RESULT_NONE: u64 = u64::MAX;
 
-    // v2 protocol cap slots match GP host call numbers (no grow_heap shift)
+    tracing::debug!(slot, service_id, "handle_v2_host_call");
     match slot {
         0 => {
             // GAS: return remaining gas
@@ -731,6 +731,7 @@ fn handle_v2_host_call(
             let max_len = regs[10] as usize;
             let cap_idx = regs[12] as u8;
 
+            tracing::debug!(mode, sub, out_off, max_len, cap_idx, "FETCH");
             let data: Option<&[u8]> = match mode {
                 0 => Some(&fetch_ctx.config_blob),
                 1 => Some(fetch_ctx.entropy.as_ref()),
