@@ -6,7 +6,7 @@
 //! (grey-state's refine/accumulate logic).
 //!
 //! ecalli dispatch:
-//! - 0x000..0x0FF: CALL cap[N] (0xFF = REPLY)
+//! - 0x000..0x0FF: CALL cap\[N\] (0xFF = REPLY)
 //! - 0x2XX..0xCXX: management ops (MAP, UNMAP, SPLIT, DROP, MOVE, COPY, etc.)
 
 use alloc::sync::Arc;
@@ -40,7 +40,7 @@ const RESULT_WHAT: u64 = u64::MAX - 1;
 /// Result from running the kernel until it needs host interaction.
 #[derive(Debug)]
 pub enum KernelResult {
-    /// Root VM halted normally. Contains φ[7] value.
+    /// Root VM halted normally. Contains φ\[7\] value.
     Halt(u64),
     /// Root VM panicked.
     Panic,
