@@ -268,21 +268,6 @@ pub fn link_elf_v2(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
     let stack_top = stack_pages as u64 * 4096;
     emit_sp_preamble(&mut ctx.code, &mut ctx.bitmask, stack_top);
 
-    // Emit heap base preamble: load_imm_64 S0 (φ[5]), heap_base
-    // Heap cap (68) is mapped after stack + ro + rw pages.
-    let ro_pages = if elf.ro_data.is_empty() {
-        0
-    } else {
-        (elf.ro_data.len() as u32).div_ceil(4096)
-    };
-    let rw_pages = if elf.rw_data.is_empty() {
-        0
-    } else {
-        (elf.rw_data.len() as u32).div_ceil(4096)
-    };
-    let heap_base = (stack_pages + ro_pages + rw_pages) as u64 * 4096;
-    emit_load_imm_64(&mut ctx.code, &mut ctx.bitmask, 5, heap_base); // φ[5] = S0
-
     for (_file_off, vaddr, data) in &elf.code_sections {
         translate_section_linked(&mut ctx, data, *vaddr, &elf)?;
     }

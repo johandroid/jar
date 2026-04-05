@@ -647,6 +647,16 @@ fn run_accumulate_pvm_v2(
     }
 
     let initial_gas = pvm.gas();
+    // Debug: log φ[7] to verify it's set correctly
+    if let Some(k) = pvm.kernel() {
+        let vm = &k.vms[k.active_vm as usize];
+        tracing::info!(
+            phi7 = vm.registers[7],
+            phi8 = vm.registers[8],
+            phi9 = vm.registers[9],
+            "accumulate start regs"
+        );
+    }
 
     loop {
         let result = pvm.kernel_run();
@@ -723,7 +733,18 @@ fn handle_v2_host_call(
             let max_len = regs[10] as usize;
             let cap_idx = regs[12] as u8;
 
-            tracing::debug!(mode, sub, out_off, max_len, cap_idx, "FETCH");
+            let items_count = fetch_ctx.items.len();
+            let first_item_len = fetch_ctx.items.first().map(|i| i.len()).unwrap_or(0);
+            tracing::info!(
+                mode,
+                sub,
+                out_off,
+                max_len,
+                cap_idx,
+                items_count,
+                first_item_len,
+                "FETCH"
+            );
             let data: Option<&[u8]> = match mode {
                 0 => Some(&fetch_ctx.config_blob),
                 1 => Some(fetch_ctx.entropy.as_ref()),

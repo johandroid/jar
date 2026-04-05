@@ -171,7 +171,7 @@ mod service {
     /// heap is after stack + ro + rw pages.
     #[inline(always)]
     unsafe fn read_heap_byte(offset: u32) -> u8 {
-        let addr = heap_base() as usize + offset as usize;
+        let addr = HEAP_BASE_ADDR as usize + offset as usize;
         let val: u8;
         core::arch::asm!(
             "lbu {0}, 0({1})",
@@ -183,7 +183,7 @@ mod service {
 
     #[inline(always)]
     unsafe fn write_heap_byte(offset: u32, val: u8) {
-        let addr = heap_base() as usize + offset as usize;
+        let addr = HEAP_BASE_ADDR as usize + offset as usize;
         core::arch::asm!(
             "sb {0}, 0({1})",
             in(reg) val,
@@ -191,14 +191,10 @@ mod service {
         );
     }
 
-    /// Get the heap base address from φ[5] (S0).
-    /// The transpiler emits `load_imm_64 S0, heap_base` in the preamble.
-    #[inline(always)]
-    unsafe fn heap_base() -> u32 {
-        let val: u64;
-        core::arch::asm!("mv {0}, s0", out(reg) val);
-        val as u32
-    }
+    /// Heap base address. For this service: stack_pages=4, no RO/RW data,
+    /// so heap DATA cap (68) is at base_page=4 → address 0x4000.
+    /// This is deterministic from the build_service_v2 memory layout.
+    const HEAP_BASE_ADDR: u32 = 4 * 4096;
 
     #[panic_handler]
     fn panic(_: &core::panic::PanicInfo) -> ! {

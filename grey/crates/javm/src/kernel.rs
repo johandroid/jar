@@ -117,8 +117,15 @@ impl InvocationKernel {
             backend,
         };
 
-        // Build VM 0's cap table from the manifest
+        // Build VM 0's cap table: protocol caps + manifest caps
         let mut cap_table = CapTable::new();
+
+        // Populate protocol caps (slots 0-27). These are kernel-handled and
+        // exit to the host via ProtocolCall when CALLed.
+        use crate::cap::ProtocolCap;
+        for id in 0..=27u8 {
+            cap_table.set(id, Cap::Protocol(ProtocolCap { id }));
+        }
         let mut init_pages: u32 = 0;
         let mut data_caps_to_map: Vec<(u32, u32, u32, Access)> = Vec::new(); // (base_page, backing_offset, page_count, access)
 
