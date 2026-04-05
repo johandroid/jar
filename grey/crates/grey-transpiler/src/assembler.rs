@@ -343,15 +343,15 @@ impl Assembler {
 
     /// Finalize and produce the standard program blob.
     pub fn build(&self) -> Vec<u8> {
-        emitter::build_standard_program(
-            &self.ro_data,
-            &self.rw_data,
-            self.heap_pages,
-            self.max_heap_pages,
-            self.stack_pages,
+        emitter::build_v2_service_program(
             &self.code,
             &self.bitmask,
             &self.jump_table,
+            &self.ro_data,
+            &self.rw_data,
+            self.stack_pages,
+            self.heap_pages,
+            self.heap_pages + self.stack_pages + 4, // memory_pages
         )
     }
 
@@ -696,16 +696,16 @@ pub fn build_sample_service_precise() -> Vec<u8> {
     // set_pc(5) sets ı=5 directly (doesn't use djump).
     let jump_table = vec![0u32, 5, refine_offset];
 
-    // Build the standard program blob
-    emitter::build_standard_program(
-        &[], // no ro_data
-        &[], // no rw_data
-        1,   // 1 heap page
-        1,   // max 1 heap page
-        1,   // 1 stack page (4K)
+    // Build a v2 service blob
+    emitter::build_v2_service_program(
         &code,
         &bitmask,
         &jump_table,
+        &[], // no ro_data
+        &[], // no rw_data
+        1,   // 1 stack page
+        1,   // 1 heap page
+        6,   // memory_pages
     )
 }
 

@@ -32,8 +32,9 @@ fn dump_grey(name: &str, blob: &[u8]) {
         javm::PvmBackend::ForceRecompiler,
     ).unwrap();
     // Access the first CODE cap's native code
-    if let Some(code_cap) = kernel.code_caps.first() {
-        if let javm::backend::CompiledProgram::Recompiler(ref compiled) = code_cap.compiled {
+    if let Some(code_cap) = kernel.code_caps.first()
+        && let javm::backend::CompiledProgram::Recompiler(ref compiled) = code_cap.compiled
+    {
             let native = unsafe {
                 std::slice::from_raw_parts(
                     compiled.native_code.ptr as *const u8,
@@ -43,7 +44,6 @@ fn dump_grey(name: &str, blob: &[u8]) {
             let path = format!("/tmp/grey_{name}.bin");
             std::fs::write(&path, native).unwrap();
             eprintln!("grey {name}: {} bytes -> {path}", native.len());
-        }
     }
 }
 

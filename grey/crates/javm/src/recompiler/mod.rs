@@ -304,6 +304,7 @@ impl FlatMemory {
 
     /// Mark pages beyond heap_top as PROT_NONE (guard pages).
     /// Pages [0, heap_top) remain PROT_READ|PROT_WRITE.
+    #[allow(dead_code)]
     fn install_guard_pages(&self, heap_top: u32) {
         let heap_top_page = (heap_top as usize).div_ceil(4096);
         // SAFETY: buf points to guest memory base; heap_top_page * 4096 <= FLAT_BUF_SIZE.

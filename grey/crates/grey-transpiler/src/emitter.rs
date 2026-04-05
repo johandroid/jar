@@ -259,25 +259,20 @@ mod tests {
     }
 
     #[test]
-    fn test_build_minimal() {
-        let code = vec![0, 1, 0]; // trap, fallthrough, trap
-        let bitmask = vec![1, 1, 1];
-        let blob = build_standard_program(&[], &[], 0, 0, 1, &code, &bitmask, &[]);
-
-        // Should be loadable by kernel (v1 fallback)
+    fn test_build_v2_minimal() {
+        let blob = javm::program_v2::build_simple_v2_blob(&[0, 1, 0], &[1, 1, 1], &[]);
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
-        assert!(kernel.is_ok(), "JAR blob should be loadable: {:?}", kernel.err());
+        assert!(kernel.is_ok(), "v2 blob should be loadable: {:?}", kernel.err());
     }
 
     #[test]
-    fn test_round_trip_with_data() {
-        let ro = vec![0xDE, 0xAD];
-        let rw = vec![0xBE, 0xEF];
-        let code = vec![0, 1, 0];
+    fn test_build_v2_service_round_trip() {
+        let code = vec![0, 1, 0]; // trap, fallthrough, trap
         let bitmask = vec![1, 1, 1];
-        let blob = build_standard_program(&ro, &rw, 1, 1, 1, &code, &bitmask, &[]);
-
+        let blob = build_v2_service_program(
+            &code, &bitmask, &[], &[], &[], 1, 0, 4,
+        );
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
-        assert!(kernel.is_ok());
+        assert!(kernel.is_ok(), "v2 service blob should be loadable: {:?}", kernel.err());
     }
 }

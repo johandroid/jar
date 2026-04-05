@@ -275,7 +275,7 @@ pub fn build_simple_v2_blob(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> 
     }
     code_data.extend_from_slice(code);
     // Pack bitmask
-    let packed_len = (code.len() + 7) / 8;
+    let packed_len = code.len().div_ceil(8);
     let mut packed = vec![0u8; packed_len];
     for (i, &b) in bitmask.iter().enumerate() {
         if b != 0 {

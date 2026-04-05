@@ -115,7 +115,7 @@ impl InvocationKernel {
             call_stack: Vec::with_capacity(8),
             mem_cycles,
             next_code_id: 0,
-            backend: crate::backend::PvmBackend::Default,
+            backend,
         };
 
         // Build VM 0's cap table from the manifest
@@ -895,13 +895,6 @@ impl InvocationKernel {
         self.set_active_reg(8, result1);
     }
 
-    /// Run the kernel until it needs host interaction or terminates.
-    ///
-    /// This is the main execution loop. It:
-    /// 1. Sets up JitContext in the active CODE cap's window
-    /// 2. Executes native code
-    /// 3. On ecalli exit, dispatches via dispatch_ecalli
-    /// 4. Continues or returns to host
     /// Execute one segment via the JIT recompiler backend.
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn run_recompiler_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
@@ -992,30 +985,29 @@ impl InvocationKernel {
         let vm = &self.vms[self.active_vm as usize];
         let mut max_addr: usize = 0;
         for slot in 0..=255u8 {
-            if let Some(Cap::Data(d)) = vm.cap_table.get(slot) {
-                if let Some((base_page, _)) = d.mapped {
-                    let end = (base_page as usize + d.page_count as usize) * crate::PVM_PAGE_SIZE as usize;
-                    max_addr = max_addr.max(end);
-                }
+            if let Some(Cap::Data(d)) = vm.cap_table.get(slot)
+                && let Some((base_page, _)) = d.mapped
+            {
+                let end = (base_page as usize + d.page_count as usize) * crate::PVM_PAGE_SIZE as usize;
+                max_addr = max_addr.max(end);
             }
         }
         // Allocate flat memory and copy in mapped pages from the CODE window
         let mut flat_mem = vec![0u8; max_addr];
         let window_base = code_cap.window.base();
         for slot in 0..=255u8 {
-            if let Some(Cap::Data(d)) = vm.cap_table.get(slot) {
-                if let Some((base_page, _)) = d.mapped {
-                    let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize;
-                    let len = d.page_count as usize * crate::PVM_PAGE_SIZE as usize;
-                    if addr + len <= flat_mem.len() {
-                        // SAFETY: these pages were mmap'd into the window by map_pages
-                        unsafe {
-                            std::ptr::copy_nonoverlapping(
-                                window_base.add(addr),
-                                flat_mem.as_mut_ptr().add(addr),
-                                len,
-                            );
-                        }
+            if let Some(Cap::Data(d)) = vm.cap_table.get(slot)
+                && let Some((base_page, _)) = d.mapped
+            {
+                let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize;
+                let len = d.page_count as usize * crate::PVM_PAGE_SIZE as usize;
+                if addr + len <= flat_mem.len() {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            window_base.add(addr),
+                            flat_mem.as_mut_ptr().add(addr),
+                            len,
+                        );
                     }
                 }
             }
@@ -1039,18 +1031,18 @@ impl InvocationKernel {
         let code_cap = &self.code_caps[code_cap_id];
         let vm_ref = &self.vms[self.active_vm as usize];
         for slot in 0..=255u8 {
-            if let Some(Cap::Data(d)) = vm_ref.cap_table.get(slot) {
-                if let Some((base_page, Access::RW)) = d.mapped {
-                    let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize;
-                    let len = d.page_count as usize * crate::PVM_PAGE_SIZE as usize;
-                    if addr + len <= interp.flat_mem.len() {
-                        unsafe {
-                            std::ptr::copy_nonoverlapping(
-                                interp.flat_mem.as_ptr().add(addr),
-                                code_cap.window.base().add(addr),
-                                len,
-                            );
-                        }
+            if let Some(Cap::Data(d)) = vm_ref.cap_table.get(slot)
+                && let Some((base_page, Access::RW)) = d.mapped
+            {
+                let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize;
+                let len = d.page_count as usize * crate::PVM_PAGE_SIZE as usize;
+                if addr + len <= interp.flat_mem.len() {
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            interp.flat_mem.as_ptr().add(addr),
+                            code_cap.window.base().add(addr),
+                            len,
+                        );
                     }
                 }
             }
@@ -1083,6 +1075,7 @@ impl InvocationKernel {
         }
     }
 
+    /// Run the kernel until it needs host interaction or terminates.
     pub fn run(&mut self) -> KernelResult {
         loop {
             let code_cap_id = self.vms[self.active_vm as usize].code_cap_id as usize;

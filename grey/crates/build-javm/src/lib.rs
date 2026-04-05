@@ -12,7 +12,7 @@ const TARGET_NAME: &str = "riscv64em-javm";
 ///
 /// Returns the absolute path to the output `.pvm` blob file.
 ///
-/// The blob is ready to use with `javm::program::initialize_program()`.
+/// The blob is ready to use with `javm::kernel::InvocationKernel::new()`.
 pub fn build(manifest_dir: &str, bin_name: &str) -> PathBuf {
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
     let blob_path = PathBuf::from(&out_dir).join(format!("{bin_name}.pvm"));
