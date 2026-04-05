@@ -131,9 +131,12 @@ fn bench_standard(c: &mut Criterion, name: &str, grey_blob: &[u8], pvm_blob: &[u
         b.iter_batched(
             || {
                 javm::kernel::InvocationKernel::new_with_backend(
-                    grey_blob, &[], GAS_LIMIT,
+                    grey_blob,
+                    &[],
+                    GAS_LIMIT,
                     javm::PvmBackend::ForceRecompiler,
-                ).unwrap()
+                )
+                .unwrap()
             },
             |mut kernel| {
                 loop {
@@ -232,11 +235,15 @@ fn bench_ecrecover(c: &mut Criterion) {
     });
 
     group.bench_function("grey-interpreter", |b| {
-        b.iter(|| run_kernel_with_backend(grey_blob, ecrecover_gas, javm::PvmBackend::ForceInterpreter))
+        b.iter(|| {
+            run_kernel_with_backend(grey_blob, ecrecover_gas, javm::PvmBackend::ForceInterpreter)
+        })
     });
 
     group.bench_function("grey-recompiler", |b| {
-        b.iter(|| run_kernel_with_backend(grey_blob, ecrecover_gas, javm::PvmBackend::ForceRecompiler))
+        b.iter(|| {
+            run_kernel_with_backend(grey_blob, ecrecover_gas, javm::PvmBackend::ForceRecompiler)
+        })
     });
 
     // Compile-only: measure only kernel init (includes JIT compilation).
@@ -244,9 +251,12 @@ fn bench_ecrecover(c: &mut Criterion) {
         b.iter(|| {
             std::hint::black_box(
                 javm::kernel::InvocationKernel::new_with_backend(
-                    grey_blob, &[], ecrecover_gas,
+                    grey_blob,
+                    &[],
+                    ecrecover_gas,
                     javm::PvmBackend::ForceRecompiler,
-                ).unwrap()
+                )
+                .unwrap(),
             );
         })
     });
@@ -256,9 +266,12 @@ fn bench_ecrecover(c: &mut Criterion) {
         b.iter_batched(
             || {
                 javm::kernel::InvocationKernel::new_with_backend(
-                    grey_blob, &[], ecrecover_gas,
+                    grey_blob,
+                    &[],
+                    ecrecover_gas,
                     javm::PvmBackend::ForceRecompiler,
-                ).unwrap()
+                )
+                .unwrap()
             },
             |mut kernel| {
                 loop {

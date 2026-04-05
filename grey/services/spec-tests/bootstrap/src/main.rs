@@ -20,10 +20,10 @@ mod service {
         ".global _start",
         ".type _start, @function",
         "_start:",
-        "li t0, 0x42",    // distinguish from minimal blob
-        "li t0, 255",     // ecalli(0xFF) = REPLY
+        "li t0, 0x42", // distinguish from minimal blob
+        "li t0, 255",  // ecalli(0xFF) = REPLY
         "ecall",
-        "unimp",          // trap if resumed
+        "unimp", // trap if resumed
     );
 
     #[panic_handler]

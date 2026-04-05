@@ -95,7 +95,10 @@ impl DataCap {
             return None;
         }
         let lo = DataCap::new(self.backing_offset, page_offset);
-        let hi = DataCap::new(self.backing_offset + page_offset, self.page_count - page_offset);
+        let hi = DataCap::new(
+            self.backing_offset + page_offset,
+            self.page_count - page_offset,
+        );
         Some((lo, hi))
     }
 }
@@ -234,9 +237,7 @@ impl CapTable {
         if src == dst {
             return Ok(());
         }
-        let cap = self.slots[src as usize]
-            .take()
-            .ok_or(CapError::EmptySlot)?;
+        let cap = self.slots[src as usize].take().ok_or(CapError::EmptySlot)?;
         if self.slots[dst as usize].is_some() {
             // Put it back
             self.slots[src as usize] = Some(cap);
@@ -417,10 +418,13 @@ mod tests {
     #[test]
     fn test_cap_table_copy() {
         let mut table = CapTable::new();
-        table.set(10, Cap::Callable(CallableCap {
-            vm_id: 1,
-            max_gas: Some(5000),
-        }));
+        table.set(
+            10,
+            Cap::Callable(CallableCap {
+                vm_id: 1,
+                max_gas: Some(5000),
+            }),
+        );
 
         assert!(table.copy_cap(10, 20).is_ok());
         assert!(!table.is_empty(10)); // Original still there
@@ -434,10 +438,13 @@ mod tests {
     #[test]
     fn test_cap_table_copy_occupied_fails() {
         let mut table = CapTable::new();
-        table.set(10, Cap::Callable(CallableCap {
-            vm_id: 1,
-            max_gas: None,
-        }));
+        table.set(
+            10,
+            Cap::Callable(CallableCap {
+                vm_id: 1,
+                max_gas: None,
+            }),
+        );
         table.set(20, Cap::Data(DataCap::new(0, 1)));
         assert_eq!(table.copy_cap(10, 20), Err(CapError::SlotOccupied));
     }

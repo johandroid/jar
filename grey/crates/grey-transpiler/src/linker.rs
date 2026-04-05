@@ -246,7 +246,7 @@ pub fn link_elf_service(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
 fn emit_sp_preamble(code: &mut Vec<u8>, bitmask: &mut Vec<u8>, stack_top: u64) {
     let start = code.len();
     code.push(20); // load_imm_64 opcode
-    code.push(1);  // rD = 1 (SP)
+    code.push(1); // rD = 1 (SP)
     code.extend_from_slice(&stack_top.to_le_bytes()); // 8-byte immediate
     // bitmask: instruction start at first byte, continuation for the rest
     bitmask.push(1);
@@ -293,7 +293,6 @@ pub fn link_elf_v2(elf_data: &[u8]) -> Result<Vec<u8>, TranspileError> {
         elf.heap_pages,
     ))
 }
-
 
 impl LinkedElf {
     fn symbol_address(&self, name: &str) -> Option<u64> {

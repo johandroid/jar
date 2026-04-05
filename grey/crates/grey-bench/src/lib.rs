@@ -25,11 +25,7 @@ pub fn run_kernel(blob: &[u8], gas: u64) -> (u64, u64) {
 }
 
 /// Run a grey-pvm blob on the kernel with a specific backend. Returns (result, gas_consumed).
-pub fn run_kernel_with_backend(
-    blob: &[u8],
-    gas: u64,
-    backend: javm::PvmBackend,
-) -> (u64, u64) {
+pub fn run_kernel_with_backend(blob: &[u8], gas: u64, backend: javm::PvmBackend) -> (u64, u64) {
     let mut kernel = javm::kernel::InvocationKernel::new_with_backend(blob, &[], gas, backend)
         .expect("kernel init failed");
     loop {
@@ -400,7 +396,7 @@ pub fn grey_sort_blob(n: u32) -> Vec<u8> {
 
     // Build v2 blob with CODE cap + stack DATA cap
     use javm::cap::Access;
-    use javm::program_v2::{build_v2_blob, CapEntryType, CapManifestEntry};
+    use javm::program_v2::{CapEntryType, CapManifestEntry, build_v2_blob};
 
     // Code sub-blob: jump_len(4) + entry_size(1) + code_len(4) + code + packed_bitmask
     let mut code_data = Vec::new();
@@ -411,7 +407,9 @@ pub fn grey_sort_blob(n: u32) -> Vec<u8> {
     let packed_len = c.len().div_ceil(8);
     let mut packed = vec![0u8; packed_len];
     for (i, &b) in m.iter().enumerate() {
-        if b != 0 { packed[i / 8] |= 1 << (i % 8); }
+        if b != 0 {
+            packed[i / 8] |= 1 << (i % 8);
+        }
     }
     code_data.extend_from_slice(&packed);
 
@@ -656,12 +654,19 @@ mod tests_sort {
         let blob = grey_ecrecover_blob();
         // Parse the v2 blob to inspect code structure
         let parsed = javm::program_v2::parse_v2_blob(blob).expect("should parse v2 blob");
-        let code_cap = parsed.caps.iter().find(|c| c.cap_type == javm::program_v2::CapEntryType::Code);
+        let code_cap = parsed
+            .caps
+            .iter()
+            .find(|c| c.cap_type == javm::program_v2::CapEntryType::Code);
         if let Some(cc) = code_cap {
             let code_data = javm::program_v2::cap_data(cc, parsed.data_section);
             if let Some(code_blob) = javm::program_v2::parse_code_blob(code_data) {
                 let inst_count: usize = code_blob.bitmask.iter().filter(|&&b| b == 1).count();
-                eprintln!("Grey PVM:  code={} bytes, {} instructions", code_blob.code.len(), inst_count);
+                eprintln!(
+                    "Grey PVM:  code={} bytes, {} instructions",
+                    code_blob.code.len(),
+                    inst_count
+                );
             }
         }
         let pvm_blob = polkavm_ecrecover_blob();
@@ -673,7 +678,10 @@ mod tests_sort {
         let gas = 100_000_000_000u64;
         let (result, gas_used) = run_kernel(grey_ecrecover_blob(), gas);
         eprintln!("ecrecover: a0={result} gas_used={gas_used}");
-        assert!(gas_used > 1_000_000, "ecrecover should use >1M gas, got {gas_used}");
+        assert!(
+            gas_used > 1_000_000,
+            "ecrecover should use >1M gas, got {gas_used}"
+        );
         assert_eq!(result, 1, "ecrecover should return 1 (success)");
     }
 
@@ -687,7 +695,10 @@ mod tests_sort {
         let (recomp_a0, recomp_gas) = run_grey_recompiler(blob, gas);
         assert_eq!(recomp_a0, interp_a0, "{name}: recompiler a0 mismatch");
 
-        assert!(interp_gas > min_gas, "{name}: should use >{min_gas} gas, got {interp_gas}");
+        assert!(
+            interp_gas > min_gas,
+            "{name}: should use >{min_gas} gas, got {interp_gas}"
+        );
         assert_eq!(
             interp_gas, recomp_gas,
             "{name}: gas mismatch: interpreter={interp_gas} recompiler={recomp_gas}"
@@ -726,7 +737,11 @@ mod tests_sort {
         let blob = sample_service_blob();
         assert!(!blob.is_empty());
         let kernel = javm::kernel::InvocationKernel::new(blob, &[], 1_000_000);
-        assert!(kernel.is_ok(), "sample service blob should be loadable: {:?}", kernel.err());
+        assert!(
+            kernel.is_ok(),
+            "sample service blob should be loadable: {:?}",
+            kernel.err()
+        );
     }
 
     #[test]
@@ -736,8 +751,7 @@ mod tests_sort {
             .expect("blob should be loadable");
         let result = kernel.run();
         match result {
-            javm::kernel::KernelResult::Halt(_)
-            | javm::kernel::KernelResult::Panic => {}
+            javm::kernel::KernelResult::Halt(_) | javm::kernel::KernelResult::Panic => {}
             other => panic!("refine should halt or panic; got {:?}", other),
         }
     }

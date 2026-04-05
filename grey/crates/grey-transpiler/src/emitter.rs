@@ -121,7 +121,7 @@ pub fn build_v2_service_program(
     memory_pages: u32,
 ) -> Vec<u8> {
     use javm::cap::Access;
-    use javm::program_v2::{build_v2_blob, CapEntryType, CapManifestEntry};
+    use javm::program_v2::{CapEntryType, CapManifestEntry, build_v2_blob};
 
     // Build the CODE blob (jump_table + code + packed_bitmask) as a sub-blob
     // that will be the data for the CODE cap.
@@ -129,7 +129,15 @@ pub fn build_v2_service_program(
         1
     } else {
         let max_val = jump_table.iter().copied().max().unwrap_or(0);
-        if max_val <= 0xFF { 1 } else if max_val <= 0xFFFF { 2 } else if max_val <= 0xFFFFFF { 3 } else { 4 }
+        if max_val <= 0xFF {
+            1
+        } else if max_val <= 0xFFFF {
+            2
+        } else if max_val <= 0xFFFFFF {
+            3
+        } else {
+            4
+        }
     };
 
     let mut code_blob = Vec::new();
@@ -262,17 +270,23 @@ mod tests {
     fn test_build_v2_minimal() {
         let blob = javm::program_v2::build_simple_v2_blob(&[0, 1, 0], &[1, 1, 1], &[]);
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
-        assert!(kernel.is_ok(), "v2 blob should be loadable: {:?}", kernel.err());
+        assert!(
+            kernel.is_ok(),
+            "v2 blob should be loadable: {:?}",
+            kernel.err()
+        );
     }
 
     #[test]
     fn test_build_v2_service_round_trip() {
         let code = vec![0, 1, 0]; // trap, fallthrough, trap
         let bitmask = vec![1, 1, 1];
-        let blob = build_v2_service_program(
-            &code, &bitmask, &[], &[], &[], 1, 0, 4,
-        );
+        let blob = build_v2_service_program(&code, &bitmask, &[], &[], &[], 1, 0, 4);
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
-        assert!(kernel.is_ok(), "v2 service blob should be loadable: {:?}", kernel.err());
+        assert!(
+            kernel.is_ok(),
+            "v2 service blob should be loadable: {:?}",
+            kernel.err()
+        );
     }
 }

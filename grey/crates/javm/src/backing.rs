@@ -9,8 +9,8 @@
 //! reference offsets into this store. Zero-copy: grant/revoke just
 //! moves the offset metadata, no data is copied.
 
-use crate::cap::Access;
 use crate::PVM_PAGE_SIZE;
+use crate::cap::Access;
 
 /// 4GB virtual address space per CODE cap window.
 pub const CODE_WINDOW_SIZE: usize = 1 << 32;
@@ -100,11 +100,7 @@ impl BackingStore {
     ///
     /// # Safety
     /// `window_base` must point to a valid 4GB mmap region.
-    pub unsafe fn unmap_pages(
-        window_base: *mut u8,
-        base_page: u32,
-        page_count: u32,
-    ) -> bool {
+    pub unsafe fn unmap_pages(window_base: *mut u8, base_page: u32, page_count: u32) -> bool {
         // SAFETY: caller guarantees window_base is a valid 4GB mmap region.
         unsafe {
             let addr = window_base.add(base_page as usize * PVM_PAGE_SIZE as usize);

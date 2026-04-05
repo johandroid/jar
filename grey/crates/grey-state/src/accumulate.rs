@@ -5,9 +5,7 @@
 
 use crate::pvm_backend::PvmInstance;
 use grey_types::config::Config;
-use grey_types::constants::{
-    HOST_WHAT,
-};
+use grey_types::constants::HOST_WHAT;
 use grey_types::work::{WorkReport, WorkResult};
 use grey_types::{Hash, ServiceId, Timeslot};
 use javm::Gas;
@@ -615,7 +613,6 @@ struct FetchContext {
     items: Vec<Vec<u8>>,
 }
 
-
 /// Run accumulation using the v2 capability kernel.
 /// Protocol cap CALLs exit the kernel and are dispatched here.
 #[allow(clippy::too_many_arguments)]
@@ -681,7 +678,13 @@ fn run_accumulate_pvm_v2(
                 // Gas already charged by kernel (10 per ecalli in dispatch_ecalli)
                 // Dispatch by protocol cap slot number (matches GP host call IDs directly)
                 let ok = handle_v2_host_call(
-                    config, slot, &mut pvm, &regs, &mut regular, &mut exceptional, timeslot,
+                    config,
+                    slot,
+                    &mut pvm,
+                    &regs,
+                    &mut regular,
+                    &mut exceptional,
+                    timeslot,
                     fetch_ctx,
                 );
                 if !ok {

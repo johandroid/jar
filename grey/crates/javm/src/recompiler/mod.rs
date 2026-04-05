@@ -1285,5 +1285,4 @@ mod tests {
         assert_eq!(pvm2.registers()[2], 8); // 5 + 3 = 8
         assert_eq!(pvm2.registers()[3], 0); // carry = 0 (no overflow)
     }
-
 }

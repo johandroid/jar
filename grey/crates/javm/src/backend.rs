@@ -118,7 +118,8 @@ pub fn compile(
 ) -> Result<CompiledProgram, alloc::string::String> {
     match resolve_backend(backend) {
         ResolvedBackend::Interpreter => {
-            let prog = crate::interpreter::Interpreter::predecode(code, bitmask, jump_table, mem_cycles);
+            let prog =
+                crate::interpreter::Interpreter::predecode(code, bitmask, jump_table, mem_cycles);
             Ok(CompiledProgram::Interpreter(prog))
         }
         #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]

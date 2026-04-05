@@ -181,7 +181,7 @@ fn pc(c: &[u8]) -> u32 {
 
 fn build_blob(c: Vec<u8>, m: Vec<u8>, stack_pages: u32, heap_pages: u32) -> Vec<u8> {
     use javm::cap::Access;
-    use javm::program_v2::{build_v2_blob, CapEntryType, CapManifestEntry};
+    use javm::program_v2::{CapEntryType, CapManifestEntry, build_v2_blob};
 
     // Code sub-blob: jump_len(4) + entry_size(1) + code_len(4) + code + packed_bitmask
     let mut code_data = Vec::new();
@@ -192,21 +192,21 @@ fn build_blob(c: Vec<u8>, m: Vec<u8>, stack_pages: u32, heap_pages: u32) -> Vec<
     let packed_len = c.len().div_ceil(8);
     let mut packed = vec![0u8; packed_len];
     for (i, &b) in m.iter().enumerate() {
-        if b != 0 { packed[i / 8] |= 1 << (i % 8); }
+        if b != 0 {
+            packed[i / 8] |= 1 << (i % 8);
+        }
     }
     code_data.extend_from_slice(&packed);
 
-    let mut caps = vec![
-        CapManifestEntry {
-            cap_index: 64,
-            cap_type: CapEntryType::Code,
-            base_page: 0,
-            page_count: 0,
-            init_access: Access::RO,
-            data_offset: 0,
-            data_len: code_data.len() as u32,
-        },
-    ];
+    let mut caps = vec![CapManifestEntry {
+        cap_index: 64,
+        cap_type: CapEntryType::Code,
+        base_page: 0,
+        page_count: 0,
+        init_access: Access::RO,
+        data_offset: 0,
+        data_len: code_data.len() as u32,
+    }];
     let mut next_page = 0u32;
     // Stack DATA cap
     if stack_pages > 0 {

@@ -1,7 +1,9 @@
 fn main() {
-    let javm_ecrecover = build_javm::build_v2("../../services/benches/ecrecover", "bench-ecrecover");
+    let javm_ecrecover =
+        build_javm::build_v2("../../services/benches/ecrecover", "bench-ecrecover");
     let pvm_ecrecover = build_pvm::build("../../services/benches/ecrecover");
-    let javm_sieve = build_javm::build_v2("../../services/benches/prime-sieve", "bench-prime-sieve");
+    let javm_sieve =
+        build_javm::build_v2("../../services/benches/prime-sieve", "bench-prime-sieve");
     let pvm_sieve = build_pvm::build("../../services/benches/prime-sieve");
     let javm_ed25519 = build_javm::build_v2("../../services/benches/ed25519", "bench-ed25519");
     let pvm_ed25519 = build_pvm::build("../../services/benches/ed25519");

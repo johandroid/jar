@@ -28,22 +28,25 @@ fn dump_polkavm(name: &str, blob: Vec<u8>) {
 
 fn dump_grey(name: &str, blob: &[u8]) {
     let kernel = javm::kernel::InvocationKernel::new_with_backend(
-        blob, &[], 100_000_000,
+        blob,
+        &[],
+        100_000_000,
         javm::PvmBackend::ForceRecompiler,
-    ).unwrap();
+    )
+    .unwrap();
     // Access the first CODE cap's native code
     if let Some(code_cap) = kernel.code_caps.first()
         && let javm::backend::CompiledProgram::Recompiler(ref compiled) = code_cap.compiled
     {
-            let native = unsafe {
-                std::slice::from_raw_parts(
-                    compiled.native_code.ptr as *const u8,
-                    compiled.native_code.len,
-                )
-            };
-            let path = format!("/tmp/grey_{name}.bin");
-            std::fs::write(&path, native).unwrap();
-            eprintln!("grey {name}: {} bytes -> {path}", native.len());
+        let native = unsafe {
+            std::slice::from_raw_parts(
+                compiled.native_code.ptr as *const u8,
+                compiled.native_code.len,
+            )
+        };
+        let path = format!("/tmp/grey_{name}.bin");
+        std::fs::write(&path, native).unwrap();
+        eprintln!("grey {name}: {} bytes -> {path}", native.len());
     }
 }
 

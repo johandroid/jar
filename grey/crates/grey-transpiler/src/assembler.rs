@@ -752,8 +752,7 @@ mod tests {
         // conversion creates a single CODE cap. The program should execute and
         // either halt or panic (depending on the dispatch stub).
         match result {
-            javm::kernel::KernelResult::Halt(_)
-            | javm::kernel::KernelResult::Panic => {}
+            javm::kernel::KernelResult::Halt(_) | javm::kernel::KernelResult::Panic => {}
             other => panic!("Expected Halt or Panic, got {:?}", other),
         }
     }

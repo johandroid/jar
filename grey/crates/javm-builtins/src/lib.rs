@@ -79,7 +79,7 @@ macro_rules! javm_entry {
             // REPLY to kernel: li t0, 255; ecall → transpiles to ecalli(0xFF)
             "li t0, 255",
             "ecall",
-            "unimp",  // trap if somehow resumed after REPLY
+            "unimp", // trap if somehow resumed after REPLY
         );
         #[cfg(target_env = "polkavm")]
         core::arch::global_asm!(".global _start", "_start:", "unimp",);

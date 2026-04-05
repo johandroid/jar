@@ -10,16 +10,16 @@
 extern crate alloc;
 
 pub mod args;
+pub mod backend;
 #[cfg(feature = "std")]
 pub mod backing;
 pub mod cap;
 pub mod gas_cost;
 pub mod gas_sim;
 pub mod instruction;
+pub mod interpreter;
 #[cfg(feature = "std")]
 pub mod kernel;
-pub mod backend;
-pub mod interpreter;
 pub mod program_v2;
 pub mod vm_pool;
 // Real JIT recompiler on Linux x86-64.

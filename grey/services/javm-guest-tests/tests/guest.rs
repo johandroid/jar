@@ -43,9 +43,7 @@ fn run_test(test_id: u32, args: &[u8]) {
     let kernel_output = kernel
         .read_data_cap_window(kernel_ptr, kernel_len)
         .unwrap_or_else(|| {
-            panic!(
-                "test {test_id}: read failed at ptr=0x{kernel_ptr:X} len={kernel_len}"
-            )
+            panic!("test {test_id}: read failed at ptr=0x{kernel_ptr:X} len={kernel_len}")
         });
 
     assert_eq!(

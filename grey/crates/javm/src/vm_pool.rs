@@ -4,8 +4,8 @@
 //! a cap table, register state, and a reference to its CODE cap.
 //! Only IDLE VMs can be CALLed — this prevents reentrancy by construction.
 
-use crate::cap::CapTable;
 use crate::PVM_REGISTER_COUNT;
+use crate::cap::CapTable;
 
 /// VM lifecycle states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

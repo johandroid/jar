@@ -12,13 +12,13 @@
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
+use crate::GAS_PER_PAGE;
 use crate::backing::{BackingStore, CodeWindow};
 use crate::cap::{
     Access, CallableCap, Cap, CapTable, CodeCap, DataCap, HandleCap, IPC_SLOT, UntypedCap,
 };
-use crate::GAS_PER_PAGE;
 use crate::program_v2::{self, CapEntryType, CapManifestEntry, ParsedBlobV2};
-use crate::vm_pool::{CallFrame, VmInstance, VmState, MAX_CODE_CAPS, MAX_VMS};
+use crate::vm_pool::{CallFrame, MAX_CODE_CAPS, MAX_VMS, VmInstance, VmState};
 
 /// ecalli immediate ranges.
 const CALL_RANGE_END: u32 = 0x100;
@@ -97,8 +97,7 @@ impl InvocationKernel {
         gas: u64,
         backend: crate::backend::PvmBackend,
     ) -> Result<Self, KernelError> {
-        let parsed = program_v2::parse_v2_blob(blob)
-            .ok_or(KernelError::InvalidBlob)?;
+        let parsed = program_v2::parse_v2_blob(blob).ok_or(KernelError::InvalidBlob)?;
 
         let backing =
             BackingStore::new(parsed.header.memory_pages).ok_or(KernelError::MemoryError)?;
@@ -216,8 +215,8 @@ impl InvocationKernel {
                 }
 
                 // Parse the code sub-blob (jump_table + code + bitmask)
-                let code_blob = program_v2::parse_code_blob(code_data)
-                    .ok_or(KernelError::InvalidBlob)?;
+                let code_blob =
+                    program_v2::parse_code_blob(code_data).ok_or(KernelError::InvalidBlob)?;
 
                 // Compile via selected backend (interpreter or recompiler)
                 let compiled = crate::backend::compile(
@@ -348,7 +347,9 @@ impl InvocationKernel {
         // Get the UNTYPED cap (it's an Arc, so we can clone the reference)
         let untyped = match vm.cap_table.get(
             // Find the untyped slot — scan cap table
-            (0..=254).find(|i| matches!(vm.cap_table.get(*i), Some(Cap::Untyped(_)))).unwrap_or(255)
+            (0..=254)
+                .find(|i| matches!(vm.cap_table.get(*i), Some(Cap::Untyped(_))))
+                .unwrap_or(255),
         ) {
             Some(Cap::Untyped(u)) => Arc::clone(u),
             _ => {
@@ -638,11 +639,7 @@ impl InvocationKernel {
                 if let Some((base_page, _)) = d.unmap() {
                     let code_cap = &self.code_caps[code_cap_id as usize];
                     unsafe {
-                        BackingStore::unmap_pages(
-                            code_cap.window.base(),
-                            base_page,
-                            d.page_count,
-                        );
+                        BackingStore::unmap_pages(code_cap.window.base(), base_page, d.page_count);
                     }
                 }
             }
@@ -660,9 +657,7 @@ impl InvocationKernel {
 
         // Pre-validate: must be DATA, unmapped, valid offset
         let can_split = match vm.cap_table.get(cap_idx) {
-            Some(Cap::Data(d)) => {
-                d.mapped.is_none() && page_off > 0 && page_off < d.page_count
-            }
+            Some(Cap::Data(d)) => d.mapped.is_none() && page_off > 0 && page_off < d.page_count,
             _ => false,
         };
         if !can_split {
@@ -898,7 +893,7 @@ impl InvocationKernel {
     /// Execute one segment via the JIT recompiler backend.
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn run_recompiler_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
-        use crate::recompiler::{signal, JitContext};
+        use crate::recompiler::{JitContext, signal};
 
         let code_cap = &self.code_caps[code_cap_id];
         let compiled = match &code_cap.compiled {
@@ -988,7 +983,8 @@ impl InvocationKernel {
             if let Some(Cap::Data(d)) = vm.cap_table.get(slot)
                 && let Some((base_page, _)) = d.mapped
             {
-                let end = (base_page as usize + d.page_count as usize) * crate::PVM_PAGE_SIZE as usize;
+                let end =
+                    (base_page as usize + d.page_count as usize) * crate::PVM_PAGE_SIZE as usize;
                 max_addr = max_addr.max(end);
             }
         }
@@ -1139,8 +1135,7 @@ impl InvocationKernel {
                     let cc = &self.code_caps[code_cap_id];
                     if (idx as usize) < cc.jump_table.len() {
                         let target = cc.jump_table[idx as usize];
-                        if (target as usize) < cc.bitmask.len()
-                            && cc.bitmask[target as usize] == 1
+                        if (target as usize) < cc.bitmask.len() && cc.bitmask[target as usize] == 1
                         {
                             self.vms[self.active_vm as usize].pc = target;
                             continue;
@@ -1236,8 +1231,7 @@ impl InvocationKernel {
 
                 // Return IPC cap
                 if let Some(caller_slot) = frame.ipc_cap_idx
-                    && let Some(mut cap) =
-                        self.vms[callee_id as usize].cap_table.take(IPC_SLOT)
+                    && let Some(mut cap) = self.vms[callee_id as usize].cap_table.take(IPC_SLOT)
                 {
                     if let Some((bp, acc)) = frame.ipc_was_mapped
                         && let Cap::Data(d) = &mut cap
@@ -1351,7 +1345,7 @@ impl core::fmt::Display for KernelError {
 mod tests {
     use super::*;
     use crate::cap::ProtocolCap;
-    use crate::program_v2::{build_v2_blob, CapManifestEntry, CapEntryType};
+    use crate::program_v2::{CapEntryType, CapManifestEntry, build_v2_blob};
 
     /// Build a minimal code sub-blob (code_header + jump_table + code + bitmask).
     /// Contains a single `trap` instruction (opcode 0).

@@ -10,8 +10,8 @@ use grey_types::config::Config;
 use grey_types::constants::GAS_IS_AUTHORIZED;
 use grey_types::work::*;
 use grey_types::{Hash, ServiceId};
-use javm::kernel::KernelResult;
 use javm::Gas;
+use javm::kernel::KernelResult;
 use std::collections::BTreeMap;
 
 /// Error during refinement.

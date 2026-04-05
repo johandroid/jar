@@ -20,9 +20,12 @@ fn main() {
     for _ in 0..ITERS {
         let t0 = Instant::now();
         let mut kernel = javm::kernel::InvocationKernel::new_with_backend(
-            &sort_blob, &[], GAS_LIMIT,
+            &sort_blob,
+            &[],
+            GAS_LIMIT,
             javm::PvmBackend::ForceRecompiler,
-        ).unwrap();
+        )
+        .unwrap();
         compile_us.push(t0.elapsed().as_micros());
 
         let t1 = Instant::now();

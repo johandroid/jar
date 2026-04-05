@@ -14,7 +14,9 @@ fn run_with_timeout<F: FnOnce() + Send + 'static>(name: &str, f: F) {
         let _ = tx.send(());
     });
     match rx.recv_timeout(TIMEOUT) {
-        Ok(()) => { let _ = handle.join(); }
+        Ok(()) => {
+            let _ = handle.join();
+        }
         Err(_) => {
             eprintln!("{name:20} KILLED after {}s", TIMEOUT.as_secs());
         }
@@ -42,7 +44,11 @@ fn main() {
         let recid = RecoveryId::new(true, false);
         let key = VerifyingKey::recover_from_prehash(&msg, &sig, recid).unwrap();
         let _ = std::hint::black_box(key);
-        eprintln!("{:20} {:>10.3} ms", "native", t.elapsed().as_secs_f64() * 1000.0);
+        eprintln!(
+            "{:20} {:>10.3} ms",
+            "native",
+            t.elapsed().as_secs_f64() * 1000.0
+        );
     });
 
     let grey_blob = grey_ecrecover_blob();
@@ -53,10 +59,13 @@ fn main() {
         let blob = grey_blob;
         run_with_timeout("grey-interpreter", move || {
             let t = Instant::now();
-            let (result, gas_used) = run_kernel_with_backend(blob, GAS, javm::PvmBackend::ForceInterpreter);
+            let (result, gas_used) =
+                run_kernel_with_backend(blob, GAS, javm::PvmBackend::ForceInterpreter);
             eprintln!(
                 "{:20} {:>10.3} ms  a0={result} gas_used={gas_used} ({:.1}M inst)",
-                "grey-interpreter", t.elapsed().as_secs_f64() * 1000.0, gas_used as f64 / 1e6
+                "grey-interpreter",
+                t.elapsed().as_secs_f64() * 1000.0,
+                gas_used as f64 / 1e6
             );
         });
     }
@@ -66,10 +75,12 @@ fn main() {
         let blob = grey_blob;
         run_with_timeout("grey-recompiler", move || {
             let t = Instant::now();
-            let (result, gas_used) = run_kernel_with_backend(blob, GAS, javm::PvmBackend::ForceRecompiler);
+            let (result, gas_used) =
+                run_kernel_with_backend(blob, GAS, javm::PvmBackend::ForceRecompiler);
             eprintln!(
                 "{:20} {:>10.3} ms  a0={result} gas_used={gas_used}",
-                "grey-recompiler", t.elapsed().as_secs_f64() * 1000.0
+                "grey-recompiler",
+                t.elapsed().as_secs_f64() * 1000.0
             );
         });
     }
@@ -104,13 +115,21 @@ fn main() {
                     InterruptKind::Finished | InterruptKind::Trap => {
                         eprintln!(
                             "{:20} {:>10.3} ms  a0={}",
-                            "polkavm", t.elapsed().as_secs_f64() * 1000.0, inst.reg(PReg::A0)
+                            "polkavm",
+                            t.elapsed().as_secs_f64() * 1000.0,
+                            inst.reg(PReg::A0)
                         );
                         return;
                     }
                     InterruptKind::Ecalli(_) => continue,
-                    InterruptKind::NotEnoughGas => { eprintln!("polkavm: OOG"); return; }
-                    other => { eprintln!("polkavm: {:?}", other); return; }
+                    InterruptKind::NotEnoughGas => {
+                        eprintln!("polkavm: OOG");
+                        return;
+                    }
+                    other => {
+                        eprintln!("polkavm: {:?}", other);
+                        return;
+                    }
                 }
             }
         });

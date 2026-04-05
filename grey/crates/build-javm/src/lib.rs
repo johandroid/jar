@@ -144,8 +144,8 @@ pub fn build_service_v2(manifest_dir: &str, bin_name: &str) -> PathBuf {
 
     let elf_path = guest.build();
     let elf_data = std::fs::read(&elf_path).expect("failed to read ELF");
-    let blob = grey_transpiler::link_elf_v2(&elf_data)
-        .expect("failed to transpile ELF to v2 PVM blob");
+    let blob =
+        grey_transpiler::link_elf_v2(&elf_data).expect("failed to transpile ELF to v2 PVM blob");
 
     std::fs::write(&blob_path, &blob).expect("failed to write PVM blob");
     blob_path

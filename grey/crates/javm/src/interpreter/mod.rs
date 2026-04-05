@@ -139,8 +139,7 @@ impl Interpreter {
     ) -> crate::backend::InterpreterProgram {
         let basic_block_starts = compute_basic_block_starts(code, bitmask);
         let gas_block_starts = compute_gas_block_starts(code, bitmask);
-        let block_gas_costs =
-            compute_block_gas_costs(code, bitmask, &gas_block_starts, mem_cycles);
+        let block_gas_costs = compute_block_gas_costs(code, bitmask, &gas_block_starts, mem_cycles);
         let (decoded_insts, pc_to_idx) = predecode_instructions(
             code,
             bitmask,
