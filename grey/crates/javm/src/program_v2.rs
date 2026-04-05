@@ -259,6 +259,43 @@ fn unpack_bitmask(packed: &[u8], code_len: usize) -> Vec<u8> {
     bitmask
 }
 
+/// Build a minimal JAR v2 blob with a single CODE cap from raw components.
+/// Useful for tests — no DATA caps, small memory budget.
+pub fn build_simple_v2_blob(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> Vec<u8> {
+    use crate::cap::Access;
+
+    // Build code sub-blob: jump_len(4) + entry_size(1) + code_len(4) + jt + code + packed_bitmask
+    let entry_size = if jump_table.is_empty() { 1u8 } else { 4u8 };
+    let mut code_data = Vec::new();
+    code_data.extend_from_slice(&(jump_table.len() as u32).to_le_bytes());
+    code_data.push(entry_size);
+    code_data.extend_from_slice(&(code.len() as u32).to_le_bytes());
+    for &jt_entry in jump_table {
+        code_data.extend_from_slice(&jt_entry.to_le_bytes()[..entry_size as usize]);
+    }
+    code_data.extend_from_slice(code);
+    // Pack bitmask
+    let packed_len = (code.len() + 7) / 8;
+    let mut packed = vec![0u8; packed_len];
+    for (i, &b) in bitmask.iter().enumerate() {
+        if b != 0 {
+            packed[i / 8] |= 1 << (i % 8);
+        }
+    }
+    code_data.extend_from_slice(&packed);
+
+    let caps = vec![CapManifestEntry {
+        cap_index: 64,
+        cap_type: CapEntryType::Code,
+        base_page: 0,
+        page_count: 0,
+        init_access: Access::RO,
+        data_offset: 0,
+        data_len: code_data.len() as u32,
+    }];
+    build_v2_blob(4, 64, &caps, &code_data)
+}
+
 /// Build a JAR v2 blob from components.
 pub fn build_v2_blob(
     memory_pages: u32,
@@ -444,5 +481,41 @@ mod tests {
         let parsed = parse_v2_blob(&blob).unwrap();
         assert_eq!(parsed.caps.len(), 0);
         assert_eq!(parsed.data_section.len(), 0);
+    }
+
+    #[test]
+    fn test_code_sub_blob_with_jump_table() {
+        // Build a code sub-blob: jump_len=2, entry_size=4, code=[0,1], bitmask=[1,1], jt=[0,1]
+        let mut code_data = Vec::new();
+        code_data.extend_from_slice(&2u32.to_le_bytes()); // jump_len
+        code_data.push(4); // entry_size
+        code_data.extend_from_slice(&2u32.to_le_bytes()); // code_len
+        // jump table: 2 entries × 4 bytes
+        code_data.extend_from_slice(&0u32.to_le_bytes());
+        code_data.extend_from_slice(&1u32.to_le_bytes());
+        // code bytes
+        code_data.push(0); // trap
+        code_data.push(1); // fallthrough
+        // packed bitmask: 1 byte for 2 bits = 0b11 = 3
+        code_data.push(0x03);
+
+        let blob = parse_code_blob(&code_data);
+        assert!(blob.is_some(), "code sub-blob should parse");
+        let blob = blob.unwrap();
+        assert_eq!(blob.code, vec![0, 1]);
+        assert_eq!(blob.bitmask, vec![1, 1]);
+        assert_eq!(blob.jump_table, vec![0, 1]);
+    }
+
+    #[test]
+    fn test_build_simple_v2_blob_roundtrip() {
+        let blob = build_simple_v2_blob(&[0, 1, 0], &[1, 1, 1], &[]);
+        let parsed = parse_v2_blob(&blob).expect("should parse");
+        assert_eq!(parsed.caps.len(), 1); // 1 CODE cap
+        let code_cap = &parsed.caps[0];
+        assert_eq!(code_cap.cap_type, CapEntryType::Code);
+        let code_blob = parse_code_blob(cap_data(code_cap, parsed.data_section)).unwrap();
+        assert_eq!(code_blob.code, vec![0, 1, 0]);
+        assert_eq!(code_blob.bitmask, vec![1, 1, 1]);
     }
 }
