@@ -295,7 +295,7 @@ impl Compiler {
             // but ARE terminators, so the next instruction starts a new gas block.
             if raw_byte == 1 || raw_byte == 2 {
                 // Fallthrough=1, Unlikely=2
-                let skip = crate::vm::skip_for_bitmask(bitmask, pc);
+                let skip = crate::interpreter::skip_for_bitmask(bitmask, pc);
                 if is_gas_start {
                     let label = Label(self.label_base + pc as u32);
                     self.asm.bind_label(label);
@@ -337,7 +337,7 @@ impl Compiler {
                     continue;
                 }
             };
-            let skip = crate::vm::skip_for_bitmask(bitmask, pc);
+            let skip = crate::interpreter::skip_for_bitmask(bitmask, pc);
             let next_pc = (pc + 1 + skip) as u32;
 
             // Read register bytes once — used by both arg decoding and gas cost.

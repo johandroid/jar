@@ -1,7 +1,23 @@
 //! PVM blob emitter — produces JAR v1 and v2 program blobs.
 
-use javm::program::{JAR_MAGIC, ProgramHeader};
 use scale::Encode;
+
+/// JAR v1 magic: 'J','A','R', 0x01.
+const JAR_MAGIC: u32 = u32::from_le_bytes([b'J', b'A', b'R', 0x01]);
+
+/// JAR v1 unified header (scale-encoded as sequential LE fields).
+#[derive(Clone, Debug, scale::Encode)]
+struct ProgramHeader {
+    pub magic: u32,
+    pub ro_size: u32,
+    pub rw_size: u32,
+    pub heap_pages: u32,
+    pub max_heap_pages: u32,
+    pub stack_pages: u32,
+    pub jump_len: u32,
+    pub entry_size: u8,
+    pub code_len: u32,
+}
 
 /// Pack a bitmask array (one byte per bit, 0 or 1) into packed bytes (LSB first).
 pub fn pack_bitmask(bitmask: &[u8]) -> Vec<u8> {

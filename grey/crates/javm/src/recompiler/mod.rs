@@ -201,6 +201,17 @@ unsafe impl Sync for NativeCode {}
 ///   perms:  R15 - CTX_PAGE - NUM_PAGES  = R15 - PERMS_OFFSET
 ///   ctx:    R15 - CTX_PAGE              = R15 - CTX_OFFSET
 ///   guest:  R15 + 0 .. R15 + 4GB
+/// Memory layout offsets for direct flat-buffer writes (standalone recompiler path).
+pub struct DataLayout {
+    pub mem_size: u32,
+    pub arg_start: u32,
+    pub arg_data: Vec<u8>,
+    pub ro_start: u32,
+    pub ro_data: Vec<u8>,
+    pub rw_start: u32,
+    pub rw_data: Vec<u8>,
+}
+
 struct FlatMemory {
     /// Base of the entire mmap'd region.
     region: *mut u8,
@@ -219,7 +230,7 @@ const HEADER_SIZE: usize = NUM_PAGES + CTX_PAGE; // perms + ctx page before gues
 
 impl FlatMemory {
     /// Create a flat memory from a data layout.
-    fn new(layout: &crate::program::DataLayout) -> Option<Self> {
+    fn new(layout: &DataLayout) -> Option<Self> {
         let region_size = HEADER_SIZE + FLAT_BUF_SIZE;
         // SAFETY: mmap with MAP_ANONYMOUS|MAP_PRIVATE|MAP_NORESERVE allocates virtual pages.
         // MAP_FAILED checked below.
@@ -604,7 +615,7 @@ impl RecompiledPvm {
         jump_table: Vec<u32>,
         registers: [u64; PVM_REGISTER_COUNT],
         gas: Gas,
-        data_layout: Option<crate::program::DataLayout>,
+        data_layout: Option<DataLayout>,
         mem_cycles: u8,
     ) -> Result<Self, String> {
         let debug = {
@@ -1042,47 +1053,6 @@ impl RecompiledPvm {
     }
 }
 
-/// Initialize a recompiled PVM from a standard program blob.
-pub fn initialize_program_recompiled(
-    blob: &[u8],
-    arguments: &[u8],
-    gas: Gas,
-) -> Option<RecompiledPvm> {
-    let parsed = crate::program::parse_program_blob(blob, arguments, gas)?;
-
-    // Charge per-page allocation gas (same as interpreter path)
-    let init_pages = parsed
-        .layout
-        .as_ref()
-        .map_or(0, |l| l.mem_size / crate::PVM_PAGE_SIZE);
-    let init_cost = init_pages as u64 * crate::GAS_PER_PAGE;
-    if gas < init_cost {
-        return None;
-    }
-    let gas = gas - init_cost;
-
-    let mut rpvm = RecompiledPvm::new(
-        parsed.code,
-        parsed.bitmask,
-        parsed.jump_table,
-        parsed.registers,
-        gas,
-        parsed.layout,
-        parsed.mem_cycles,
-    )
-    .ok()?;
-
-    rpvm.ctx_mut().heap_base = parsed.heap_base;
-    rpvm.ctx_mut().heap_top = parsed.heap_top;
-    rpvm.ctx_mut().max_heap_pages = parsed.max_heap_pages;
-
-    if let Some(ref fm) = rpvm.flat_memory {
-        fm.install_guard_pages(parsed.heap_top);
-    }
-
-    Some(rpvm)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1145,8 +1115,8 @@ mod tests {
         );
     }
 
-    fn test_layout() -> crate::program::DataLayout {
-        crate::program::DataLayout {
+    fn test_layout() -> DataLayout {
+        DataLayout {
             mem_size: 4096,
             arg_start: 0,
             arg_data: vec![],
@@ -1315,139 +1285,4 @@ mod tests {
         assert_eq!(pvm2.registers()[3], 0); // carry = 0 (no overflow)
     }
 
-    #[test]
-    #[ignore] // Requires /tmp/test_code_blob.bin — used for manual debugging only
-    fn test_compare_interpreter_recompiler() {
-        // Load the test code blob
-        let blob = match std::fs::read("/tmp/test_code_blob.bin") {
-            Ok(b) => b,
-            Err(_) => {
-                eprintln!("Skipping comparison test: /tmp/test_code_blob.bin not found");
-                return;
-            }
-        };
-        let args = &[0u8, 0, 0, 0]; // 4-byte dummy args
-        let gas = 900_000u64;
-
-        // Initialize interpreter
-        let mut interp =
-            crate::program::initialize_program(&blob, args, gas).expect("interpreter init failed");
-        interp.pc = 5;
-
-        // Initialize recompiler
-        let mut recomp =
-            initialize_program_recompiled(&blob, args, gas).expect("recompiler init failed");
-        recomp.set_pc(5);
-
-        // Run both until first host call and compare
-        let mut step = 0;
-        loop {
-            step += 1;
-            let interp_exit = interp.run();
-            let recomp_exit = recomp.run();
-
-            let interp_exit_clone = interp_exit.0.clone();
-            let recomp_gas = recomp.gas();
-            let interp_gas = interp.gas;
-
-            eprintln!(
-                "Step {}: interp_exit={:?} recomp_exit={:?}",
-                step, interp_exit_clone, recomp_exit
-            );
-            eprintln!(
-                "  interp: gas={} pc={} regs={:?}",
-                interp_gas, interp.pc, &interp.registers
-            );
-            eprintln!(
-                "  recomp: gas={} pc={} regs={:?}",
-                recomp_gas,
-                recomp.pc(),
-                recomp.registers()
-            );
-
-            // Check for mismatch and print trace if found
-            let gas_match = interp_gas == recomp_gas;
-            let exit_match = interp_exit_clone == recomp_exit;
-            let reg_match = (0..13).all(|i| interp.registers[i] == recomp.registers()[i]);
-
-            if !gas_match || !exit_match || !reg_match {
-                // Print interpreter trace before panicking
-                let trace = &interp.pc_trace;
-                eprintln!("Interpreter trace (first 100 PCs from tracing start):");
-                for (i, &(pc, op)) in trace.iter().take(165).enumerate() {
-                    let opname = crate::instruction::Opcode::from_byte(op)
-                        .map(|o| format!("{:?}", o))
-                        .unwrap_or_else(|| format!("?{}", op));
-                    eprintln!("  [{:3}] pc={:5} op={}", i, pc, opname);
-                }
-                if !gas_match {
-                    panic!(
-                        "Gas mismatch at step {}: interp={} recomp={}",
-                        step, interp_gas, recomp_gas
-                    );
-                }
-                if !exit_match {
-                    panic!(
-                        "Exit mismatch at step {}: interp={:?} recomp={:?}",
-                        step, interp_exit_clone, recomp_exit
-                    );
-                }
-                for i in 0..13 {
-                    if interp.registers[i] != recomp.registers()[i] {
-                        panic!(
-                            "Register φ[{}] mismatch at step {}: interp=0x{:x} recomp=0x{:x}",
-                            i,
-                            step,
-                            interp.registers[i],
-                            recomp.registers()[i]
-                        );
-                    }
-                }
-            }
-
-            // After step 2, print interpreter trace
-            if step == 3 {
-                let trace = &interp.pc_trace;
-                eprintln!("Interpreter trace (first 50 PCs after step 2):");
-                for (i, &(pc, op)) in trace.iter().take(50).enumerate() {
-                    let opname = crate::instruction::Opcode::from_byte(op)
-                        .map(|o| format!("{:?}", o))
-                        .unwrap_or_else(|| format!("?{}", op));
-                    eprintln!("  [{:3}] pc={:5} op={}", i, pc, opname);
-                }
-            }
-
-            match interp_exit_clone {
-                ExitReason::Halt
-                | ExitReason::Panic
-                | ExitReason::OutOfGas
-                | ExitReason::PageFault(_) => {
-                    eprintln!(
-                        "Both exited with {:?} after {} steps",
-                        interp_exit_clone, step
-                    );
-                    break;
-                }
-                ExitReason::HostCall(id) => {
-                    // Simulate a simple host call: just set ω7 = WHAT (error)
-                    // and continue
-                    let what = u64::MAX - 2;
-                    interp.registers[7] = what;
-                    recomp.registers_mut()[7] = what;
-                    if id == 0 {
-                        // gas host call — return remaining gas
-                        interp.registers[7] = interp.gas;
-                        recomp.registers_mut()[7] = recomp.gas();
-                    }
-                    // Enable tracing to help debug divergences
-                    interp.tracing_enabled = true;
-                }
-            }
-
-            if step > 100 {
-                eprintln!("Reached 100 steps, stopping comparison");
-                break;
-            }
-        }
-    }
 }

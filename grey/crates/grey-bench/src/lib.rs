@@ -164,9 +164,7 @@ pub fn grey_sort_blob(n: u32) -> Vec<u8> {
     let mut m = Vec::new(); // bitmask
 
     // Register assignments
-    // In JAR v1 linear memory: φ[0]=RA (halt addr), φ[1]=SP
-    const RA: u8 = 0; // return address (φ[0] = 0xFFFF0000 from init)
-    const SP: u8 = 1; // stack pointer (φ[1] = s from init)
+    const SP: u8 = 1; // stack pointer
     const S0: u8 = 5; // array base
     const S1: u8 = 6; // n
     const T0: u8 = 2; // i (outer loop / init)

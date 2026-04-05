@@ -20,22 +20,14 @@ pub mod instruction;
 pub mod kernel;
 pub mod backend;
 pub mod interpreter;
-pub mod program;
 pub mod program_v2;
 pub mod vm_pool;
-// Real JIT recompiler on Linux x86-64; interpreter-backed shim everywhere else.
+// Real JIT recompiler on Linux x86-64.
 #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
 pub mod recompiler;
-#[cfg(all(feature = "std", not(all(target_os = "linux", target_arch = "x86_64"))))]
-#[path = "recompiler_shim.rs"]
-pub mod recompiler;
-pub mod vm;
 
-#[cfg(feature = "std")]
-pub use recompiler::RecompiledPvm;
 pub use backend::PvmBackend;
 pub use interpreter::Interpreter;
-pub use vm::Pvm;
 
 // --- PVM types ---
 

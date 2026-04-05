@@ -325,20 +325,17 @@ private def encodeAccountInfo (acct : ServiceAccount) : ByteArray :=
   -- during accumulation host calls.
   let totalItems := acct.itemCount.toNat  -- a_i: item count
   let totalBytes := acct.totalFootprint   -- a_o: total storage footprint
-  -- econEncodeInfo produces 24 bytes for positions: balance(8) + threshold(8) + gratis(8)
-  -- These are placed at their original offsets in the 96-byte structure.
   let econInfo := econEncodeInfo acct.econ totalItems totalBytes
-  let econBal := econInfo.extract 0 8        -- balance or quotaItems
-  let econThr := econInfo.extract 8 16       -- threshold or quotaBytes
-  let econGra := econInfo.extract 16 24      -- gratis or padding
+  let (balBytes, thrBytes, graBytes) :=
+    (econInfo.extract 0 8, econInfo.extract 8 16, econInfo.extract 16 24)
   acct.codeHash.data
-    ++ econBal                                          -- a_b (or quotaItems)
-    ++ econThr                                          -- a_t (or quotaBytes)
+    ++ balBytes                                          -- a_b
+    ++ thrBytes                                          -- a_t
     ++ Codec.encodeFixedNat 8 acct.minAccGas.toNat      -- a_g
     ++ Codec.encodeFixedNat 8 acct.minOnTransferGas.toNat -- a_m
     ++ Codec.encodeFixedNat 8 totalBytes                -- a_o
     ++ Codec.encodeFixedNat 4 totalItems                -- a_i
-    ++ econGra                                          -- a_f (or padding)
+    ++ graBytes                                          -- a_f
     ++ Codec.encodeFixedNat 4 acct.creationSlot.toNat   -- a_r
     ++ Codec.encodeFixedNat 4 acct.lastAccumulation.toNat -- a_a
     ++ Codec.encodeFixedNat 4 acct.parentServiceId      -- a_p
