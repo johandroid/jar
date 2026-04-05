@@ -1,4 +1,4 @@
-//! Refine sub-transition — v2 kernel-based.
+//! Refine sub-transition.
 //!
 //! Implements the work-package processing pipeline:
 //! 1. Ψ_I (is-authorized): verify the package is authorized for its core

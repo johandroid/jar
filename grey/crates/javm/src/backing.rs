@@ -1,4 +1,4 @@
-//! memfd-backed physical memory pool for the capability-based JAVM v2.
+//! memfd-backed physical memory pool for the capability-based JAVM.
 //!
 //! A `BackingStore` wraps a `memfd_create` file descriptor and provides:
 //! - Bump allocation (RETYPE): carve pages from the pool

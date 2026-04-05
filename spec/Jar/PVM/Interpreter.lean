@@ -272,18 +272,18 @@ def initStandard (blob' : ByteArray) (args : ByteArray) (compact : Bool := true)
 
   some (prog, regs, mem)
 
-/-- Initialize PVM from a JAR v2 capability manifest blob.
-    Parses v2 header + cap entries. CODE cap → ProgramBlob.
+/-- Initialize PVM from a JAR capability manifest blob.
+    Parses header + cap entries. CODE cap → ProgramBlob.
     DATA caps → mapped memory regions. -/
-def initV2 (blob : ByteArray) (args : ByteArray)
+def initCap (blob : ByteArray) (args : ByteArray)
     : Option (ProgramBlob × Registers × Memory) := do
-  let (hdr, off0) ← parseJarV2Header blob
+  let (hdr, off0) ← parseJarHeader blob
 
   -- Parse cap entries
-  let mut caps : Array JarV2CapEntry := #[]
+  let mut caps : Array JarCapEntry := #[]
   let mut off := off0
   for _ in List.range hdr.capCount do
-    let (cap, nextOff) ← parseJarV2CapEntry blob off
+    let (cap, nextOff) ← parseJarCapEntry blob off
     caps := caps.push cap
     off := nextOff
 
@@ -340,7 +340,7 @@ def initProgram [JamConfig] (blob : ByteArray) (args : ByteArray)
     : Option (ProgramBlob × Registers × Memory) :=
   let compact := JamConfig.useCompactDeblob
   match JamConfig.capabilityModel with
-  | .v2 => initV2 blob args
+  | .v2 => initCap blob args
   | .none => initStandard blob args compact
 
 /-- Ψ : Core PVM run dispatched by gas model.

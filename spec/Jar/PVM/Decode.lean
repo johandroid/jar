@@ -370,20 +370,20 @@ def RESULT_HUH  : UInt64 := UInt64.ofNat (2^64 - 9)
 def RESULT_OK   : UInt64 := 0
 
 -- ============================================================================
--- JAR v2 Program Blob Parser
+-- JAR Program Blob Parser
 -- ============================================================================
 
-/-- JAR v2 magic value: 'J'=0x4A, 'A'=0x41, 'R'=0x52, 0x02. -/
-def jarV2Magic : Nat := decodeLEn ⟨#[0x4A, 0x41, 0x52, 0x02]⟩ 0 4
+/-- JAR magic value: 'J'=0x4A, 'A'=0x41, 'R'=0x52, 0x02. -/
+def jarMagic : Nat := decodeLEn ⟨#[0x4A, 0x41, 0x52, 0x02]⟩ 0 4
 
-/-- JAR v2 header (10 bytes). -/
-structure JarV2Header where
+/-- JAR header (10 bytes). -/
+structure JarHeader where
   memoryPages : Nat
   capCount : Nat
   invokeCap : Nat
 
-/-- JAR v2 capability entry (19 bytes). -/
-structure JarV2CapEntry where
+/-- JAR capability entry (19 bytes). -/
+structure JarCapEntry where
   capIndex : Nat
   isCode : Bool      -- true = CODE, false = DATA
   basePage : Nat     -- DATA only
@@ -392,19 +392,19 @@ structure JarV2CapEntry where
   dataOffset : Nat   -- offset into data section
   dataLen : Nat      -- bytes of initial data
 
-/-- Parse a JAR v2 header (11 bytes). Returns header + offset after header. -/
-def parseJarV2Header (blob : ByteArray) : Option (JarV2Header × Nat) := do
+/-- Parse a JAR header (11 bytes). Returns header + offset after header. -/
+def parseJarHeader (blob : ByteArray) : Option (JarHeader × Nat) := do
   if blob.size < 10 then none
   let magic := decodeLEn blob 0 4
-  if magic != jarV2Magic then none
+  if magic != jarMagic then none
   some ({
     memoryPages := decodeLEn blob 4 4
     capCount := (blob.get! 8).toNat
     invokeCap := (blob.get! 9).toNat
   }, 10)
 
-/-- Parse a JAR v2 capability entry (19 bytes) at the given offset. -/
-def parseJarV2CapEntry (blob : ByteArray) (offset : Nat) : Option (JarV2CapEntry × Nat) := do
+/-- Parse a JAR capability entry (19 bytes) at the given offset. -/
+def parseJarCapEntry (blob : ByteArray) (offset : Nat) : Option (JarCapEntry × Nat) := do
   if offset + 19 > blob.size then none
   let capType := (blob.get! (offset + 1)).toNat
   if capType > 1 then none

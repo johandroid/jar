@@ -1,4 +1,4 @@
-//! JAR v2 program blob format — capability manifest.
+//! JAR program blob format — capability manifest.
 //!
 //! The blob is a capability manifest: a list of initial capabilities
 //! (CODE and DATA) with their contents, plus invocation directives.
@@ -31,8 +31,8 @@ use alloc::{vec, vec::Vec};
 
 use crate::cap::Access;
 
-/// JAR v2 magic: 'J','A','R', 0x02.
-pub const JAR_V2_MAGIC: u32 = u32::from_le_bytes([b'J', b'A', b'R', 0x02]);
+/// JAR magic: 'J','A','R', 0x02.
+pub const JAR_MAGIC: u32 = u32::from_le_bytes([b'J', b'A', b'R', 0x02]);
 
 /// Header size: magic(4) + memory_pages(4) + cap_count(1) + invoke_cap(1) = 10.
 const HEADER_SIZE: usize = 10;
@@ -68,9 +68,9 @@ pub struct CapManifestEntry {
     pub data_len: u32,
 }
 
-/// Parsed JAR v2 header.
+/// Parsed JAR header.
 #[derive(Debug, Clone)]
-pub struct ProgramHeaderV2 {
+pub struct ProgramHeader {
     /// Total Untyped page budget.
     pub memory_pages: u32,
     /// Number of capabilities in the manifest.
@@ -79,11 +79,11 @@ pub struct ProgramHeaderV2 {
     pub invoke_cap: u8,
 }
 
-/// Parsed JAR v2 blob.
+/// Parsed JAR blob.
 #[derive(Debug)]
 pub struct ParsedBlob<'a> {
     /// Header fields.
-    pub header: ProgramHeaderV2,
+    pub header: ProgramHeader,
     /// Capability manifest entries.
     pub caps: Vec<CapManifestEntry>,
     /// Data section (referenced by capabilities via data_offset + data_len).
@@ -113,7 +113,7 @@ fn read_u32_le(blob: &[u8], offset: &mut usize) -> Option<u32> {
     Some(v)
 }
 
-/// Parse a JAR v2 program blob.
+/// Parse a JAR program blob.
 pub fn parse_blob(blob: &[u8]) -> Option<ParsedBlob<'_>> {
     if blob.len() < HEADER_SIZE {
         return None;
@@ -123,7 +123,7 @@ pub fn parse_blob(blob: &[u8]) -> Option<ParsedBlob<'_>> {
 
     // Header
     let magic = read_u32_le(blob, &mut offset)?;
-    if magic != JAR_V2_MAGIC {
+    if magic != JAR_MAGIC {
         return None;
     }
     let memory_pages = read_u32_le(blob, &mut offset)?;
@@ -181,7 +181,7 @@ pub fn parse_blob(blob: &[u8]) -> Option<ParsedBlob<'_>> {
     }
 
     Some(ParsedBlob {
-        header: ProgramHeaderV2 {
+        header: ProgramHeader {
             memory_pages,
             cap_count,
             invoke_cap,
@@ -259,7 +259,7 @@ fn unpack_bitmask(packed: &[u8], code_len: usize) -> Vec<u8> {
     bitmask
 }
 
-/// Build a minimal JAR v2 blob with a single CODE cap from raw components.
+/// Build a minimal JAR blob with a single CODE cap from raw components.
 /// Useful for tests — no DATA caps, small memory budget.
 pub fn build_simple_blob(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> Vec<u8> {
     use crate::cap::Access;
@@ -296,7 +296,7 @@ pub fn build_simple_blob(code: &[u8], bitmask: &[u8], jump_table: &[u32]) -> Vec
     build_blob(4, 64, &caps, &code_data)
 }
 
-/// Build a JAR v2 blob from components.
+/// Build a JAR blob from components.
 pub fn build_blob(
     memory_pages: u32,
     invoke_cap: u8,
@@ -309,7 +309,7 @@ pub fn build_blob(
     let mut offset = 0;
 
     // Header (10 bytes: magic + memory_pages + cap_count + invoke_cap)
-    write_u32_le(&mut blob, &mut offset, JAR_V2_MAGIC);
+    write_u32_le(&mut blob, &mut offset, JAR_MAGIC);
     write_u32_le(&mut blob, &mut offset, memory_pages);
     write_u8(&mut blob, &mut offset, cap_count);
     write_u8(&mut blob, &mut offset, invoke_cap);

@@ -1,6 +1,6 @@
-//! PVM backend — capability-based kernel (v2).
+//! PVM backend — capability-based kernel.
 //!
-//! All blobs are v2 format. No v1 interpreter/recompiler backends.
+//! All blobs use the JAR capability manifest format.
 
 use javm::Gas;
 
@@ -25,7 +25,7 @@ impl PvmInstance {
         }
     }
 
-    /// Check if this is a kernel (v2) backend. Always true now.
+    /// Check if this is a kernel backend. Always true.
     pub fn is_kernel(&self) -> bool {
         true
     }

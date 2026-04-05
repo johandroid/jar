@@ -82,10 +82,8 @@ pub struct InvocationKernel {
 }
 
 impl InvocationKernel {
-    /// Create a new kernel from a JAR blob (v2 or v1 format).
+    /// Create a new kernel from a JAR blob.
     ///
-    /// Tries v2 capability manifest first. Falls back to v1 linear blob format
-    /// by converting it to a synthetic v2 manifest.
     pub fn new(blob: &[u8], _args: &[u8], gas: u64) -> Result<Self, KernelError> {
         Self::new_with_backend(blob, _args, gas, crate::backend::PvmBackend::Default)
     }
@@ -1337,7 +1335,7 @@ pub enum KernelError {
 impl core::fmt::Display for KernelError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidBlob => write!(f, "invalid JAR v2 blob"),
+            Self::InvalidBlob => write!(f, "invalid JAR blob"),
             Self::MemoryError => write!(f, "memory allocation failed"),
             Self::OutOfGas => write!(f, "insufficient gas for initialization"),
             Self::OutOfMemory => write!(f, "untyped pool exhausted"),

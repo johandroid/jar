@@ -1,7 +1,7 @@
 import Jar.PVM
 
 /-!
-# PVM Capability Types — JAVM v2
+# PVM Capability Types
 
 Capability-based execution model for the jar1 variant. Defines five
 program capability types (UNTYPED, DATA, CODE, HANDLE, CALLABLE) and
@@ -246,11 +246,11 @@ def protocolPreimageProvide := 26
 def protocolQuota := 27
 
 -- ============================================================================
--- JAR v2 Blob Format
+-- JAR Blob Format
 -- ============================================================================
 
-/-- JAR v2 magic: 'J','A','R', 0x02. -/
-def jarV2Magic : UInt32 := 0x02524148
+/-- JAR magic: 'J','A','R', 0x02. -/
+def jarMagic : UInt32 := 0x02524148
 
 /-- Capability manifest entry from the blob. -/
 structure CapManifestEntry where
@@ -263,8 +263,8 @@ structure CapManifestEntry where
   dataLen : Nat
   deriving Inhabited
 
-/-- Parsed JAR v2 header. -/
-structure ProgramHeaderV2 where
+/-- Parsed JAR header. -/
+structure ProgramHeader where
   memoryPages : Nat
   capCount : Nat
   invokeCap : Nat

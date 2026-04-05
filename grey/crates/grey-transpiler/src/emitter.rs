@@ -1,4 +1,4 @@
-//! PVM blob emitter — produces JAR v1 and v2 program blobs.
+//! PVM blob emitter — produces JAR program blobs.
 
 use scale::Encode;
 
@@ -102,12 +102,12 @@ pub fn build_standard_program(
     blob
 }
 
-/// Build a JAR v2 capability manifest blob from components.
+/// Build a JAR capability manifest blob from components.
 ///
-/// This is the v2 equivalent of `build_standard_program`. It takes
+/// It takes
 /// code/data as separate pieces and assembles a capability manifest.
 ///
-/// The simplest v2 blob has one CODE cap and one DATA cap (stack).
+/// The simplest blob has one CODE cap and one DATA cap (stack).
 /// More complex blobs have separate ro_data, rw_data, heap DATA caps.
 #[allow(clippy::too_many_arguments)]
 pub fn build_service_program(
@@ -273,7 +273,7 @@ mod tests {
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
         assert!(
             kernel.is_ok(),
-            "v2 blob should be loadable: {:?}",
+            "blob should be loadable: {:?}",
             kernel.err()
         );
     }
@@ -286,7 +286,7 @@ mod tests {
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 100_000);
         assert!(
             kernel.is_ok(),
-            "v2 service blob should be loadable: {:?}",
+            "service blob should be loadable: {:?}",
             kernel.err()
         );
     }

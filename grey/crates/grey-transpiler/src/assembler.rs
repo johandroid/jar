@@ -696,7 +696,7 @@ pub fn build_sample_service_precise() -> Vec<u8> {
     // set_pc(5) sets ı=5 directly (doesn't use djump).
     let jump_table = vec![0u32, 5, refine_offset];
 
-    // Build a v2 service blob
+    // Build a service blob
     emitter::build_service_program(
         &code,
         &bitmask,
@@ -731,7 +731,7 @@ mod tests {
     fn test_build_sample_service() {
         let blob = build_sample_service();
         assert!(!blob.is_empty());
-        // Verify it can be loaded by kernel (v1 blob → auto-converted to v2)
+        // Verify it can be loaded by kernel
         let kernel = javm::kernel::InvocationKernel::new(&blob, &[], 1_000_000);
         assert!(
             kernel.is_ok(),
@@ -744,12 +744,12 @@ mod tests {
     fn test_sample_service_runs_via_kernel() {
         let blob = build_sample_service();
         let args = b"hello world";
-        // Kernel auto-converts v1 blob; single entrypoint at PC=0 via v2 manifest.
+        // Kernel runs single entrypoint at PC=0.
         let mut kernel =
             javm::kernel::InvocationKernel::new(&blob, args, 1_000_000).expect("should initialize");
         let result = kernel.run();
-        // The sample service uses v1 layout (jump→halt), which through the v1→v2
-        // conversion creates a single CODE cap. The program should execute and
+        // The sample service executes and
+        // should either halt or panic (depending on the dispatch stub).
         // either halt or panic (depending on the dispatch stub).
         match result {
             javm::kernel::KernelResult::Halt(_) | javm::kernel::KernelResult::Panic => {}

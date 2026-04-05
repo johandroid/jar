@@ -469,7 +469,7 @@ fn accumulate_single_service(
     }
     let code_blob = code_blob.unwrap();
 
-    // Run PVM (v2 kernel)
+    // Run PVM
     let (final_context, gas_used) = run_accumulate_pvm(
         config,
         &code_blob,
@@ -614,7 +614,7 @@ struct FetchContext {
     items: Vec<Vec<u8>>,
 }
 
-/// Run accumulation using the v2 capability kernel.
+/// Run accumulation using the capability kernel.
 /// Protocol cap CALLs exit the kernel and are dispatched here.
 #[allow(clippy::too_many_arguments)]
 fn run_accumulate_pvm(
@@ -681,7 +681,7 @@ fn run_accumulate_pvm(
             KernelResult::ProtocolCall { slot, regs, gas: _ } => {
                 // Gas already charged by kernel (10 per ecalli in dispatch_ecalli)
                 // Dispatch by protocol cap slot number (matches GP host call IDs directly)
-                let ok = handle_v2_host_call(
+                let ok = handle_host_call(
                     config,
                     slot,
                     &mut pvm,
@@ -702,10 +702,10 @@ fn run_accumulate_pvm(
     }
 }
 
-/// Handle a v2 protocol cap call. Slot numbers match GP host call IDs.
+/// Handle a protocol cap call. Slot numbers match GP host call IDs.
 /// Returns true to continue, false to abort.
 #[allow(clippy::too_many_arguments)]
-fn handle_v2_host_call(
+fn handle_host_call(
     _config: &Config,
     slot: u8,
     pvm: &mut PvmInstance,
@@ -718,7 +718,7 @@ fn handle_v2_host_call(
 ) -> bool {
     const RESULT_NONE: u64 = u64::MAX;
 
-    tracing::info!(slot, service_id, "handle_v2_host_call");
+    tracing::info!(slot, service_id, "handle_host_call");
     match slot {
         0 => {
             // GAS: return remaining gas
