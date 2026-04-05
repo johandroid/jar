@@ -15,7 +15,7 @@ pub mod codegen;
 pub mod predecode;
 pub mod signal;
 
-use crate::vm::ExitReason;
+use crate::ExitReason;
 use crate::{Gas, PVM_REGISTER_COUNT};
 use codegen::{Compiler, HelperFns};
 

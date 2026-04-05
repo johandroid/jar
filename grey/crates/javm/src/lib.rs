@@ -31,7 +31,24 @@ pub mod vm;
 
 #[cfg(feature = "std")]
 pub use recompiler::RecompiledPvm;
-pub use vm::{ExitReason, Pvm};
+pub use vm::Pvm;
+
+// --- PVM types ---
+
+/// Exit reason for PVM execution (ε values, eq A.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExitReason {
+    /// ∎: Normal halt.
+    Halt,
+    /// ☇: Panic / unexpected termination.
+    Panic,
+    /// ∞: Out of gas.
+    OutOfGas,
+    /// ×: Page fault at the given page address.
+    PageFault(u32),
+    /// h̵: Host-call with the given identifier.
+    HostCall(u32),
+}
 
 // --- PVM constants (Gray Paper Appendix A / I.4.4) ---
 

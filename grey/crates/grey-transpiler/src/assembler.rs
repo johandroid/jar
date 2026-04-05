@@ -750,7 +750,7 @@ mod tests {
         let (exit, _gas) = pvm.run();
         assert_eq!(
             exit,
-            javm::vm::ExitReason::Halt,
+            javm::ExitReason::Halt,
             "Refine should halt cleanly, got {:?}",
             exit
         );
@@ -775,7 +775,7 @@ mod tests {
         // Should reach a host call (ecalli 4 = host_write)
         assert_eq!(
             exit,
-            javm::vm::ExitReason::HostCall(4),
+            javm::ExitReason::HostCall(4),
             "Accumulate should hit host_write call, got {:?}",
             exit
         );

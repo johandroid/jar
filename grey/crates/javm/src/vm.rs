@@ -6,22 +6,7 @@ use alloc::{vec, vec::Vec};
 
 use crate::args::{self, Args};
 use crate::instruction::Opcode;
-use crate::{Gas, PVM_REGISTER_COUNT};
-
-/// Exit reason for PVM execution (ε values, eq A.1).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ExitReason {
-    /// ∎: Normal halt.
-    Halt,
-    /// ☇: Panic / unexpected termination.
-    Panic,
-    /// ∞: Out of gas.
-    OutOfGas,
-    /// ×: Page fault at the given page address.
-    PageFault(u32),
-    /// h̵: Host-call with the given identifier.
-    HostCall(u32),
-}
+use crate::{ExitReason, Gas, PVM_REGISTER_COUNT};
 
 /// Pre-decoded instruction for the fast interpreter path.
 ///
