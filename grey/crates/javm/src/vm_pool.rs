@@ -16,7 +16,7 @@ pub enum VmState {
     Running,
     /// Blocked at a CALL ecalli, waiting for the callee to reply.
     WaitingForReply,
-    /// Clean exit (jumped to halt address).
+    /// Clean exit (REPLY from root VM).
     Halted,
     /// Abnormal termination (panic, OOG, page fault).
     Faulted,
@@ -46,9 +46,7 @@ pub struct VmInstance {
 impl VmInstance {
     /// Create a new VM in IDLE state.
     pub fn new(code_cap_id: u16, entry_index: u32, cap_table: CapTable, gas: u64) -> Self {
-        let mut registers = [0u64; PVM_REGISTER_COUNT];
-        // φ[0] = halt address (0xFFFF0000)
-        registers[0] = 0xFFFF_0000;
+        let registers = [0u64; PVM_REGISTER_COUNT];
         Self {
             state: VmState::Idle,
             code_cap_id,
@@ -170,7 +168,7 @@ mod tests {
     #[test]
     fn test_vm_initial_registers() {
         let vm = VmInstance::new(0, 5, CapTable::new(), 1_000_000);
-        assert_eq!(vm.registers[0], 0xFFFF_0000); // halt address
+        assert_eq!(vm.registers[0], 0); // no halt address, all regs start at 0
         for i in 1..13 {
             assert_eq!(vm.registers[i], 0);
         }

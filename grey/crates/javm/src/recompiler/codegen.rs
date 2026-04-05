@@ -2376,14 +2376,7 @@ impl Compiler {
         }
         self.asm.movzx_32_64(SCRATCH, SCRATCH); // truncate to 32-bit
 
-        // Check halt address: 2^32 - 2^16 = 0xFFFF0000
-        // SCRATCH already has the 32-bit zero-extended address.
-        // Use a 32-bit CMP (without REX.W) so the immediate is not sign-extended to 64 bits.
-        self.asm.cmp_ri32(SCRATCH, 0xFFFF0000u32 as i32);
-        let not_halt = self.asm.new_label();
-        self.asm.jcc_label(Cc::NE, not_halt);
-        self.emit_exit(EXIT_HALT, 0);
-        self.asm.bind_label(not_halt);
+        // No halt address check — programs terminate via REPLY (ecalli 0xFF).
 
         // For dynamic jumps, we save state and return to the host to handle
         // (the host will validate and dispatch). This is simpler than inlining

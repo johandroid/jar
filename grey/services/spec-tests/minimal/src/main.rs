@@ -18,11 +18,15 @@ mod service {
         ".global refine",
         ".type refine, @function",
         "refine:",
-        "ret",
+        "li t0, 255",     // ecalli(0xFF) = REPLY
+        "ecall",
+        "unimp",
         ".global accumulate",
         ".type accumulate, @function",
         "accumulate:",
-        "ret",
+        "li t0, 255",     // ecalli(0xFF) = REPLY
+        "ecall",
+        "unimp",
     );
 
     #[panic_handler]

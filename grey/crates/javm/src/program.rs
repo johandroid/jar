@@ -245,8 +245,6 @@ pub fn initialize_program(program_blob: &[u8], arguments: &[u8], gas: Gas) -> Op
 
     // Registers (JAR v1 linear)
     let mut registers = [0u64; 13];
-    let halt_addr: u64 = (1u64 << 32) - (1u64 << 16); // 0xFFFF0000
-    registers[0] = halt_addr;
     registers[1] = layout.stack_size as u64; // SP
     registers[7] = layout.arg_start as u64;
     registers[8] = arguments.len() as u64;
@@ -353,8 +351,6 @@ pub fn parse_program_blob<'a>(
     };
 
     let mut registers = [0u64; crate::PVM_REGISTER_COUNT];
-    let halt_addr: u64 = (1u64 << 32) - (1u64 << 16);
-    registers[0] = halt_addr;
     registers[1] = mem.stack_size as u64;
     registers[7] = mem.arg_start as u64;
     registers[8] = arguments.len() as u64;

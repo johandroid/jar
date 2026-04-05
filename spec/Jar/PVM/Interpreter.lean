@@ -265,7 +265,7 @@ def initStandard (blob' : ByteArray) (args : ByteArray) (compact : Bool := true)
 
   -- Registers (GP eq A.43): matching javm initialize_program
   let regs := Array.replicate PVM_REGISTERS (0 : RegisterValue)
-  let regs := regs.set! 0 (UInt64.ofNat (2^32 - 2^16))        -- ω[0]: RA (halt address)
+  let regs := regs.set! 0 (UInt64.ofNat (2^32 - 2^16))        -- ω[0]: RA (halt address, gp072)
   let regs := regs.set! 1 (UInt64.ofNat stackTop)               -- ω[1]: SP (stack top)
   let regs := regs.set! 7 (UInt64.ofNat argBase)                -- ω[7]: argument base
   let regs := regs.set! 8 (UInt64.ofNat args.size)              -- ω[8]: argument length
@@ -324,10 +324,10 @@ def initV2 (blob : ByteArray) (args : ByteArray)
   if argsBase > 0 && args.size > 0 then
     mem := copyToMem mem argsBase args
 
-  -- Registers: φ[0]=halt, φ[7]=args_base, φ[8]=args_len
+  -- Registers: φ[7]=args_base, φ[8]=args_len
+  -- No halt address — programs terminate via REPLY (ecalli 0xFF).
   -- SP is set by the program's preamble (load_imm_64 SP, stack_top)
   let regs := Array.replicate PVM_REGISTERS (0 : RegisterValue)
-  let regs := regs.set! 0 (UInt64.ofNat (2^32 - 2^16))  -- halt address
   let regs := regs.set! 7 (UInt64.ofNat argsBase)
   let regs := regs.set! 8 (UInt64.ofNat args.size)
 

@@ -1775,7 +1775,7 @@
         "results": [
           {
             "service_id": 0,
-            "code_hash": "0x12cb4014a5a653998bfe72c313f6b81177ca6f2e479401b623d6649002d3127d",
+            "code_hash": "0xa34e8b0e74042ddc3de1677a6f193a8a284a2d1ae091f8af0a1743fafac660a1",
             "payload_hash": "0x9a00110a56ecaf8954ecc77d17076b4260ffd6844e83b2f35ee42aa17effc89e",
             "accumulate_gas": 100000,
             "result": {

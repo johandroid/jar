@@ -61,7 +61,8 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 /// Generate a `_start` entry point for JAVM and PolkaVM targets.
 ///
-/// On JAVM: `_start` calls the named function, then halts via `lui t0, 0xffff0; jr t0`.
+/// On JAVM: `_start` calls the named function, then terminates via
+/// `ecalli(0xFF)` (REPLY to kernel), followed by `unimp` (trap if resumed).
 /// On PolkaVM: `_start` is `unimp` (polkavm uses exported functions directly).
 /// On host: expands to nothing.
 ///
@@ -74,8 +75,10 @@ macro_rules! javm_entry {
             ".global _start",
             "_start:",
             concat!("call ", stringify!($fn_name)),
-            "lui t0, 0xffff0",
-            "jr t0",
+            // REPLY to kernel: li t0, 255; ecall → transpiles to ecalli(0xFF)
+            "li t0, 255",
+            "ecall",
+            "unimp",  // trap if somehow resumed after REPLY
         );
         #[cfg(target_env = "polkavm")]
         core::arch::global_asm!(".global _start", "_start:", "unimp",);

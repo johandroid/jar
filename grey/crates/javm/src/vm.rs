@@ -335,11 +335,7 @@ impl Pvm {
     /// Handle dynamic jump (eq A.18).
     fn djump(&self, a: u64) -> (Option<ExitReason>, u32) {
         const ZA: u64 = 2; // Jump alignment factor
-        let halt_addr = (1u64 << 32) - (1u64 << 16);
-
-        if a == halt_addr {
-            return (Some(ExitReason::Halt), self.pc);
-        }
+        // No halt address check — programs terminate via REPLY (ecalli 0xFF).
         if a == 0 || a > self.jump_table.len() as u64 * ZA || !a.is_multiple_of(ZA) {
             return (Some(ExitReason::Panic), self.pc);
         }

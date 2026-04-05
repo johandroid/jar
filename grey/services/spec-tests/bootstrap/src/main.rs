@@ -22,13 +22,17 @@ mod service {
         ".global refine",
         ".type refine, @function",
         "refine:",
-        "ret",
+        "li t0, 255",     // ecalli(0xFF) = REPLY
+        "ecall",
+        "unimp",
         ".global accumulate",
         ".type accumulate, @function",
         "accumulate:",
         // Load a distinguishing constant so the blob hash differs from minimal.
         "li t0, 0x42",
-        "ret",
+        "li t0, 255",     // ecalli(0xFF) = REPLY
+        "ecall",
+        "unimp",
     );
 
     #[panic_handler]
