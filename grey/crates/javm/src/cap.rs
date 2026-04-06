@@ -93,7 +93,9 @@ impl DataCap {
         }
         let byte_idx = page_idx as usize / 8;
         let bit_idx = page_idx as usize % 8;
-        self.mapped_bitmap.get(byte_idx).map_or(false, |b| b & (1 << bit_idx) != 0)
+        self.mapped_bitmap
+            .get(byte_idx)
+            .is_some_and(|b| b & (1 << bit_idx) != 0)
     }
 
     /// Count of mapped pages.
@@ -170,7 +172,10 @@ impl DataCap {
     /// Legacy compat: map all pages at once (used by kernel init for blob DATA caps).
     pub fn map(&mut self, base_page: u32, access: Access) -> Option<(u32, Access)> {
         let prev = if self.has_any_mapped() {
-            Some((self.base_offset.unwrap_or(0), self.access.unwrap_or(Access::RO)))
+            Some((
+                self.base_offset.unwrap_or(0),
+                self.access.unwrap_or(Access::RO),
+            ))
         } else {
             None
         };
@@ -187,7 +192,10 @@ impl DataCap {
         if !self.has_any_mapped() {
             return None;
         }
-        let prev = Some((self.base_offset.unwrap_or(0), self.access.unwrap_or(Access::RO)));
+        let prev = Some((
+            self.base_offset.unwrap_or(0),
+            self.access.unwrap_or(Access::RO),
+        ));
         self.unmap_all();
         prev
     }

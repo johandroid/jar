@@ -142,10 +142,10 @@ impl InvocationKernel {
             if let Cap::Data(ref d) = cap {
                 init_pages += d.page_count;
                 // Record DATA caps that need mapping into the CODE window
-                if d.has_any_mapped() {
-                    if let (Some(base_page), Some(access)) = (d.base_offset, d.access) {
-                        data_caps_to_map.push((base_page, d.backing_offset, d.page_count, access));
-                    }
+                if d.has_any_mapped()
+                    && let (Some(base_page), Some(access)) = (d.base_offset, d.access)
+                {
+                    data_caps_to_map.push((base_page, d.backing_offset, d.page_count, access));
                 }
             }
             cap_table.set(entry.cap_index, cap);
@@ -429,7 +429,9 @@ impl InvocationKernel {
             return DispatchResult::Continue;
         }
 
-        self.vms[dst_vm].cap_table.set(dst_slot, Cap::Data(data_cap));
+        self.vms[dst_vm]
+            .cap_table
+            .set(dst_slot, Cap::Data(data_cap));
         self.set_active_reg(7, dst_slot as u64);
         DispatchResult::Continue
     }
@@ -647,7 +649,8 @@ impl InvocationKernel {
                         return None;
                     }
                     let target_state = self.vms[target_vm].state;
-                    if target_state == VmState::Running || target_state == VmState::WaitingForReply {
+                    if target_state == VmState::Running || target_state == VmState::WaitingForReply
+                    {
                         return None; // target must be non-RUNNING
                     }
                     vm_idx = target_vm;
@@ -987,105 +990,7 @@ impl InvocationKernel {
         DispatchResult::Continue
     }
 
-    fn mgmt_grant(&mut self, handle_idx: u8) -> DispatchResult {
-        let cap_idx = self.active_reg(7) as u8;
-
-        let vm = &self.vms[self.active_vm as usize];
-        let target_vm_id = match vm.cap_table.get(handle_idx) {
-            Some(Cap::Handle(h)) => h.vm_id,
-            _ => {
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        if target_vm_id as usize >= self.vms.len() {
-            self.set_active_reg(7, RESULT_WHAT);
-            return DispatchResult::Continue;
-        }
-
-        // Take cap from parent
-        let mut cap = match self.vms[self.active_vm as usize].cap_table.take(cap_idx) {
-            Some(c) => c,
-            None => {
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        // Auto-unmap DATA caps crossing boundary
-        if let Cap::Data(ref mut d) = cap {
-            d.unmap();
-        }
-
-        // Find free slot in child
-        let child = &mut self.vms[target_vm_id as usize];
-        let free = match (0..255u8).find(|i| child.cap_table.is_empty(*i)) {
-            Some(s) => s,
-            None => {
-                // Put it back
-                self.vms[self.active_vm as usize]
-                    .cap_table
-                    .set(cap_idx, cap);
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        child.cap_table.set(free, cap);
-        self.set_active_reg(7, free as u64);
-        DispatchResult::Continue
-    }
-
-    fn mgmt_revoke(&mut self, handle_idx: u8) -> DispatchResult {
-        let remote_idx = self.active_reg(7) as u8;
-
-        let vm = &self.vms[self.active_vm as usize];
-        let target_vm_id = match vm.cap_table.get(handle_idx) {
-            Some(Cap::Handle(h)) => h.vm_id,
-            _ => {
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        if target_vm_id as usize >= self.vms.len() {
-            self.set_active_reg(7, RESULT_WHAT);
-            return DispatchResult::Continue;
-        }
-
-        // Take cap from child
-        let mut cap = match self.vms[target_vm_id as usize].cap_table.take(remote_idx) {
-            Some(c) => c,
-            None => {
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        // Auto-unmap DATA caps crossing boundary
-        if let Cap::Data(ref mut d) = cap {
-            d.unmap();
-        }
-
-        // Find free slot in parent
-        let parent = &mut self.vms[self.active_vm as usize];
-        let free = match (64..255u8).find(|i| parent.cap_table.is_empty(*i)) {
-            Some(s) => s,
-            None => {
-                // Put it back in child
-                self.vms[target_vm_id as usize]
-                    .cap_table
-                    .set(remote_idx, cap);
-                self.set_active_reg(7, RESULT_WHAT);
-                return DispatchResult::Continue;
-            }
-        };
-
-        parent.cap_table.set(free, cap);
-        self.set_active_reg(7, free as u64);
-        DispatchResult::Continue
-    }
+    // mgmt_grant and mgmt_revoke removed — subsumed by MOVE with indirection via ecall.
 
     fn mgmt_downgrade(&mut self, handle_idx: u8) -> DispatchResult {
         let vm = &self.vms[self.active_vm as usize];
@@ -1325,23 +1230,17 @@ impl InvocationKernel {
         };
 
         // Auto-unmap DATA caps crossing CNode boundaries
-        if s_vm != o_vm {
-            if let Cap::Data(ref mut d) = cap {
-                if d.has_any_mapped() {
-                    if let Some(base_offset) = d.base_offset {
-                        let code_cap_id = self.vms[s_vm].code_cap_id;
-                        let code_cap = &self.code_caps[code_cap_id as usize];
-                        unsafe {
-                            BackingStore::unmap_pages(
-                                code_cap.window.base(),
-                                base_offset,
-                                d.page_count,
-                            );
-                        }
-                    }
-                    d.unmap_all();
-                }
+        if s_vm != o_vm
+            && let Cap::Data(ref mut d) = cap
+            && d.has_any_mapped()
+            && let Some(base_offset) = d.base_offset
+        {
+            let code_cap_id = self.vms[s_vm].code_cap_id;
+            let code_cap = &self.code_caps[code_cap_id as usize];
+            unsafe {
+                BackingStore::unmap_pages(code_cap.window.base(), base_offset, d.page_count);
             }
+            d.unmap_all();
         }
 
         self.vms[o_vm].cap_table.set(o_slot, cap);

@@ -21,7 +21,7 @@ mod service {
         ".type _start, @function",
         "_start:",
         "li t0, 0x42", // distinguish from minimal blob
-        "li t0, 0",  // ecalli(0) = REPLY (IPC slot 0)
+        "li t0, 0",    // ecalli(0) = REPLY (IPC slot 0)
         "ecall",
         "unimp", // trap if resumed
     );
