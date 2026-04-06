@@ -278,7 +278,7 @@ pub fn grey_mem_seq_blob(size_bytes: u64) -> Vec<u8> {
     );
 
     // Return checksum
-    ecalli(&mut c, &mut m, 0xFF); // REPLY (terminate)
+    ecalli(&mut c, &mut m, 0x00); // REPLY (IPC slot 0)
 
     build_blob(c, m, 1, heap_pages)
 }
@@ -358,7 +358,7 @@ pub fn grey_mem_rand_blob(size_bytes: u64) -> Vec<u8> {
     );
 
     // Return checksum
-    ecalli(&mut c, &mut m, 0xFF); // REPLY (terminate)
+    ecalli(&mut c, &mut m, 0x00); // REPLY (IPC slot 0)
 
     build_blob(c, m, 1, heap_pages)
 }
