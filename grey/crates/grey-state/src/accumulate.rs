@@ -676,9 +676,13 @@ fn run_accumulate_pvm(
                 let gas_used = initial_gas - pvm.gas();
                 return (exceptional, gas_used);
             }
-            KernelResult::ProtocolCall { slot, regs, gas: _ } => {
-                // Gas already charged by kernel (10 per ecalli in dispatch_ecalli)
-                // Dispatch by protocol cap slot number (matches GP host call IDs directly)
+            KernelResult::ProtocolCall { slot } => {
+                // Snapshot argument registers (φ[7]-φ[12]) for the handler.
+                // Only these are used by protocol call handlers.
+                let mut regs = [0u64; 13];
+                for i in 7..=12 {
+                    regs[i] = pvm.reg(i);
+                }
                 let ok = handle_host_call(
                     config,
                     slot,

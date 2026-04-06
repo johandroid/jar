@@ -49,13 +49,10 @@ pub enum KernelResult {
     /// Root VM page-faulted at address.
     PageFault(u32),
     /// A protocol cap was invoked. Host should handle and call `resume_protocol_call`.
+    /// Read registers/gas via kernel accessors (active_reg, gas).
     ProtocolCall {
         /// Protocol cap slot number.
         slot: u8,
-        /// VM registers at the time of the call.
-        regs: [u64; 13],
-        /// Gas remaining.
-        gas: u64,
     },
 }
 
@@ -343,12 +340,7 @@ impl InvocationKernel {
         match cap {
             Cap::Protocol(p) => {
                 let slot = p.id;
-                let mut regs = [0u64; 13];
-                for i in 0..13 {
-                    regs[i] = self.active_reg(i);
-                }
-                let gas = self.gas();
-                DispatchResult::ProtocolCall { slot, regs, gas }
+                DispatchResult::ProtocolCall { slot }
             }
             Cap::Untyped(_) => {
                 #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
@@ -1283,7 +1275,7 @@ impl InvocationKernel {
                             }
                             continue;
                         }
-                        DispatchResult::ProtocolCall { slot, regs, gas } => {
+                        DispatchResult::ProtocolCall { slot } => {
                             // Mark for fast resume on next run() call.
                             // Leave signal state installed for the resume path.
                             #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -1293,7 +1285,7 @@ impl InvocationKernel {
                             ) {
                                 self.recompiler_resume_cap = Some(code_cap_id);
                             }
-                            return KernelResult::ProtocolCall { slot, regs, gas };
+                            return KernelResult::ProtocolCall { slot };
                         }
                         DispatchResult::RootHalt(v) => return KernelResult::Halt(v),
                         DispatchResult::RootPanic => return KernelResult::Panic,
@@ -1502,7 +1494,7 @@ pub enum DispatchResult {
     /// Continue execution of the active VM.
     Continue,
     /// A protocol cap was called — host should handle.
-    ProtocolCall { slot: u8, regs: [u64; 13], gas: u64 },
+    ProtocolCall { slot: u8 },
     /// Root VM halted normally.
     RootHalt(u64),
     /// Root VM panicked.
@@ -1787,9 +1779,10 @@ mod tests {
         kernel.set_active_reg(7, 123);
         let result = kernel.dispatch_ecalli(0);
         match result {
-            DispatchResult::ProtocolCall { slot, regs, .. } => {
+            DispatchResult::ProtocolCall { slot } => {
                 assert_eq!(slot, 0);
-                assert_eq!(regs[7], 123);
+                // Registers accessible via kernel.active_reg(7)
+                assert_eq!(kernel.active_reg(7), 123);
             }
             _ => panic!("expected ProtocolCall"),
         }
