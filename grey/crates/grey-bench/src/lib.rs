@@ -103,8 +103,8 @@ pub fn grey_fib_blob(n: u64) -> Vec<u8> {
     emit_branch_lt_u(&mut asm, Reg::T2, Reg::S1, rel_offset as i32);
 
     asm.move_reg(Reg::A0, Reg::T1);
-    // Terminate via REPLY (ecalli 0xFF)
-    asm.ecalli(0xFF);
+    // Terminate via REPLY (IPC slot 0)
+    asm.ecalli(0x00);
 
     asm.build()
 }
@@ -134,7 +134,7 @@ pub fn grey_hostcall_blob(n: u64) -> Vec<u8> {
     emit_branch_lt_u(&mut asm, Reg::T0, Reg::S1, rel_offset as i32);
 
     asm.move_reg(Reg::A0, Reg::T0);
-    asm.ecalli(0xFF); // REPLY (terminate)
+    asm.ecalli(0x00); // REPLY (IPC slot 0)
 
     asm.build()
 }
@@ -383,7 +383,7 @@ pub fn grey_sort_blob(n: u32) -> Vec<u8> {
 
     // === DONE ===
     load_ind_u32(&mut c, &mut m, A0, S0, 0); // result = arr[0] (should be 1)
-    ecalli(&mut c, &mut m, 0xFF); // REPLY (terminate)
+    ecalli(&mut c, &mut m, 0x00); // REPLY (IPC slot 0)
 
     // === Patch forward jumps ===
     // 1. inner_entry jump → inner_test
@@ -757,9 +757,9 @@ pub fn grey_fib_recur_blob() -> Vec<u8> {
     // (the recompiler only binds labels at gas block starts)
     push_inst(&mut code, &mut bitmask, 1); // opcode: fallthrough
 
-    // PC 82: ecalli(0xFF) (5 bytes) — REPLY(A0)
+    // PC 82: ecalli(0x00) (5 bytes) — REPLY(A0) (IPC slot 0)
     push_inst(&mut code, &mut bitmask, 10);
-    for &b in &0xFFu32.to_le_bytes() {
+    for &b in &0x00u32.to_le_bytes() {
         push_data(&mut code, &mut bitmask, b);
     }
 

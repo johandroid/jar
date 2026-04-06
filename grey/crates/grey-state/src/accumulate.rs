@@ -704,7 +704,7 @@ fn run_accumulate_pvm(
     }
 }
 
-/// Handle a protocol cap call. Slot numbers match GP host call IDs.
+/// Handle a protocol cap call. Slot numbers 1-28 (IPC=0, protocol caps shifted +1).
 /// Returns true to continue, false to abort.
 #[allow(clippy::too_many_arguments)]
 fn handle_host_call(
@@ -722,12 +722,12 @@ fn handle_host_call(
 
     tracing::info!(slot, service_id, "handle_host_call");
     match slot {
-        0 => {
+        1 => {
             // GAS: return remaining gas
             pvm.kernel_resume(pvm.gas(), 0);
             true
         }
-        1 => {
+        2 => {
             // FETCH: φ[7]=mode, φ[8]=sub, φ[9]=out_off, φ[10]=max_len, φ[12]=data_cap
             let mode = regs[7] as u32;
             let sub = regs[8] as usize;
@@ -764,7 +764,7 @@ fn handle_host_call(
             }
             true
         }
-        3 => {
+        4 => {
             // STORAGE_R: φ[7]=key_off, φ[8]=key_len, φ[9]=out_off, φ[10]=max_len, φ[12]=data_cap
             let key_off = regs[7] as u32;
             let key_len = regs[8] as u32;
@@ -794,7 +794,7 @@ fn handle_host_call(
             }
             true
         }
-        4 => {
+        5 => {
             // STORAGE_W: φ[7]=key_off, φ[8]=key_len, φ[9]=val_off, φ[10]=val_len, φ[12]=data_cap
             let key_off = regs[7] as u32;
             let key_len = regs[8] as u32;
@@ -836,13 +836,13 @@ fn handle_host_call(
             pvm.kernel_resume(old_len, 0);
             true
         }
-        17 => {
+        18 => {
             // CHECKPOINT: y' = x (copy regular context to exceptional)
             *exceptional = regular.clone();
             pvm.kernel_resume(0, 0);
             true
         }
-        25 => {
+        26 => {
             // OUTPUT (yield in GP): set accumulation output hash
             let hash_off = regs[7] as u32;
             let data_cap = regs[12] as u8;

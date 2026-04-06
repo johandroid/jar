@@ -55,8 +55,8 @@ mod service {
         // accumulate
         "jal ra, accumulate_impl",
         ".Lreply:",
-        // REPLY to kernel
-        "li t0, 255",
+        // REPLY to kernel (IPC slot 0)
+        "li t0, 0",
         "ecall",
         "unimp",
     );
@@ -110,7 +110,7 @@ mod service {
     unsafe fn host_call_1(a0: u32, a1: u32, a2: u32, a3: u32, a5: u32) -> u32 {
         let result: u32;
         core::arch::asm!(
-            "li t0, 1",  // FETCH
+            "li t0, 2",  // FETCH (slot 2)
             "ecall",
             in("a0") a0,
             in("a1") a1,
@@ -128,7 +128,7 @@ mod service {
     unsafe fn host_call_3(a0: u32, a1: u32, a2: u32, a3: u32, a5: u32) -> u32 {
         let result: u32;
         core::arch::asm!(
-            "li t0, 3",  // STORAGE_R
+            "li t0, 4",  // STORAGE_R (slot 4)
             "ecall",
             in("a0") a0,
             in("a1") a1,
@@ -146,7 +146,7 @@ mod service {
     unsafe fn host_call_4(a0: u32, a1: u32, a2: u32, a3: u32, a5: u32) -> u32 {
         let result: u32;
         core::arch::asm!(
-            "li t0, 4",  // STORAGE_W
+            "li t0, 5",  // STORAGE_W (slot 5)
             "ecall",
             in("a0") a0,
             in("a1") a1,

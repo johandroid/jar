@@ -15,7 +15,7 @@ mod service {
         ".global _start",
         ".type _start, @function",
         "_start:",
-        "li t0, 255", // ecalli(0xFF) = REPLY
+        "li t0, 0", // ecalli(0) = REPLY (IPC slot 0)
         "ecall",
         "unimp", // trap if resumed
     );

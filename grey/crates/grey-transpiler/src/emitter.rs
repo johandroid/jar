@@ -240,9 +240,9 @@ pub fn build_service_program(
         next_page += heap_pages;
     }
 
-    // Args DATA cap at IPC slot (0xFF) — kernel writes args here
+    // Args DATA cap at IPC slot (0x00) — kernel writes args here
     caps.push(CapManifestEntry {
-        cap_index: 0xFF,
+        cap_index: 0x00,
         cap_type: CapEntryType::Data,
         base_page: next_page,
         page_count: 1, // 4KB for args

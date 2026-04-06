@@ -39,7 +39,7 @@ mod service {
         "li a1, 1",       // a1 = key_len
         "addi a2, sp, 8", // a2 = val_ptr
         "li a3, 1",       // a3 = val_len
-        "li t0, 4",       // host call ID = 4 (host_write)
+        "li t0, 5",       // STORAGE_W (slot 5)
         "ecall",          // invoke host
         // Clean up and return
         "ld ra, 8(sp)",    // restore ra

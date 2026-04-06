@@ -630,9 +630,9 @@ pub fn build_sample_service_precise() -> Vec<u8> {
     push_data(&mut code, &mut bitmask, 0x00);
     push_data(&mut code, &mut bitmask, 0x00);
 
-    // ecalli 4 (host_write)
+    // ecalli 5 (STORAGE_W, slot 5)
     push_inst(&mut code, &mut bitmask, 10); // ecalli
-    push_data(&mut code, &mut bitmask, 0x04); // ID = 4
+    push_data(&mut code, &mut bitmask, 0x05); // ID = 5
     push_data(&mut code, &mut bitmask, 0x00);
     push_data(&mut code, &mut bitmask, 0x00);
     push_data(&mut code, &mut bitmask, 0x00);
