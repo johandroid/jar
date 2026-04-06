@@ -9,7 +9,7 @@ use grey_state::disputes::process_disputes;
 use grey_types::Ed25519PublicKey;
 use grey_types::config::Config;
 use grey_types::header::*;
-use grey_types::state::{Judgments, PendingReport};
+use grey_types::state::Judgments;
 use grey_types::validator::ValidatorKey;
 
 fn parse_judgments(json: &serde_json::Value) -> Judgments {
