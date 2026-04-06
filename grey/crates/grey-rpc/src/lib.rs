@@ -490,12 +490,10 @@ impl JamRpcServer for RpcImpl {
             .map_err(|e| internal_error(e.to_string()))?;
 
         // Read entropy: C(6) = 4 × 32 raw bytes
-        let mut entropy_key = [0u8; 31];
-        entropy_key[0] = 6;
         let entropy_raw = self
             .state
             .store
-            .get_state_kv(&block_hash, &entropy_key)
+            .get_state_kv(&block_hash, &grey_merkle::state_key_from_index(6))
             .map_err(|e| internal_error(e.to_string()))?
             .unwrap_or_default();
         let entropy: Vec<String> = (0..4)
@@ -509,12 +507,10 @@ impl JamRpcServer for RpcImpl {
             .collect();
 
         // Read current validators: C(8) = V × 336 bytes
-        let mut validators_key = [0u8; 31];
-        validators_key[0] = 8;
         let validators_raw = self
             .state
             .store
-            .get_state_kv(&block_hash, &validators_key)
+            .get_state_kv(&block_hash, &grey_merkle::state_key_from_index(8))
             .map_err(|e| internal_error(e.to_string()))?
             .unwrap_or_default();
         let validator_count = validators_raw.len() / 336;
@@ -556,13 +552,13 @@ impl JamRpcServer for RpcImpl {
             .get_head()
             .map_err(|e| internal_error(e.to_string()))?;
 
-        // State key C(index): index byte at position 0, rest zeroes.
-        let mut state_key = [0u8; 31];
-        state_key[0] = component_index;
         let raw = self
             .state
             .store
-            .get_state_kv(&head_hash, &state_key)
+            .get_state_kv(
+                &head_hash,
+                &grey_merkle::state_key_from_index(component_index),
+            )
             .map_err(|e| internal_error(e.to_string()))?
             .unwrap_or_default();
 
@@ -641,42 +637,39 @@ impl JamRpcServer for RpcImpl {
     }
 }
 
+/// Accept a subscription and forward notifications from a broadcast channel
+/// until the client disconnects.
+async fn forward_subscription(
+    pending: jsonrpsee::PendingSubscriptionSink,
+    channel: &tokio::sync::broadcast::Sender<serde_json::Value>,
+) -> jsonrpsee::core::SubscriptionResult {
+    let sink = pending.accept().await?;
+    let mut rx = channel.subscribe();
+    tokio::spawn(async move {
+        while let Ok(notification) = rx.recv().await {
+            let msg = jsonrpsee::SubscriptionMessage::from_json(&notification).expect("valid JSON");
+            if sink.send(msg).await.is_err() {
+                break; // client disconnected
+            }
+        }
+    });
+    Ok(())
+}
+
 #[async_trait]
 impl JamSubscriptionsServer for RpcImpl {
     async fn subscribe_new_blocks(
         &self,
         pending: jsonrpsee::PendingSubscriptionSink,
     ) -> jsonrpsee::core::SubscriptionResult {
-        let sink = pending.accept().await?;
-        let mut rx = self.state.block_notifications.subscribe();
-        tokio::spawn(async move {
-            while let Ok(notification) = rx.recv().await {
-                let msg =
-                    jsonrpsee::SubscriptionMessage::from_json(&notification).expect("valid JSON");
-                if sink.send(msg).await.is_err() {
-                    break; // client disconnected
-                }
-            }
-        });
-        Ok(())
+        forward_subscription(pending, &self.state.block_notifications).await
     }
 
     async fn subscribe_finalized(
         &self,
         pending: jsonrpsee::PendingSubscriptionSink,
     ) -> jsonrpsee::core::SubscriptionResult {
-        let sink = pending.accept().await?;
-        let mut rx = self.state.finality_notifications.subscribe();
-        tokio::spawn(async move {
-            while let Ok(notification) = rx.recv().await {
-                let msg =
-                    jsonrpsee::SubscriptionMessage::from_json(&notification).expect("valid JSON");
-                if sink.send(msg).await.is_err() {
-                    break; // client disconnected
-                }
-            }
-        });
-        Ok(())
+        forward_subscription(pending, &self.state.finality_notifications).await
     }
 }
 
