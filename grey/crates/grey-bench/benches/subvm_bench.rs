@@ -25,15 +25,11 @@ fn bench_fib_recur(c: &mut Criterion) {
     group.sample_size(10);
 
     group.bench_function("grey-interpreter", |b| {
-        b.iter(|| {
-            run_fib_recur_with_backend(&blob, n, gas, javm::PvmBackend::ForceInterpreter)
-        })
+        b.iter(|| run_fib_recur_with_backend(&blob, n, gas, javm::PvmBackend::ForceInterpreter))
     });
 
     group.bench_function("grey-recompiler", |b| {
-        b.iter(|| {
-            run_fib_recur_with_backend(&blob, n, gas, javm::PvmBackend::ForceRecompiler)
-        })
+        b.iter(|| run_fib_recur_with_backend(&blob, n, gas, javm::PvmBackend::ForceRecompiler))
     });
 
     group.finish();
