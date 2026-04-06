@@ -285,6 +285,7 @@ impl InvocationKernel {
     /// Dispatch an ecalli immediate from the active VM.
     ///
     /// Returns a `DispatchResult` indicating what the kernel should do next.
+    #[inline(always)]
     pub fn dispatch_ecalli(&mut self, imm: u32) -> DispatchResult {
         // Charge ecalli gas cost (10) — matches GP host call gas charge
         let ecalli_gas: u64 = 10;
@@ -326,6 +327,7 @@ impl InvocationKernel {
     }
 
     /// Handle CALL on a cap slot.
+    #[inline(always)]
     fn handle_call(&mut self, cap_idx: u8) -> DispatchResult {
         let vm = &self.vms[self.active_vm as usize];
         let cap = match vm.cap_table.get(cap_idx) {
@@ -1016,6 +1018,7 @@ impl InvocationKernel {
     /// only update the result registers that kernel_resume() changed, then
     /// re-enter native code. No full register sync needed.
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[inline(always)]
     fn run_recompiler_resume(&mut self, code_cap_id: usize) -> (u32, u32) {
         use crate::recompiler::JitContext;
 
