@@ -2,14 +2,10 @@
 
 mod common;
 
-use common::{
-    decode_hex, discover_test_stems, hash_from_hex, parse_pending_reports, parse_work_report,
-    sig_from_hex,
-};
+use common::{decode_hex, discover_test_stems, hash_from_hex, parse_pending_reports, sig_from_hex};
 use grey_state::assurances::process_assurances;
 use grey_types::config::Config;
 use grey_types::header::Assurance;
-use grey_types::state::PendingReport;
 use grey_types::validator::ValidatorKey;
 
 fn run_assurances_test(dir: &str, stem: &str) {
