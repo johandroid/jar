@@ -970,7 +970,7 @@ impl InvocationKernel {
     /// which only updates registers + gas + entry_pc instead of rebuilding all fields.
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn run_recompiler_segment(&mut self, code_cap_id: usize) -> (u32, u32) {
-        use crate::recompiler::{JitContext, signal};
+        use crate::recompiler::JitContext;
 
         let code_cap = &self.code_caps[code_cap_id];
         let compiled = match &code_cap.compiled {

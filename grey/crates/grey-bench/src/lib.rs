@@ -732,7 +732,7 @@ mod tests_sort {
             .expect("blob should be loadable");
         // In v2, the program dispatches on φ[7] (op code).
         // φ[7]=1 means accumulate. Set it before running.
-        kernel.vms[kernel.active_vm as usize].registers[7] = 1;
+        kernel.vms[kernel.active_vm as usize].set_reg(7, 1);
         let result = kernel.run();
         match result {
             javm::kernel::KernelResult::Halt(_)

@@ -680,9 +680,9 @@ fn run_accumulate_pvm(
                 // Snapshot argument registers (φ[7]-φ[12]) for the handler.
                 // Only these are used by protocol call handlers.
                 let mut regs = [0u64; 13];
-                for i in 7..=12 {
-                    regs[i] = pvm.reg(i);
-                }
+                regs[7..=12].iter_mut().enumerate().for_each(|(j, r)| {
+                    *r = pvm.reg(7 + j);
+                });
                 let ok = handle_host_call(
                     config,
                     slot,
