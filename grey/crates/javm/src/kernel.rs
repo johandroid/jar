@@ -529,12 +529,12 @@ impl InvocationKernel {
         let caller_id = self.active_vm;
         let _ = self.vms[caller_id as usize].transition(VmState::WaitingForReply);
 
-        // Handle IPC cap (φ[12])
+        // Handle IPC cap (φ[12]). 0 = no cap to pass (slot 0 is IPC itself).
         let ipc_cap_slot = self.active_reg(12) as u8;
         let mut ipc_cap_idx = None;
         let mut ipc_was_mapped = None;
 
-        if ipc_cap_slot != 0xFF
+        if ipc_cap_slot != 0
             && !self.vms[caller_id as usize]
                 .cap_table
                 .is_empty(ipc_cap_slot)
@@ -2104,10 +2104,10 @@ mod tests {
         kernel.dispatch_ecalli(64); // CALL CODE at slot 64 → CREATE
         let handle_idx = kernel.active_reg(7) as u8;
 
-        // CALL the child: φ[7]=arg0, φ[8]=arg1, φ[12]=0xFFFFFFFF (no IPC cap)
+        // CALL the child: φ[7]=arg0, φ[8]=arg1, φ[12]=0 (no IPC cap)
         kernel.set_active_reg(7, 42);
         kernel.set_active_reg(8, 99);
-        kernel.set_active_reg(12, 0xFFFFFFFF);
+        kernel.set_active_reg(12, 0);
 
         let result = kernel.dispatch_ecalli(handle_idx as u32);
         assert!(matches!(result, DispatchResult::Continue));
@@ -2156,7 +2156,7 @@ mod tests {
 
         // VM 0 calls VM 1
         kernel.set_active_reg(7, 0);
-        kernel.set_active_reg(12, 0xFFFFFFFF); // no IPC cap
+        kernel.set_active_reg(12, 0); // no IPC cap (slot 0 = IPC itself)
         kernel.dispatch_ecalli(handle1 as u32);
         assert_eq!(kernel.active_vm, 1);
 
@@ -2188,7 +2188,7 @@ mod tests {
         // CALL child — gas should be capped at 5000
         let parent_gas_before = kernel.vms[0].gas();
         kernel.set_active_reg(7, 0);
-        kernel.set_active_reg(12, 0xFFFFFFFF); // no IPC cap
+        kernel.set_active_reg(12, 0); // no IPC cap (slot 0 = IPC itself)
         kernel.dispatch_ecalli(handle_idx as u32);
 
         assert_eq!(kernel.active_vm, 1);

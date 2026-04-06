@@ -688,16 +688,16 @@ pub fn grey_fib_recur_blob() -> Vec<u8> {
     push_inst(&mut code, &mut bitmask, 10);
     for &b in &32u32.to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
 
-    // CALL child1 with N-1: φ[7]=N-1, φ[12]=0xFFFFFFFF (no IPC)
+    // CALL child1 with N-1: φ[7]=N-1, φ[12]=0 (no IPC cap)
     // PC 54: add_imm_64 A0, S0, -1 (6 bytes) — A0 = N-1
     push_inst(&mut code, &mut bitmask, 149);
     push_data(&mut code, &mut bitmask, (Reg::A0 as u8) | ((Reg::S0 as u8) << 4));
     for &b in &(-1i32).to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
 
-    // PC 60: load_imm A5, -1 (6 bytes) — φ[12] = 0xFFFFFFFF (no IPC cap)
+    // PC 60: load_imm A5, 0 (6 bytes) — φ[12] = 0 (no IPC cap, slot 0 = IPC itself)
     push_inst(&mut code, &mut bitmask, 51);
     push_data(&mut code, &mut bitmask, Reg::A5 as u8);
-    for &b in &(-1i32).to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
+    for &b in &0i32.to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
 
     // PC 66: ecalli(64) (5 bytes) — CALL child1 with N-1
     push_inst(&mut code, &mut bitmask, 10);
@@ -707,16 +707,16 @@ pub fn grey_fib_recur_blob() -> Vec<u8> {
     push_inst(&mut code, &mut bitmask, 100);
     push_data(&mut code, &mut bitmask, (Reg::S1 as u8) | ((Reg::A0 as u8) << 4));
 
-    // CALL child2 with N-2: φ[7]=N-2, φ[12]=0xFFFFFFFF
+    // CALL child2 with N-2: φ[7]=N-2, φ[12]=0 (no IPC cap)
     // PC 73: add_imm_64 A0, S0, -2 (6 bytes) — A0 = N-2
     push_inst(&mut code, &mut bitmask, 149);
     push_data(&mut code, &mut bitmask, (Reg::A0 as u8) | ((Reg::S0 as u8) << 4));
     for &b in &(-2i32).to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
 
-    // PC 79: load_imm A5, -1 (6 bytes) — φ[12] = 0xFFFFFFFF (no IPC cap)
+    // PC 79: load_imm A5, 0 (6 bytes) — φ[12] = 0 (no IPC cap)
     push_inst(&mut code, &mut bitmask, 51);
     push_data(&mut code, &mut bitmask, Reg::A5 as u8);
-    for &b in &(-1i32).to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
+    for &b in &0i32.to_le_bytes() { push_data(&mut code, &mut bitmask, b); }
 
     // PC 85: ecalli(65) (5 bytes) — CALL child2 with N-2
     push_inst(&mut code, &mut bitmask, 10);
