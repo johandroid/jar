@@ -26,8 +26,10 @@ inductive StepResult where
   | panic : StepResult
   /-- Page fault at address. -/
   | fault (addr : UInt64) : StepResult
-  /-- Host call with function ID and next PC for resumption. -/
+  /-- Host call with function ID and next PC for resumption (ecalli). -/
   | hostCall (id : UInt64) (regs : Registers) (mem : Memory) (nextPC : Nat) : StepResult
+  /-- Management op / dynamic CALL (ecall opcode 3). φ[11]=op, φ[12]=subject|object. -/
+  | ecall (regs : Registers) (mem : Memory) (nextPC : Nat) : StepResult
 
 -- ============================================================================
 -- Helpers
@@ -242,6 +244,7 @@ def executeStep (prog : ProgramBlob) (pc : Nat) (regs : Registers) (mem : Memory
   | 0 => .panic  -- trap
   | 1 => .continue npc regs mem  -- fallthrough
   | 2 => .continue npc regs mem  -- unlikely (v0.8.0: gas hint, no semantic effect)
+  | 3 => .ecall regs mem npc     -- ecall: management ops + dynamic CALL
 
   -- ========== One-immediate (10) ==========
   | 10 =>  -- ecalli: host call

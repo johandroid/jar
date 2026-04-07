@@ -72,6 +72,7 @@ inductive DispatchResult where
 def RESULT_WHAT : UInt64 := UInt64.ofNat (2^64 - 2)
 def ecalliGasCost : Nat := 10
 def callOverheadGas : Nat := 10
+def gasPerPage : Nat := 1500
 def pageSize : Nat := 4096
 
 -- ============================================================================
@@ -187,6 +188,14 @@ def handleCallVm (state : KernelState) (targetVmId : Nat) (maxGas : Option Nat) 
 
       -- IPC cap transfer
       let ipcCapIdx := if hasIpc then some ipcSlotVal else none
+      -- Save DATA cap mapping state before transfer (for auto-remap on REPLY)
+      let ipcWasMapped := match ipcCapIdx with
+        | none => none
+        | some slot => match state.vms[callerIdx]!.capTable.get slot with
+          | some (.data d) => match d.baseOffset, d.access with
+            | some bo, some acc => some (bo, acc)
+            | _, _ => none
+          | _ => none
       let state := match ipcCapIdx with
         | none => state
         | some slot =>
@@ -201,7 +210,7 @@ def handleCallVm (state : KernelState) (targetVmId : Nat) (maxGas : Option Nat) 
       let frame : CallFrame := {
         callerVmId := callerIdx
         ipcCapIdx := ipcCapIdx
-        ipcWasMapped := none
+        ipcWasMapped := ipcWasMapped
       }
       let state := { state with callStack := state.callStack.push frame }
 
@@ -219,20 +228,26 @@ def handleCallVm (state : KernelState) (targetVmId : Nat) (maxGas : Option Nat) 
 
 /-- Resume caller with results from callee φ[7..8]. -/
 private def resumeCaller (state : KernelState) (calleeIdx callerIdx : Nat)
-    (ipcCapIdx : Option Nat) : KernelState :=
+    (ipcCapIdx : Option Nat) (ipcWasMapped : Option (Nat × Cap.Access)) : KernelState :=
   -- Return unused gas
   let unusedGas := state.vms[calleeIdx]!.gas
   let state := state.updateVm callerIdx fun vm => { vm with gas := vm.gas + unusedGas }
   let state := state.updateVm calleeIdx fun vm => { vm with gas := 0 }
-  -- Return IPC cap if any
+  -- Return IPC cap if any, auto-remap DATA at original base_offset
   let state := match ipcCapIdx with
     | none => state
     | some slot =>
       let (newTable, cap) := state.vms[calleeIdx]!.capTable.take 0
       let s := state.updateVm calleeIdx fun vm => { vm with capTable := newTable }
       match cap with
-      | some c => s.updateVm callerIdx fun vm =>
-          { vm with capTable := vm.capTable.set ( slot) c }
+      | some c =>
+        -- Auto-remap DATA cap at caller's original mapping
+        let c : Cap := match c, ipcWasMapped with
+          | Cap.data d, some (baseOff, acc) =>
+            Cap.data { d with baseOffset := some baseOff, access := some acc }
+          | _, _ => c
+        s.updateVm callerIdx fun vm =>
+          { vm with capTable := vm.capTable.set slot c }
       | none => s
   -- Pass results + resume caller
   let calleeRegs := state.vms[calleeIdx]!.registers
@@ -254,7 +269,7 @@ def handleReply (state : KernelState) : KernelState × DispatchResult :=
     let callerIdx := frame.callerVmId
     let state := { state with callStack := state.callStack.pop }
     let state := state.updateVm calleeIdx fun vm => { vm with state := .idle }
-    let state := resumeCaller state calleeIdx callerIdx frame.ipcCapIdx
+    let state := resumeCaller state calleeIdx callerIdx frame.ipcCapIdx frame.ipcWasMapped
     (state, .continue_)
 
 -- ============================================================================
@@ -385,15 +400,92 @@ def handleCreate (state : KernelState) (codeCapId : Nat) (codeCnodeVm : Nat)
 -- ============================================================================
 
 /-- MAP pages of a DATA cap in its CNode.
-    φ[7]=base_offset, φ[8]=page_offset, φ[9]=page_count. -/
+    φ[7]=base_offset, φ[8]=page_offset, φ[9]=page_count, φ[10]=access (0=RO, 1=RW).
+    In the Lean model, copies backing store pages into flat PVM Memory. -/
 def handleMap (state : KernelState) (vmIdx : Nat) (slot : Nat) : KernelState × DispatchResult :=
-  -- In the Lean spec, MAP copies backing store pages into the VM's flat memory.
-  -- TODO: implement when memory model is wired up
-  (state, .continue_)
+  let baseOffset := (state.getActiveReg 7).toNat
+  let pageOffset := (state.getActiveReg 8).toNat
+  let pgCount := (state.getActiveReg 9).toNat
+  let accessRaw := (state.getActiveReg 10).toNat
+  let access := if accessRaw == 1 then Cap.Access.rw else Cap.Access.ro
+  match state.vms[vmIdx]!.capTable.get slot with
+  | some (.data d) =>
+    if pageOffset + pgCount > d.pageCount then
+      (state.setActiveReg 7 RESULT_WHAT, .continue_)
+    else
+      -- Validate/set base offset and access
+      let ok := match d.baseOffset with
+        | some existing => existing == baseOffset
+        | none => true
+      let accessOk := match d.access with
+        | some existing => existing == access
+        | none => true
+      if !ok || !accessOk then
+        (state.setActiveReg 7 RESULT_WHAT, .continue_)
+      else
+        -- Update DATA cap metadata
+        let newBitmap := Id.run do
+          let mut bm := d.mappedBitmap
+          while bm.size < d.pageCount do bm := bm.push false
+          for i in [pageOffset:pageOffset + pgCount] do
+            if i < bm.size then bm := bm.set! i true
+          return bm
+        let d' : DataCap := { d with baseOffset := some baseOffset, access := some access, mappedBitmap := newBitmap }
+        let state := state.updateVm vmIdx fun vm =>
+          { vm with capTable := vm.capTable.set slot (.data d') }
+        -- Copy backing store pages into flat PVM memory
+        let state := Id.run do
+          let mut s := state
+          for p in [pageOffset:pageOffset + pgCount] do
+            let srcOff := (d.backingOffset + p) * pageSize
+            let dstAddr := (baseOffset + p) * pageSize
+            let pageData := s.backing.read (d.backingOffset + p) 0 pageSize
+            -- Write page into PVM memory
+            let mut mem := s.memory
+            for i in [:pageSize] do
+              if i < pageData.size then
+                mem := mem.setByte (dstAddr + i) pageData[i]!
+            -- Set page access
+            let pageIdx := baseOffset + p
+            let mut acc := mem.access
+            while acc.size <= pageIdx do acc := acc.push .inaccessible
+            let pa := if access == .rw then PVM.PageAccess.writable else PVM.PageAccess.readable
+            acc := acc.set! pageIdx pa
+            s := { s with memory := { mem with access := acc } }
+          return s
+        (state, .continue_)
+  | _ => (state.setActiveReg 7 RESULT_WHAT, .continue_)
 
-/-- UNMAP pages of a DATA cap. φ[7]=page_offset, φ[8]=page_count. -/
+/-- UNMAP pages of a DATA cap. φ[7]=page_offset, φ[8]=page_count.
+    Zeroes pages in PVM memory, marks inaccessible. -/
 def handleUnmap (state : KernelState) (vmIdx : Nat) (slot : Nat) : KernelState × DispatchResult :=
-  (state, .continue_) -- TODO
+  let pageOffset := (state.getActiveReg 7).toNat
+  let pgCount := (state.getActiveReg 8).toNat
+  match state.vms[vmIdx]!.capTable.get slot with
+  | some (.data d) =>
+    match d.baseOffset with
+    | none => (state, .continue_) -- not mapped, no-op
+    | some baseOffset =>
+      -- Clear bitmap bits
+      let d' := { d with mappedBitmap := Id.run do
+        let mut bm := d.mappedBitmap
+        for i in [pageOffset:pageOffset + pgCount] do
+          if i < bm.size then bm := bm.set! i false
+        return bm }
+      let state := state.updateVm vmIdx fun vm =>
+        { vm with capTable := vm.capTable.set slot (.data d') }
+      -- Mark pages inaccessible in PVM memory
+      let state := Id.run do
+        let mut s := state
+        for p in [pageOffset:pageOffset + pgCount] do
+          let pageIdx := baseOffset + p
+          let mut acc := s.memory.access
+          if pageIdx < acc.size then
+            acc := acc.set! pageIdx .inaccessible
+          s := { s with memory := { s.memory with access := acc } }
+        return s
+      (state, .continue_)
+  | _ => (state.setActiveReg 7 RESULT_WHAT, .continue_)
 
 /-- SPLIT a DATA cap. φ[7]=page_offset. Subject=DATA, object=dst slot for hi half. -/
 def handleSplit (state : KernelState) (sVm : Nat) (sSlot : Nat) (oVm : Nat) (oSlot : Nat)
@@ -656,6 +748,16 @@ def runKernel (state : KernelState) (fuel : Nat) : KernelState × KernelResult :
         match result.exitReason with
         | .hostCall imm =>
           let (state', dr) := dispatchEcalli state (UInt32.ofNat imm.toNat)
+          match dr with
+          | .continue_ => runKernel state' fuel'
+          | .faultHandled => runKernel state' fuel'
+          | .protocolCall slot => (state', .protocolCall slot)
+          | .rootHalt v => (state', .halt v)
+          | .rootPanic => (state', .panic)
+          | .rootOutOfGas => (state', .outOfGas)
+          | .rootPageFault a => (state', .pageFault a)
+        | .ecall =>
+          let (state', dr) := dispatchEcall state
           match dr with
           | .continue_ => runKernel state' fuel'
           | .faultHandled => runKernel state' fuel'

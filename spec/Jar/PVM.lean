@@ -107,6 +107,8 @@ inductive ExitReason where
   | pageFault (address : Reg) : ExitReason
   /-- Host-call request: ecalli instruction with identifier. -/
   | hostCall (id : Reg) : ExitReason
+  /-- Management op / dynamic CALL: ecall instruction (opcode 3). -/
+  | ecall : ExitReason
 
 /-- Complete PVM machine state. -/
 structure MachineState where

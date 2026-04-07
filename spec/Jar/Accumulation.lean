@@ -1630,6 +1630,7 @@ def accone (ps : PartialState) (serviceId : ServiceId)
           | .outOfGas => "oog"
           | .hostCall n => s!"hostcall({n})"
           | .pageFault addr => s!"pageFault({addr})"
+          | .ecall => s!"ecall(gas={gasUsed})"
         { postState := finalState
           deferredTransfers := finalTransfers
           yieldHash := finalYield

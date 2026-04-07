@@ -254,11 +254,16 @@ def zeta (code : ByteArray) (i : Nat) : Nat :=
 -- Argument Extraction — GP Appendix A.5 (matching javm/src/args.rs)
 -- ============================================================================
 
+/-- Zero-extended immediate read (for ecalli cap slot encoding). -/
+def readUnsignedAt (code : ByteArray) (offset n : Nat) : UInt64 :=
+  if n == 0 then 0
+  else readImmBytes code offset n
+
 /-- A.5.2: OneImm — one immediate (ecalli).
-    lX = min(4, ℓ), νX = X_lX(E_lX⁻¹(ζ[ı+1..+lX])). -/
+    lX = min(4, ℓ). Zero-extended for jar1 (cap slot with indirection encoding). -/
 def extractOneImm (code : ByteArray) (pc : Nat) (skip : Nat) : UInt64 :=
   let lx := min 4 skip
-  readSignedAt code (pc + 1) lx
+  readUnsignedAt code (pc + 1) lx
 
 /-- Generic immediate extraction: read sign-extended imm starting at byte `startByte`.
     Available bytes = max(0, ℓ + 1 - startByte), capped at 4. -/
