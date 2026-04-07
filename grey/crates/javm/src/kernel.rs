@@ -36,8 +36,8 @@ const MGMT_DIRTY: u32 = 0xC;
 
 /// WHAT error code (2^64 - 2).
 const RESULT_WHAT: u64 = u64::MAX - 1;
-const RESULT_LOW: u64 = u64::MAX - 7;  // gas limit too low
-const RESULT_HUH: u64 = u64::MAX - 8;  // invalid operation
+const RESULT_LOW: u64 = u64::MAX - 7; // gas limit too low
+const RESULT_HUH: u64 = u64::MAX - 8; // invalid operation
 
 /// Result from running the kernel until it needs host interaction.
 #[derive(Debug)]
@@ -693,8 +693,8 @@ impl InvocationKernel {
         self.vms[self.active_vm as usize].set_gas(g - ecall_gas);
 
         let phi12 = self.active_reg(12);
-        let object_ref = (phi12 & 0xFFFFFFFF) as u32;  // low u32
-        let subject_ref = (phi12 >> 32) as u32;         // high u32
+        let object_ref = (phi12 & 0xFFFFFFFF) as u32; // low u32
+        let subject_ref = (phi12 >> 32) as u32; // high u32
 
         match op {
             0x00 => {
@@ -1907,8 +1907,8 @@ impl InvocationKernel {
                 // Status 1: trap. Preserve child's φ[7] as trap code.
                 (1u64, self.vms[self.active_vm as usize].reg(7))
             }
-            FaultType::Panic => (2, RESULT_HUH),      // Status 2: runtime panic
-            FaultType::OutOfGas => (3, RESULT_LOW),    // Status 3: OOG
+            FaultType::Panic => (2, RESULT_HUH), // Status 2: runtime panic
+            FaultType::OutOfGas => (3, RESULT_LOW), // Status 3: OOG
             FaultType::PageFault(addr) => (4, addr as u64), // Status 4: page fault
         };
 
