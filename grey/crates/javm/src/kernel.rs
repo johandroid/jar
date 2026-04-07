@@ -278,7 +278,6 @@ impl InvocationKernel {
                     KernelError::CompileError
                 })?;
 
-
                 let code_cap = Arc::new(CodeCap {
                     id,
                     compiled,
@@ -909,6 +908,7 @@ impl InvocationKernel {
             }
         };
 
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let wb = self.active_window_base();
         let vm = &mut self.vm_arena.vm_mut(self.active_vm);
         match vm.cap_table.get_mut(cap_idx) {
@@ -916,12 +916,14 @@ impl InvocationKernel {
                 // Unmap previous mapping if remapping
                 if let Some((old_base, _)) = d.map(base_page, access) {
                     // SAFETY: wb is from active_window_base() (valid 4GB window).
+                    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                     unsafe {
                         BackingStore::unmap_pages(wb, old_base, d.page_count);
                     }
                 }
                 // Map new location
                 // SAFETY: wb is from active_window_base() (valid 4GB window).
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                 unsafe {
                     self.backing
                         .map_pages(wb, base_page, d.backing_offset, d.page_count, access);
@@ -935,12 +937,14 @@ impl InvocationKernel {
     }
 
     fn mgmt_unmap(&mut self, cap_idx: u8) -> DispatchResult {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let wb = self.active_window_base();
         let vm = &mut self.vm_arena.vm_mut(self.active_vm);
         match vm.cap_table.get_mut(cap_idx) {
             Some(Cap::Data(d)) => {
                 if let Some((base_page, _)) = d.unmap() {
                     // SAFETY: wb is from active_window_base() (valid 4GB window).
+                    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                     unsafe {
                         BackingStore::unmap_pages(wb, base_page, d.page_count);
                     }
@@ -991,6 +995,7 @@ impl InvocationKernel {
     }
 
     fn mgmt_drop(&mut self, cap_idx: u8) -> DispatchResult {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let wb = self.active_window_base();
         // DROP HANDLE → reclaim VM via arena.remove()
         if let Some(Cap::Handle(h)) = self.vm_arena.vm(self.active_vm).cap_table.get(cap_idx) {
@@ -1013,6 +1018,7 @@ impl InvocationKernel {
         {
             let page_count = d.page_count;
             // SAFETY: wb is from active_window_base() (valid 4GB window).
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             unsafe {
                 BackingStore::unmap_pages(wb, base_page, page_count);
             }
@@ -1164,6 +1170,7 @@ impl InvocationKernel {
             }
         };
 
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let window_base = self.vm_window_base(vm_idx as u16);
         let vm = &mut self.vm_arena.vm_mut(vm_idx as u16);
         match vm.cap_table.get_mut(slot) {
@@ -1173,6 +1180,7 @@ impl InvocationKernel {
                     return DispatchResult::Continue;
                 }
                 // Map the pages in the VM's window (if it has one)
+                #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                 if let Some(wb) = window_base {
                     for p in page_offset..page_offset + page_count {
                         // SAFETY: wb is from vm_window_base() (valid 4GB window).
@@ -1201,11 +1209,13 @@ impl InvocationKernel {
         let page_offset = self.active_reg(7) as u32;
         let page_count = self.active_reg(8) as u32;
 
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         let window_base = self.vm_window_base(vm_idx as u16);
         let vm = &mut self.vm_arena.vm_mut(vm_idx as u16);
         match vm.cap_table.get_mut(slot) {
             Some(Cap::Data(d)) => {
                 if let Some(base_offset) = d.base_offset {
+                    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
                     if let Some(wb) = window_base {
                         for p in
                             page_offset..page_offset.saturating_add(page_count).min(d.page_count)
@@ -1275,6 +1285,7 @@ impl InvocationKernel {
             && let Some(base_offset) = d.base_offset
         {
             let page_count = d.page_count;
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             if let Some(wb) = self.vm_window_base(vm_idx as u16) {
                 // SAFETY: wb is from vm_window_base() (valid 4GB window).
                 unsafe {
@@ -1310,6 +1321,7 @@ impl InvocationKernel {
             && d.has_any_mapped()
             && let Some(base_offset) = d.base_offset
         {
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
             if let Some(wb) = self.vm_window_base(s_vm as u16) {
                 // SAFETY: wb is from vm_window_base() (valid 4GB window).
                 unsafe {
@@ -1797,7 +1809,7 @@ impl InvocationKernel {
             // Collect write-back info first so we can drop the vm borrow before
             // taking &mut self.backing.
             let writebacks: Vec<(usize, u32, u32)> = {
-                let vm_ref = &self.vms[self.active_vm as usize];
+                let vm_ref = &self.vm_arena.vm(self.active_vm);
                 (0..=255u8)
                     .filter_map(|slot| {
                         let d = if let Some(Cap::Data(d)) = vm_ref.cap_table.get(slot) {
@@ -2024,14 +2036,25 @@ impl InvocationKernel {
         if !d.has_any_mapped() {
             return None;
         }
-        let wb = self.active_window_base();
         let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize + offset as usize;
-        let mut buf = vec![0u8; len as usize];
-        // SAFETY: base_page was mmap'd into the window by map_pages.
-        unsafe {
-            std::ptr::copy_nonoverlapping(wb.add(addr), buf.as_mut_ptr(), len as usize);
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        {
+            let wb = self.active_window_base();
+            let mut buf = vec![0u8; len as usize];
+            // SAFETY: base_page was mmap'd into the window by map_pages.
+            unsafe {
+                std::ptr::copy_nonoverlapping(wb.add(addr), buf.as_mut_ptr(), len as usize);
+            }
+            Some(buf)
         }
-        Some(buf)
+        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+        {
+            let byte_off = d.backing_offset as usize * crate::PVM_PAGE_SIZE as usize
+                + (addr - base_page as usize * crate::PVM_PAGE_SIZE as usize);
+            self.backing
+                .read_bytes_at(byte_off, len as usize)
+                .map(|s| s.to_vec())
+        }
     }
 
     /// Read bytes directly from the active VM's window by address.
@@ -2043,7 +2066,11 @@ impl InvocationKernel {
             let mut buf = vec![0u8; len as usize];
             // SAFETY: addr is within the window's 4GB mmap region.
             unsafe {
-                std::ptr::copy_nonoverlapping(wb.add(addr as usize), buf.as_mut_ptr(), len as usize);
+                std::ptr::copy_nonoverlapping(
+                    wb.add(addr as usize),
+                    buf.as_mut_ptr(),
+                    len as usize,
+                );
             }
             Some(buf)
         }
@@ -2086,11 +2113,20 @@ impl InvocationKernel {
             Some(b) if d.has_any_mapped() => b,
             _ => return false,
         };
-        let wb = self.active_window_base();
         let addr = base_page as usize * crate::PVM_PAGE_SIZE as usize + offset as usize;
-        // SAFETY: base_page was mmap'd into the window by map_pages.
-        unsafe {
-            std::ptr::copy_nonoverlapping(data.as_ptr(), wb.add(addr), data.len());
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        {
+            let wb = self.active_window_base();
+            // SAFETY: base_page was mmap'd into the window by map_pages.
+            unsafe {
+                std::ptr::copy_nonoverlapping(data.as_ptr(), wb.add(addr), data.len());
+            }
+        }
+        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+        {
+            let byte_off = d.backing_offset as usize * crate::PVM_PAGE_SIZE as usize
+                + (addr - base_page as usize * crate::PVM_PAGE_SIZE as usize);
+            self.backing.write_bytes_at(byte_off, data);
         }
         true
     }
