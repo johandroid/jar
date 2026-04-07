@@ -973,6 +973,16 @@ impl InvocationKernel {
 
     fn mgmt_drop(&mut self, cap_idx: u8) -> DispatchResult {
         let wb = self.active_window_base();
+        // DROP HANDLE → reclaim VM via arena.remove()
+        if let Some(Cap::Handle(h)) = self.vm_arena.vm(self.active_vm).cap_table.get(cap_idx) {
+            let vm_id = h.vm_id;
+            self.vm_arena.vm_mut(self.active_vm).cap_table.drop_cap(cap_idx);
+            // Reclaim the VM — release window and remove from arena
+            #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+            self.window_pool.release(vm_id.index());
+            self.vm_arena.remove(vm_id);
+            return DispatchResult::Continue;
+        }
         let vm = &mut self.vm_arena.vm_mut(self.active_vm);
         // Unmap DATA caps before dropping
         if let Some(Cap::Data(d)) = vm.cap_table.get(cap_idx)
@@ -1213,8 +1223,17 @@ impl InvocationKernel {
         DispatchResult::Continue
     }
 
-    /// DROP a cap. Auto-unmaps DATA.
+    /// DROP a cap. Auto-unmaps DATA. Reclaims VM on HANDLE drop.
     fn ecall_drop(&mut self, vm_idx: usize, slot: u8) -> DispatchResult {
+        // DROP HANDLE → reclaim VM
+        if let Some(Cap::Handle(h)) = self.vm_arena.vm(vm_idx as u16).cap_table.get(slot) {
+            let vm_id = h.vm_id;
+            self.vm_arena.vm_mut(vm_idx as u16).cap_table.drop_cap(slot);
+            #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+            self.window_pool.release(vm_id.index());
+            self.vm_arena.remove(vm_id);
+            return DispatchResult::Continue;
+        }
         if let Some(Cap::Data(d)) = self.vm_arena.vm(vm_idx as u16).cap_table.get(slot)
             && d.has_any_mapped()
             && let Some(base_offset) = d.base_offset
@@ -1396,6 +1415,69 @@ impl InvocationKernel {
         self.window_pool
             .find_window(vm_idx)
             .map(|idx| self.window_pool.window(idx).base())
+    }
+
+    /// Ensure the active VM has a window assigned. Handles eviction and
+    /// DATA cap mapping/unmapping. Called before executing any VM code and
+    /// after context switches (CALL/REPLY/HALT).
+    #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+    fn ensure_active_window(&mut self) {
+        let vm_idx = self.active_vm;
+        let generation = self.vm_arena.generation_of(vm_idx);
+        let assignment = self.window_pool.assign_window(vm_idx, generation);
+
+        // Evict previous owner's DATA caps from the window
+        if let Some(evicted_vm) = assignment.evicted {
+            self.unmap_vm_data_caps(evicted_vm, assignment.window_idx);
+        }
+
+        // Map current VM's DATA caps into the window
+        if assignment.needs_map {
+            self.map_vm_data_caps(vm_idx, assignment.window_idx);
+        }
+
+        self.active_window = assignment.window_idx;
+    }
+
+    /// Unmap all of a VM's mapped DATA caps from a window.
+    #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+    fn unmap_vm_data_caps(&self, vm_idx: u16, window_idx: usize) {
+        let wb = self.window_pool.window(window_idx).base();
+        let vm = self.vm_arena.vm(vm_idx);
+        for slot in 0..=255u8 {
+            if let Some(Cap::Data(d)) = vm.cap_table.get(slot)
+                && d.has_any_mapped()
+                && let Some(base_offset) = d.base_offset
+            {
+                unsafe {
+                    BackingStore::unmap_pages(wb, base_offset, d.page_count);
+                }
+            }
+        }
+    }
+
+    /// Map all of a VM's mapped DATA caps into a window.
+    #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+    fn map_vm_data_caps(&self, vm_idx: u16, window_idx: usize) {
+        let wb = self.window_pool.window(window_idx).base();
+        let vm = self.vm_arena.vm(vm_idx);
+        for slot in 0..=255u8 {
+            if let Some(Cap::Data(d)) = vm.cap_table.get(slot)
+                && d.has_any_mapped()
+                && let Some(base_offset) = d.base_offset
+            {
+                let access = d.access.unwrap_or(Access::RO);
+                unsafe {
+                    self.backing.map_pages(
+                        wb,
+                        base_offset,
+                        d.backing_offset,
+                        d.page_count,
+                        access,
+                    );
+                }
+            }
+        }
     }
 
     /// Execute one segment via the JIT recompiler backend.
@@ -1672,6 +1754,10 @@ impl InvocationKernel {
     /// Run the kernel until it needs host interaction or terminates.
     pub fn run(&mut self) -> KernelResult {
         loop {
+            // Ensure active VM has a window assigned (handles eviction + DATA cap mapping).
+            #[cfg(all(feature = "std", target_os = "linux", target_arch = "x86_64"))]
+            self.ensure_active_window();
+
             let code_cap_id = self.vm_arena.vm(self.active_vm).code_cap_id as usize;
 
             // Execute via the compiled backend.
