@@ -558,6 +558,49 @@ impl GrandpaState {
             .values()
             .any(|&(count, _)| count >= self.threshold())
     }
+
+    /// Remove a block that lost a dispute from the finality state (§17 hook).
+    ///
+    /// Called by the disputes subsystem once a validator quorum has judged this
+    /// block as the losing side of a same-slot equivocation.
+    ///
+    /// After removal:
+    /// - If the slot now has only one remaining block in `ancestry`, it is
+    ///   removed from `chain_equivocations` — the winning fork becomes
+    ///   acceptable to `is_acceptable` again.
+    /// - If the purged block was `best_block_hash`, best is reset to
+    ///   `finalized_hash`. The next `update_best_block` call (triggered by the
+    ///   next block arrival) will restore a valid best. Since dispute resolution
+    ///   requires a validator quorum, new blocks will almost always arrive
+    ///   before the next prevote round — making this window harmless in practice.
+    ///
+    ///   Potential optimisation: accept `completed_audits: &BTreeSet<Hash>` and
+    ///   immediately re-evaluate surviving blocks to restore `best_block_hash`
+    ///   in the same call (avoids the window). Not done here because
+    ///   equivocations are rare and the cross-subsystem data flow is not worth
+    ///   the added complexity.
+    pub fn purge_block(&mut self, hash: Hash) {
+        let slot = self.ancestry.get(&hash).map(|&(_, s, _)| s);
+        self.ancestry.remove(&hash);
+        self.block_reports.remove(&hash);
+
+        if let Some(s) = slot {
+            let still_equivocated = self
+                .ancestry
+                .values()
+                .filter(|&&(_, slot, _)| slot == s)
+                .count()
+                > 1;
+            if !still_equivocated {
+                self.chain_equivocations.remove(&s);
+            }
+        }
+
+        if self.best_block_hash == hash {
+            self.best_block_hash = self.finalized_hash;
+            self.best_block_slot = self.finalized_slot;
+        }
+    }
 }
 
 /// Common vote validation: archive equivocation check, round filtering, current-round
@@ -1562,5 +1605,114 @@ mod tests {
 
         // New GHOST: B-subtree has 4 votes → descends to B → D-subtree has 2 votes → D
         assert_eq!(grandpa.prevote_ghost(), Some((hash_d, 4)));
+    }
+
+    // ── purge_block tests ────────────────────────────────────────────────
+
+    fn make_grandpa(n: u16) -> GrandpaState {
+        GrandpaState::new(n)
+    }
+
+    #[test]
+    fn test_purge_block_removes_from_ancestry_and_reports() {
+        let mut g = make_grandpa(6);
+        let parent = Hash([0u8; 32]);
+        let hash = Hash([1u8; 32]);
+        g.ancestry.insert(hash, (parent, 5, true));
+        g.block_reports.insert(hash, vec![Hash([9u8; 32])]);
+
+        g.purge_block(hash);
+
+        assert!(!g.ancestry.contains_key(&hash));
+        assert!(!g.block_reports.contains_key(&hash));
+    }
+
+    #[test]
+    fn test_purge_block_unpoisons_slot_when_one_remains() {
+        let mut g = make_grandpa(6);
+        let parent = Hash([0u8; 32]);
+        let a = Hash([1u8; 32]);
+        let b = Hash([2u8; 32]);
+        // Two blocks at slot 5 → equivocation
+        g.ancestry.insert(a, (parent, 5, true));
+        g.ancestry.insert(b, (parent, 5, false));
+        g.chain_equivocations.insert(5);
+
+        // Purge the loser
+        g.purge_block(a);
+
+        assert!(
+            !g.chain_equivocations.contains(&5),
+            "slot should be un-poisoned"
+        );
+        assert!(
+            g.ancestry.contains_key(&b),
+            "winner must still be in ancestry"
+        );
+    }
+
+    #[test]
+    fn test_purge_block_keeps_slot_poisoned_when_two_remain() {
+        let mut g = make_grandpa(6);
+        let parent = Hash([0u8; 32]);
+        let a = Hash([1u8; 32]);
+        let b = Hash([2u8; 32]);
+        let c = Hash([3u8; 32]);
+        // Three blocks at slot 5 (unusual but valid to test the count)
+        g.ancestry.insert(a, (parent, 5, true));
+        g.ancestry.insert(b, (parent, 5, false));
+        g.ancestry.insert(c, (parent, 5, false));
+        g.chain_equivocations.insert(5);
+
+        g.purge_block(a);
+
+        assert!(
+            g.chain_equivocations.contains(&5),
+            "still equivocated with 2 remaining"
+        );
+    }
+
+    #[test]
+    fn test_purge_block_resets_best_when_purged_was_best() {
+        let mut g = make_grandpa(6);
+        let fin = Hash([0u8; 32]);
+        let hash = Hash([1u8; 32]);
+        g.finalized_hash = fin;
+        g.finalized_slot = 3;
+        g.best_block_hash = hash;
+        g.best_block_slot = 5;
+        g.ancestry.insert(hash, (fin, 5, true));
+
+        g.purge_block(hash);
+
+        assert_eq!(g.best_block_hash, fin);
+        assert_eq!(g.best_block_slot, 3);
+    }
+
+    #[test]
+    fn test_purge_block_leaves_best_untouched_when_different() {
+        let mut g = make_grandpa(6);
+        let fin = Hash([0u8; 32]);
+        let best = Hash([1u8; 32]);
+        let loser = Hash([2u8; 32]);
+        g.finalized_hash = fin;
+        g.finalized_slot = 3;
+        g.best_block_hash = best;
+        g.best_block_slot = 5;
+        g.ancestry.insert(best, (fin, 5, true));
+        g.ancestry.insert(loser, (fin, 5, false));
+        g.chain_equivocations.insert(5);
+
+        g.purge_block(loser);
+
+        assert_eq!(g.best_block_hash, best, "best must not change");
+        assert_eq!(g.best_block_slot, 5);
+    }
+
+    #[test]
+    fn test_purge_block_noop_on_unknown_hash() {
+        let mut g = make_grandpa(6);
+        // Should not panic
+        g.purge_block(Hash([0xffu8; 32]));
     }
 }
