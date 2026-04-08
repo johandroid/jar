@@ -11,7 +11,8 @@ set_option verso.docstring.allowMissing true
 The accumulation pipeline integrates refined work results into on-chain state
 (GP §12). It proceeds in three stages: `accseq` orchestrates sequentially,
 `accpar` parallelizes across services, and `accone` handles a single service
-via JAVM execution with 27 host calls.
+via JAVM execution with 29 host-call dispatch entries (REPLY at slot 0,
+28 protocol capabilities at slots 1–28).
 
 In jar1, accumulation runs through the capability kernel. The kernel's
 `runKernel` function executes service code until a protocol cap is invoked,
@@ -32,10 +33,10 @@ not 0-27 as in gp072. See the *Capability Kernel* chapter for the execution mode
 
 # Host Calls (§12.4)
 
-All 27 host-call handlers (indices 0–26) are dispatched by `handleHostCall`.
-Each host call costs a base gas of 10. Operations include reading/writing
-service storage, transferring balance, managing preimages, and creating
-or upgrading services.
+All 29 host-call handlers (REPLY at slot 0, protocol caps at slots 1–28) are
+dispatched by `handleHostCall`. Each protocol cap costs a base gas of 10.
+Operations include reading/writing service storage, transferring balance,
+managing preimages, and creating or upgrading services.
 
 {docstring Jar.Accumulation.handleHostCall}
 
