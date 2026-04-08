@@ -1707,6 +1707,7 @@ dependencies = [
  "grey-merkle",
  "grey-types",
  "hex",
+ "proptest",
  "redb",
  "scale",
  "serde_json",
