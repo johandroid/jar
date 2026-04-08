@@ -315,9 +315,7 @@ pub fn process_disputes(
 mod tests {
     use super::*;
     use grey_types::config::Config;
-    use grey_types::header::{
-        DisputesExtrinsic, Judgment, Verdict,
-    };
+    use grey_types::header::{DisputesExtrinsic, Judgment, Verdict};
     use grey_types::validator::ValidatorKey;
 
     fn test_config() -> Config {
@@ -518,8 +516,16 @@ mod tests {
                 report_hash: make_hash(1),
                 age: 100 / config.epoch_length,
                 judgments: vec![
-                    Judgment { is_valid: true, validator_index: 3, signature: sig },
-                    Judgment { is_valid: true, validator_index: 1, signature: sig },
+                    Judgment {
+                        is_valid: true,
+                        validator_index: 3,
+                        signature: sig,
+                    },
+                    Judgment {
+                        is_valid: true,
+                        validator_index: 1,
+                        signature: sig,
+                    },
                 ],
             }],
             culprits: vec![],
@@ -546,9 +552,6 @@ mod tests {
             DisputeError::JudgementsNotSortedUnique.as_str(),
             "judgements_not_sorted_unique"
         );
-        assert_eq!(
-            DisputeError::AlreadyJudged.as_str(),
-            "already_judged"
-        );
+        assert_eq!(DisputeError::AlreadyJudged.as_str(), "already_judged");
     }
 }
