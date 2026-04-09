@@ -27,6 +27,7 @@ import Jar.Proofs.Memory
 import Jar.Proofs.Merkle
 import Jar.Proofs.Consensus
 import Jar.Proofs.Decode
+import Jar.Proofs.Crypto
 
 /-!
 # JAR — JAM Axiomatic Reference
