@@ -355,7 +355,6 @@ mod test_helpers {
 mod tests {
     use super::test_helpers::{make_test_state, make_validator};
     use super::*;
-    use grey_types::state::*;
 
     #[test]
     fn test_outside_in_even() {
@@ -879,7 +878,6 @@ mod tests {
 mod proptests {
     use super::test_helpers::{make_test_state, make_validator};
     use super::*;
-    use grey_types::state::*;
     use proptest::prelude::*;
 
     proptest! {
