@@ -22,9 +22,13 @@ use std::collections::HashMap;
 /// Avoids re-running JIT compilation when the same PVM blob is used
 /// repeatedly (e.g. child actor invocations). Callers pass `&mut CodeCache`
 /// and the cache shares compiled code via `Arc<CodeCap>`.
+///
+/// The cache stores the original blob bytes alongside the compiled code
+/// and verifies content equality on hit, so FNV-1a hash collisions are
+/// harmless (they only cause a bucket miss, not wrong code).
 #[cfg(feature = "std")]
 pub struct CodeCache {
-    entries: HashMap<u64, Arc<CodeCap>>,
+    entries: HashMap<u64, (Vec<u8>, Arc<CodeCap>)>,
 }
 
 #[cfg(feature = "std")]
@@ -337,9 +341,13 @@ impl InvocationKernel {
                     return Err(KernelError::TooManyCodeCaps);
                 }
 
-                // Check compile cache first.
+                // Check compile cache first (verify blob equality to avoid hash collisions).
                 let cache_key = CodeCache::hash_blob(code_data);
-                if let Some(cached) = code_cache.as_ref().and_then(|c| c.entries.get(&cache_key)) {
+                if let Some((_, cached)) = code_cache
+                    .as_ref()
+                    .and_then(|c| c.entries.get(&cache_key))
+                    .filter(|(blob, _)| blob.as_slice() == code_data)
+                {
                     let code_cap = Arc::clone(cached);
                     self.code_caps.push(Arc::clone(&code_cap));
                     return Ok(Cap::Code(code_cap));
@@ -372,7 +380,9 @@ impl InvocationKernel {
 
                 // Insert into cache.
                 if let Some(cache) = &mut *code_cache {
-                    cache.entries.insert(cache_key, Arc::clone(&code_cap));
+                    cache
+                        .entries
+                        .insert(cache_key, (code_data.to_vec(), Arc::clone(&code_cap)));
                 }
 
                 Ok(Cap::Code(code_cap))
@@ -2772,5 +2782,82 @@ mod tests {
         kernel.dispatch_ecalli(IPC_SLOT as u32);
         assert_eq!(kernel.active_vm, 0);
         assert_eq!(kernel.active_reg(7), 77);
+    }
+
+    #[test]
+    fn test_code_cache_hit() {
+        let blob = make_simple_blob(10);
+        let mut cache = CodeCache::new();
+
+        // First creation populates the cache.
+        let k1 = InvocationKernel::new_cached(&blob, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1);
+        let first_arc = Arc::clone(&k1.code_caps[0]);
+        drop(k1);
+
+        // Second creation with the same blob should hit the cache.
+        let k2 = InvocationKernel::new_cached(&blob, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1); // no new entry
+        // The Arc should point to the same allocation.
+        assert!(Arc::ptr_eq(&first_arc, &k2.code_caps[0]));
+    }
+
+    /// Build a blob with a different code sub-blob (halt instead of trap).
+    fn make_halt_blob(memory_pages: u32) -> Vec<u8> {
+        // halt = opcode 1 (different from trap = opcode 0)
+        let code = [1u8];
+        let bitmask = [1u8];
+        let jump_table: &[u32] = &[];
+        let entry_size: u8 = 1;
+
+        let mut sub = Vec::new();
+        sub.extend_from_slice(&(jump_table.len() as u32).to_le_bytes());
+        sub.push(entry_size);
+        sub.extend_from_slice(&(code.len() as u32).to_le_bytes());
+        sub.extend_from_slice(&code);
+        sub.push(bitmask[0]);
+
+        let caps = vec![
+            CapManifestEntry {
+                cap_index: 64,
+                cap_type: CapEntryType::Code,
+                base_page: 0,
+                page_count: 0,
+                init_access: Access::RO,
+                data_offset: 0,
+                data_len: sub.len() as u32,
+            },
+            CapManifestEntry {
+                cap_index: 65,
+                cap_type: CapEntryType::Data,
+                base_page: 0,
+                page_count: 1,
+                init_access: Access::RW,
+                data_offset: 0,
+                data_len: 0,
+            },
+        ];
+        build_blob(memory_pages, 64, &caps, &sub)
+    }
+
+    #[test]
+    fn test_code_cache_miss_different_code() {
+        let blob1 = make_simple_blob(10);
+        let blob2 = make_halt_blob(10); // different code sub-blob content
+        let mut cache = CodeCache::new();
+
+        let _k1 = InvocationKernel::new_cached(&blob1, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1);
+
+        let _k2 = InvocationKernel::new_cached(&blob2, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 2); // separate entry for different code
+    }
+
+    #[test]
+    fn test_code_cache_no_cache_path() {
+        // new() (without cache) still works.
+        let blob = make_simple_blob(10);
+        let k = InvocationKernel::new(&blob, &[], 100_000).unwrap();
+        assert_eq!(k.code_caps.len(), 1);
     }
 }
