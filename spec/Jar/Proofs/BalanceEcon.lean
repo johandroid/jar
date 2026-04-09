@@ -71,6 +71,45 @@ theorem balanceEcon_absorbEjected_balance (e ejected : BalanceEcon) :
   rfl
 
 -- ============================================================================
+-- creditTransfer preserves canAffordStorage
+-- ============================================================================
+
+/-- Crediting a transfer preserves storage affordability for BalanceEcon,
+    provided the addition doesn't overflow UInt64. Since creditTransfer only
+    increases balance (and canAffordStorage's threshold depends on gratis,
+    not balance), receiving a transfer never makes previously affordable
+    storage unaffordable — as long as balance doesn't wrap. -/
+theorem balanceEcon_creditTransfer_preserves_canAfford
+    (e : BalanceEcon) (t : BalanceTransfer)
+    (items bytes bI bL bS : Nat)
+    (hNoOverflow : e.balance.toNat + t.amount.toNat < UInt64.size)
+    (h : @EconModel.canAffordStorage BalanceEcon BalanceTransfer _ e items bytes bI bL bS = true) :
+    @EconModel.canAffordStorage BalanceEcon BalanceTransfer _
+      (@EconModel.creditTransfer BalanceEcon BalanceTransfer _ e t) items bytes bI bL bS = true := by
+  simp only [EconModel.canAffordStorage, EconModel.creditTransfer] at h ⊢
+  simp only [decide_eq_true_eq] at h ⊢
+  have hadd : (e.balance + t.amount).toNat = e.balance.toNat + t.amount.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt hNoOverflow]
+  omega
+
+/-- Absorbing an ejected service preserves storage affordability for BalanceEcon,
+    provided the addition doesn't overflow UInt64. Since absorbEjected only
+    increases balance (by adding ejected.balance), the storage threshold check
+    still passes — it depends on gratis, not balance. -/
+theorem balanceEcon_absorbEjected_preserves_canAfford
+    (e ejected : BalanceEcon)
+    (items bytes bI bL bS : Nat)
+    (hNoOverflow : e.balance.toNat + ejected.balance.toNat < UInt64.size)
+    (h : @EconModel.canAffordStorage BalanceEcon BalanceTransfer _ e items bytes bI bL bS = true) :
+    @EconModel.canAffordStorage BalanceEcon BalanceTransfer _
+      (@EconModel.absorbEjected BalanceEcon BalanceTransfer _ e ejected) items bytes bI bL bS = true := by
+  simp only [EconModel.canAffordStorage, EconModel.absorbEjected] at h ⊢
+  simp only [decide_eq_true_eq] at h ⊢
+  have hadd : (e.balance + ejected.balance).toNat = e.balance.toNat + ejected.balance.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt hNoOverflow]
+  omega
+
+-- ============================================================================
 -- newServiceEcon lifecycle (canAffordStorage after creation)
 -- ============================================================================
 
