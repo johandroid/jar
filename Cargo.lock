@@ -1678,6 +1678,7 @@ dependencies = [
  "grey-state",
  "grey-types",
  "javm",
+ "proptest",
  "thiserror 2.0.18",
 ]
 
