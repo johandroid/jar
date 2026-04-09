@@ -353,8 +353,8 @@ mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_helpers::{make_test_state, make_validator};
+    use super::*;
     use grey_types::state::*;
 
     #[test]
@@ -877,8 +877,8 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use super::*;
     use super::test_helpers::{make_test_state, make_validator};
+    use super::*;
     use grey_types::state::*;
     use proptest::prelude::*;
 
