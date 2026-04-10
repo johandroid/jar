@@ -342,13 +342,8 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                     signal_name
                 );
                 // Persist final head state
-                let head_hash = state
-                    .recent_blocks
-                    .headers
-                    .last()
-                    .map(|h| h.header_hash)
-                    .unwrap_or(Hash::ZERO);
-                let _ = store.set_head(&head_hash, state.timeslot);
+                let hh = head_hash(&state);
+                let _ = store.set_head(&hh, state.timeslot);
                 tracing::info!(
                     "Validator {} shutdown complete. Authored={}, Imported={}, Finalized=slot {}",
                     config.validator_index,
@@ -442,12 +437,7 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                     // Broadcast it immediately so other validators receive it before authoring.
                     if current_slot > last_assurance_slot {
                         last_assurance_slot = current_slot;
-                        let parent_hash = state
-                            .recent_blocks
-                            .headers
-                            .last()
-                            .map(|h| h.header_hash)
-                            .unwrap_or(Hash::ZERO);
+                        let parent_hash = head_hash(&state);
 
                         if let Some(my_assurance) = guarantor_state.generate_assurance(
                             protocol,
@@ -580,12 +570,7 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                         // Filter assurances: only include those whose anchor matches
                         // the current parent hash. Assurances with stale anchors would
                         // cause BadAttestationParent during state transition.
-                        let block_parent = state
-                            .recent_blocks
-                            .headers
-                            .last()
-                            .map(|h| h.header_hash)
-                            .unwrap_or(Hash::ZERO);
+                        let block_parent = head_hash(&state);
                         let mut assurances = Vec::new();
                         for a in all_assurances {
                             if a.anchor == block_parent {
@@ -1415,7 +1400,16 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-/// Insert into a bounded `HashSet`, evicting an arbitrary entry if at capacity.
+/// Return the hash of the most recent block header, or `Hash::ZERO` if no blocks exist.
+fn head_hash(state: &State) -> Hash {
+    state
+        .recent_blocks
+        .headers
+        .last()
+        .map(|h| h.header_hash)
+        .unwrap_or(Hash::ZERO)
+}
+
 /// Build a deterministic 32-byte seed from a validator index and a key-type tag.
 fn make_validator_seed(index: u16, tag: u8) -> [u8; 32] {
     let mut seed = [0u8; 32];
