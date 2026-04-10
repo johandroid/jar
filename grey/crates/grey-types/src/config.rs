@@ -122,6 +122,22 @@ impl Config {
         self.rotation_period_val
     }
 
+    /// Rotation index for a given timeslot: floor(τ / R).
+    pub fn rotation_of(&self, timeslot: u32) -> u32 {
+        let r = self.rotation_period();
+        if r > 0 { timeslot / r } else { 0 }
+    }
+
+    /// Rotation offset within an epoch: floor((τ mod E) / R).
+    pub fn rotation_in_epoch(&self, timeslot: u32) -> u32 {
+        let r = self.rotation_period();
+        if r > 0 {
+            self.slot_in_epoch(timeslot) / r
+        } else {
+            0
+        }
+    }
+
     /// G: Number of guarantors per core = floor(V / C).
     pub fn guarantors_per_core(&self) -> u16 {
         self.validators_count / self.core_count
@@ -281,6 +297,43 @@ mod tests {
         assert_eq!(c.slot_in_epoch(15), 3);
         let c = Config::full(); // E=600
         assert_eq!(c.slot_in_epoch(601), 1);
+    }
+
+    #[test]
+    fn test_rotation_of() {
+        let c = Config::tiny(); // R=4
+        assert_eq!(c.rotation_of(0), 0);
+        assert_eq!(c.rotation_of(3), 0);
+        assert_eq!(c.rotation_of(4), 1);
+        assert_eq!(c.rotation_of(9), 2);
+        let c = Config::full(); // R=10
+        assert_eq!(c.rotation_of(0), 0);
+        assert_eq!(c.rotation_of(9), 0);
+        assert_eq!(c.rotation_of(10), 1);
+        assert_eq!(c.rotation_of(25), 2);
+    }
+
+    #[test]
+    fn test_rotation_in_epoch() {
+        let c = Config::tiny(); // E=12, R=4
+        assert_eq!(c.rotation_in_epoch(0), 0); // slot_in_epoch=0, 0/4=0
+        assert_eq!(c.rotation_in_epoch(4), 1); // slot_in_epoch=4, 4/4=1
+        assert_eq!(c.rotation_in_epoch(8), 2); // slot_in_epoch=8, 8/4=2
+        assert_eq!(c.rotation_in_epoch(12), 0); // slot_in_epoch=0 (new epoch), 0/4=0
+        assert_eq!(c.rotation_in_epoch(16), 1); // slot_in_epoch=4, 4/4=1
+        let c = Config::full(); // E=600, R=10
+        assert_eq!(c.rotation_in_epoch(0), 0);
+        assert_eq!(c.rotation_in_epoch(10), 1);
+        assert_eq!(c.rotation_in_epoch(599), 59); // slot 599 / 10 = 59
+        assert_eq!(c.rotation_in_epoch(600), 0); // new epoch
+    }
+
+    #[test]
+    fn test_rotation_of_zero_period() {
+        let mut c = Config::tiny();
+        c.rotation_period_val = 0;
+        assert_eq!(c.rotation_of(100), 0);
+        assert_eq!(c.rotation_in_epoch(100), 0);
     }
 
     #[test]
