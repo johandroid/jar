@@ -14,6 +14,49 @@ use alloc::vec::Vec;
 
 use crate::GAS_PER_PAGE;
 
+#[cfg(feature = "std")]
+use std::collections::HashMap;
+
+/// Cache for compiled CODE caps, keyed by code sub-blob content hash.
+///
+/// Avoids re-running JIT compilation when the same PVM blob is used
+/// repeatedly (e.g. child actor invocations). Callers pass `&mut CodeCache`
+/// and the cache shares compiled code via `Arc<CodeCap>`.
+///
+/// The cache stores the original blob bytes alongside the compiled code
+/// and verifies content equality on hit, so FNV-1a hash collisions are
+/// harmless (they only cause a bucket miss, not wrong code).
+#[cfg(feature = "std")]
+pub struct CodeCache {
+    entries: HashMap<u64, (Vec<u8>, Arc<CodeCap>)>,
+}
+
+#[cfg(feature = "std")]
+impl CodeCache {
+    pub fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+        }
+    }
+
+    /// Simple FNV-1a hash of blob bytes (no crypto needed, just dedup).
+    fn hash_blob(blob: &[u8]) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for &b in blob {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+}
+
+#[cfg(feature = "std")]
+impl Default for CodeCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Resolve a cap reference or return `DispatchResult::Continue` (WHAT already set).
 macro_rules! resolve {
     ($self:expr, $ref:expr) => {
@@ -116,12 +159,38 @@ impl InvocationKernel {
         Self::new_with_backend(blob, _args, gas, crate::backend::PvmBackend::Default)
     }
 
+    /// Create a new kernel, reusing cached JIT compilations when available.
+    pub fn new_cached(
+        blob: &[u8],
+        args: &[u8],
+        gas: u64,
+        cache: &mut CodeCache,
+    ) -> Result<Self, KernelError> {
+        Self::new_inner(
+            blob,
+            args,
+            gas,
+            crate::backend::PvmBackend::Default,
+            Some(cache),
+        )
+    }
+
     /// Create a new kernel with a specific backend selection.
     pub fn new_with_backend(
         blob: &[u8],
         _args: &[u8],
         gas: u64,
         backend: crate::backend::PvmBackend,
+    ) -> Result<Self, KernelError> {
+        Self::new_inner(blob, _args, gas, backend, None)
+    }
+
+    fn new_inner(
+        blob: &[u8],
+        _args: &[u8],
+        gas: u64,
+        backend: crate::backend::PvmBackend,
+        mut code_cache: Option<&mut CodeCache>,
     ) -> Result<Self, KernelError> {
         let parsed = program::parse_blob(blob).ok_or(KernelError::InvalidBlob)?;
 
@@ -167,7 +236,7 @@ impl InvocationKernel {
         let mut data_caps_to_map: Vec<(u32, u32, u32, Access)> = Vec::new(); // (base_page, backing_offset, page_count, access)
 
         for entry in &parsed.caps {
-            let cap = kernel.create_cap_from_manifest(entry, &parsed)?;
+            let cap = kernel.create_cap_from_manifest(entry, &parsed, &mut code_cache)?;
             if let Cap::Data(ref d) = cap {
                 init_pages += d.page_count;
                 // Record DATA caps that need mapping into the CODE window
@@ -405,6 +474,7 @@ impl InvocationKernel {
         &mut self,
         entry: &CapManifestEntry,
         parsed: &ParsedBlob<'_>,
+        code_cache: &mut Option<&mut CodeCache>,
     ) -> Result<Cap, KernelError> {
         match entry.cap_type {
             CapEntryType::Code => {
@@ -413,6 +483,18 @@ impl InvocationKernel {
                 self.next_code_id += 1;
                 if self.code_caps.len() >= MAX_CODE_CAPS {
                     return Err(KernelError::TooManyCodeCaps);
+                }
+
+                // Check compile cache first (verify blob equality to avoid hash collisions).
+                let cache_key = CodeCache::hash_blob(code_data);
+                if let Some((_, cached)) = code_cache
+                    .as_ref()
+                    .and_then(|c| c.entries.get(&cache_key))
+                    .filter(|(blob, _)| blob.as_slice() == code_data)
+                {
+                    let code_cap = Arc::clone(cached);
+                    self.code_caps.push(Arc::clone(&code_cap));
+                    return Ok(Cap::Code(code_cap));
                 }
 
                 // Parse the code sub-blob (jump_table + code + bitmask)
@@ -439,6 +521,14 @@ impl InvocationKernel {
                     bitmask: code_blob.bitmask,
                 });
                 self.code_caps.push(Arc::clone(&code_cap));
+
+                // Insert into cache.
+                if let Some(cache) = &mut *code_cache {
+                    cache
+                        .entries
+                        .insert(cache_key, (code_data.to_vec(), Arc::clone(&code_cap)));
+                }
+
                 Ok(Cap::Code(code_cap))
             }
             CapEntryType::Data => {
@@ -2892,5 +2982,82 @@ mod tests {
         kernel.dispatch_ecalli(IPC_SLOT as u32);
         assert_eq!(kernel.active_vm, 0);
         assert_eq!(kernel.active_reg(7), 77);
+    }
+
+    #[test]
+    fn test_code_cache_hit() {
+        let blob = make_simple_blob(10);
+        let mut cache = CodeCache::new();
+
+        // First creation populates the cache.
+        let k1 = InvocationKernel::new_cached(&blob, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1);
+        let first_arc = Arc::clone(&k1.code_caps[0]);
+        drop(k1);
+
+        // Second creation with the same blob should hit the cache.
+        let k2 = InvocationKernel::new_cached(&blob, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1); // no new entry
+        // The Arc should point to the same allocation.
+        assert!(Arc::ptr_eq(&first_arc, &k2.code_caps[0]));
+    }
+
+    /// Build a blob with a different code sub-blob (halt instead of trap).
+    fn make_halt_blob(memory_pages: u32) -> Vec<u8> {
+        // halt = opcode 1 (different from trap = opcode 0)
+        let code = [1u8];
+        let bitmask = [1u8];
+        let jump_table: &[u32] = &[];
+        let entry_size: u8 = 1;
+
+        let mut sub = Vec::new();
+        sub.extend_from_slice(&(jump_table.len() as u32).to_le_bytes());
+        sub.push(entry_size);
+        sub.extend_from_slice(&(code.len() as u32).to_le_bytes());
+        sub.extend_from_slice(&code);
+        sub.push(bitmask[0]);
+
+        let caps = vec![
+            CapManifestEntry {
+                cap_index: 64,
+                cap_type: CapEntryType::Code,
+                base_page: 0,
+                page_count: 0,
+                init_access: Access::RO,
+                data_offset: 0,
+                data_len: sub.len() as u32,
+            },
+            CapManifestEntry {
+                cap_index: 65,
+                cap_type: CapEntryType::Data,
+                base_page: 0,
+                page_count: 1,
+                init_access: Access::RW,
+                data_offset: 0,
+                data_len: 0,
+            },
+        ];
+        build_blob(memory_pages, 64, &caps, &sub)
+    }
+
+    #[test]
+    fn test_code_cache_miss_different_code() {
+        let blob1 = make_simple_blob(10);
+        let blob2 = make_halt_blob(10); // different code sub-blob content
+        let mut cache = CodeCache::new();
+
+        let _k1 = InvocationKernel::new_cached(&blob1, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 1);
+
+        let _k2 = InvocationKernel::new_cached(&blob2, &[], 100_000, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 2); // separate entry for different code
+    }
+
+    #[test]
+    fn test_code_cache_no_cache_path() {
+        // new() (without cache) still works.
+        let blob = make_simple_blob(10);
+        let k = InvocationKernel::new(&blob, &[], 100_000).unwrap();
+        assert_eq!(k.code_caps.len(), 1);
     }
 }
