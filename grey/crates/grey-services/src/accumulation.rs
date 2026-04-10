@@ -340,12 +340,15 @@ pub fn accumulate_all(
     }
 }
 
+/// Check if a preimage with a pre-computed hash and length is solicited.
+fn is_solicited_by_key(account: &ServiceAccount, hash: &Hash, len: u32) -> bool {
+    account.preimage_info.contains_key(&(*hash, len)) && !account.preimage_lookup.contains_key(hash)
+}
+
 /// Check if a preimage is solicited but not yet provided for a service (eq 12.36: Y).
 pub fn is_preimage_solicited(account: &ServiceAccount, data: &[u8]) -> bool {
     let hash = grey_crypto::blake2b_256(data);
-    let len = data.len() as u32;
-    // Solicited means: entry exists in preimage_info but NOT in preimage_lookup
-    account.preimage_info.contains_key(&(hash, len)) && !account.preimage_lookup.contains_key(&hash)
+    is_solicited_by_key(account, &hash, data.len() as u32)
 }
 
 /// Integrate preimage extrinsics into service state (eq 12.37-12.38).
@@ -360,12 +363,12 @@ pub fn integrate_preimages(
     timeslot: Timeslot,
 ) {
     for (service_id, data) in preimages {
-        if let Some(account) = services.get_mut(service_id)
-            && is_preimage_solicited(account, data)
-        {
-            let hash = grey_crypto::blake2b_256(data);
-            let len = data.len() as u32;
+        let hash = grey_crypto::blake2b_256(data);
+        let len = data.len() as u32;
 
+        if let Some(account) = services.get_mut(service_id)
+            && is_solicited_by_key(account, &hash, len)
+        {
             // Store the actual data
             account.preimage_lookup.insert(hash, data.clone());
 
