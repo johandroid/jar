@@ -250,16 +250,8 @@ pub fn process_reports(
         }
 
         // Determine which rotation this guarantee belongs to
-        let current_rot = if rotation_period > 0 {
-            current_slot / rotation_period
-        } else {
-            0
-        };
-        let guarantee_rot = if rotation_period > 0 {
-            guarantee.slot / rotation_period
-        } else {
-            0
-        };
+        let current_rot = config.rotation_of(current_slot);
+        let guarantee_rot = config.rotation_of(guarantee.slot);
 
         // Report slot must not be in the future
         if guarantee.slot > current_slot {
@@ -470,8 +462,6 @@ fn compute_core_assignments(
 ) -> Vec<usize> {
     let v = validator_count;
     let c = config.core_count as usize;
-    let r = config.rotation_period();
-    let e = config.epoch_length;
 
     // Step 1: initial assignment [floor(C*i/V) | i < V]
     let mut cores: Vec<usize> = (0..v).map(|i| c * i / v).collect();
@@ -480,11 +470,7 @@ fn compute_core_assignments(
     grey_crypto::shuffle::shuffle_with_hash(&mut cores, entropy);
 
     // Step 3: Apply rotation R(c, n) = [(x + n) mod C | x <- c]
-    let rot_offset = if r > 0 {
-        ((timeslot % e) / r) as usize
-    } else {
-        0
-    };
+    let rot_offset = config.rotation_in_epoch(timeslot) as usize;
     for core in &mut cores {
         *core = (*core + rot_offset) % c;
     }
