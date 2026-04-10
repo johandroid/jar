@@ -53,15 +53,8 @@ pub fn fallback_key_sequence(
 ///
 /// Replaces any validator whose Ed25519 key is in the offenders set with the null key.
 pub fn filter_offenders(keys: &[ValidatorKey], offenders: &Judgments) -> Vec<ValidatorKey> {
-    keys.iter()
-        .map(|k| {
-            if offenders.offenders.contains(&k.ed25519) {
-                ValidatorKey::null()
-            } else {
-                k.clone()
-            }
-        })
-        .collect()
+    let offender_slice: Vec<_> = offenders.offenders.iter().cloned().collect();
+    grey_state::safrole::filter_offenders(keys, &offender_slice)
 }
 
 /// Accumulate entropy (eq 6.22).
