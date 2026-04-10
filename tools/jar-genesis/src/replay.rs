@@ -109,16 +109,21 @@ fn get_ranking_snapshot(
     rankings.get(commit_hash).cloned()
 }
 
+/// Result of incremental replay.
+struct ReplayResult {
+    indices: Vec<serde_json::Value>,
+    rankings: HashMap<String, serde_json::Value>,
+    scores: HashMap<String, serde_json::Value>,
+}
+
 /// Core incremental replay loop. Evaluates each signed commit incrementally.
-/// Returns (rebuilt_indices, ranking_snapshots).
-#[allow(clippy::type_complexity)]
 fn replay_incremental(
     spec_dir: &Path,
     signed_commits: &[serde_json::Value],
-) -> Result<(Vec<serde_json::Value>, HashMap<String, serde_json::Value>), Box<dyn std::error::Error>>
-{
+) -> Result<ReplayResult, Box<dyn std::error::Error>> {
     let mut indices: Vec<serde_json::Value> = Vec::new();
     let mut rankings: HashMap<String, serde_json::Value> = HashMap::new();
+    let mut scores: HashMap<String, serde_json::Value> = HashMap::new();
     let mut commits: Vec<serde_json::Value> = Vec::new();
 
     for commit in signed_commits {
@@ -163,10 +168,19 @@ fn replay_incremental(
         let snapshot = ranking_output["ranking"].clone();
 
         let commit_hash = index["commitHash"].as_str().unwrap_or("").to_string();
-        rankings.insert(commit_hash, snapshot);
+        rankings.insert(commit_hash.clone(), snapshot);
+
+        // Capture scores (v3 BT output) if present
+        if let Some(scores_val) = ranking_output.get("scores") {
+            scores.insert(commit_hash, scores_val.clone());
+        }
     }
 
-    Ok((indices, rankings))
+    Ok(ReplayResult {
+        indices,
+        rankings,
+        scores,
+    })
 }
 
 fn spec_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
@@ -201,13 +215,14 @@ pub fn verify() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Build ranking map incrementally
-    let (_, rankings) = replay_incremental(&spec, &signed_commits)?;
+    let result = replay_incremental(&spec, &signed_commits)?;
 
     // Validate using genesis_validate
     let input = serde_json::json!({
         "indices": stored_indices,
         "signedCommits": signed_commits.iter().filter(|c| !c.is_null()).collect::<Vec<_>>(),
-        "rankings": rankings,
+        "rankings": result.rankings,
+        "scores": result.scores,
     });
 
     let result: serde_json::Value = lean::invoke("genesis_validate", &input, &spec)?;
@@ -252,17 +267,17 @@ pub fn verify_cache() -> Result<(), Box<dyn std::error::Error>> {
     let _replayable: Vec<&serde_json::Value> =
         signed_commits.iter().filter(|c| !c.is_null()).collect();
 
-    let (rebuilt_indices, rebuilt_rankings) = replay_incremental(&spec, &signed_commits)?;
+    let result = replay_incremental(&spec, &signed_commits)?;
 
     // Fetch cache
     git::fetch("origin", "genesis-state")?;
     let cache_json = git::show_file("origin/genesis-state:genesis.json")?;
     let cache: Vec<serde_json::Value> = serde_json::from_str(&cache_json)?;
 
-    if rebuilt_indices.len() != cache.len() {
+    if result.indices.len() != cache.len() {
         eprintln!(
             "MISMATCH: rebuilt {} indices but cache has {}.",
-            rebuilt_indices.len(),
+            result.indices.len(),
             cache.len()
         );
         std::process::exit(1);
@@ -271,13 +286,11 @@ pub fn verify_cache() -> Result<(), Box<dyn std::error::Error>> {
     let mut errors = 0;
 
     // Compare indices
-    for i in 0..rebuilt_indices.len() {
-        let r = serde_json::to_string(&rebuilt_indices[i])?;
-        let c = serde_json::to_string(&cache[i])?;
+    for (i, (rebuilt, cached)) in result.indices.iter().zip(cache.iter()).enumerate() {
+        let r = serde_json::to_string(rebuilt)?;
+        let c = serde_json::to_string(cached)?;
         if r != c {
-            let hash = rebuilt_indices[i]["commitHash"]
-                .as_str()
-                .unwrap_or("unknown");
+            let hash = rebuilt["commitHash"].as_str().unwrap_or("unknown");
             eprintln!("MISMATCH at index {i} (commit {hash}):");
             eprintln!("  rebuilt: {r}");
             eprintln!("  cache:   {c}");
@@ -292,15 +305,15 @@ pub fn verify_cache() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_str(&cached_ranking_json)?;
 
     if !cached_ranking.is_empty() {
-        if rebuilt_rankings.len() != cached_ranking.len() {
+        if result.rankings.len() != cached_ranking.len() {
             eprintln!(
                 "RANKING MISMATCH: rebuilt {} entries but cache has {}.",
-                rebuilt_rankings.len(),
+                result.rankings.len(),
                 cached_ranking.len()
             );
             errors += 1;
         } else {
-            for (key, rebuilt_val) in &rebuilt_rankings {
+            for (key, rebuilt_val) in &result.rankings {
                 if let Some(cached_val) = cached_ranking.get(key) {
                     let r = serde_json::to_string(rebuilt_val)?;
                     let c = serde_json::to_string(cached_val)?;
@@ -323,10 +336,37 @@ pub fn verify_cache() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("ranking.json not found or empty — skipping ranking verification.");
     }
 
+    // Compare scores (if scores.json exists in cache)
+    let cached_scores_json =
+        git::show_file("origin/genesis-state:scores.json").unwrap_or_else(|_| "{}".to_string());
+    let cached_scores: HashMap<String, serde_json::Value> =
+        serde_json::from_str(&cached_scores_json)?;
+
+    if !cached_scores.is_empty() {
+        for (key, cached_val) in &cached_scores {
+            if let Some(rebuilt_val) = result.scores.get(key) {
+                let r = serde_json::to_string(rebuilt_val)?;
+                let c = serde_json::to_string(cached_val)?;
+                if r != c {
+                    eprintln!("SCORES MISMATCH for commit {}:", &key[..8.min(key.len())]);
+                    eprintln!("  rebuilt: {r}");
+                    eprintln!("  cache:   {c}");
+                    errors += 1;
+                }
+            } else {
+                eprintln!(
+                    "SCORES MISMATCH: key {} not in rebuilt scores.",
+                    &key[..8.min(key.len())]
+                );
+                errors += 1;
+            }
+        }
+    }
+
     if errors == 0 {
         eprintln!(
             "Cache verified: {} indices match rebuilt state.",
-            rebuilt_indices.len()
+            result.indices.len()
         );
         Ok(())
     } else {
@@ -352,18 +392,25 @@ pub fn rebuild() -> Result<(), Box<dyn std::error::Error>> {
     let signed_commits: Vec<serde_json::Value> =
         entries.iter().map(|e| e.signed_commit.clone()).collect();
 
-    let (rebuilt_indices, rebuilt_rankings) = replay_incremental(&spec, &signed_commits)?;
+    let result = replay_incremental(&spec, &signed_commits)?;
 
     eprintln!("=== genesis.json ===");
-    println!("{}", serde_json::to_string_pretty(&rebuilt_indices)?);
+    println!("{}", serde_json::to_string_pretty(&result.indices)?);
     eprintln!("=== ranking.json ===");
     println!(
         "{}",
-        serde_json::to_string_pretty(&serde_json::json!(rebuilt_rankings))?
+        serde_json::to_string_pretty(&serde_json::json!(result.rankings))?
     );
+    if !result.scores.is_empty() {
+        eprintln!("=== scores.json ===");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!(result.scores))?
+        );
+    }
     eprintln!(
         "Rebuilt {} of {} indices.",
-        rebuilt_indices.len(),
+        result.indices.len(),
         entries.len()
     );
 
