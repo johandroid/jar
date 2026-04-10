@@ -435,21 +435,21 @@ pub fn process_reports(
             timeout: current_slot,
         });
 
-        // Update core statistics
-        if core < state.cores_statistics.len() {
-            let cs = &mut state.cores_statistics[core];
-            cs.bundle_size = guarantee.report.package_spec.bundle_length as u64;
-            for digest in &guarantee.report.results {
+        // Update core and service statistics in a single pass
+        let has_core = core < state.cores_statistics.len();
+        if has_core {
+            state.cores_statistics[core].bundle_size =
+                guarantee.report.package_spec.bundle_length as u64;
+        }
+        for digest in &guarantee.report.results {
+            if has_core {
+                let cs = &mut state.cores_statistics[core];
                 cs.gas_used += digest.gas_used;
                 cs.imports += digest.imports_count as u64;
                 cs.extrinsic_count += digest.extrinsics_count as u64;
                 cs.extrinsic_size += digest.extrinsics_size as u64;
                 cs.exports += digest.exports_count as u64;
             }
-        }
-
-        // Update service statistics
-        for digest in &guarantee.report.results {
             let ss = state
                 .services_statistics
                 .entry(digest.service_id)
