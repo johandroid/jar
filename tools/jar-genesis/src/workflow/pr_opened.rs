@@ -4,6 +4,7 @@ use crate::cache;
 use crate::git;
 use crate::github;
 use crate::lean;
+use crate::snapshot;
 use crate::types::SelectTargetsOutput;
 
 /// Run the PR-opened workflow: compute and post comparison targets.
@@ -30,13 +31,15 @@ pub fn run(pr: u64, created_at: &str) -> Result<(), Box<dyn std::error::Error>> 
     // Parse PR created_at to epoch
     let pr_created_epoch = parse_iso8601_to_epoch(created_at)?;
 
-    // Get ranking snapshot
+    // Get ranking + variances snapshot
     let ranking_json =
         git::show_file("origin/genesis-state:ranking.json").unwrap_or_else(|_| "{}".to_string());
-    let ranking: serde_json::Value = serde_json::from_str(&ranking_json)?;
+    let ranking_map: serde_json::Value = serde_json::from_str(&ranking_json)?;
+    let scores_json =
+        git::show_file("origin/genesis-state:scores.json").unwrap_or_else(|_| "{}".to_string());
+    let scores_map: serde_json::Value = serde_json::from_str(&scores_json)?;
 
-    // Find ranking snapshot for this PR's created_at
-    let ranking_snapshot = find_ranking_snapshot(&cache_indices, &ranking, pr_created_epoch);
+    let snap = snapshot::find(&cache_indices, &ranking_map, &scores_map, pr_created_epoch)?;
 
     // Build input for genesis_select_targets
     let mut input = serde_json::json!({
@@ -44,8 +47,11 @@ pub fn run(pr: u64, created_at: &str) -> Result<(), Box<dyn std::error::Error>> 
         "prCreatedAt": pr_created_epoch,
         "indices": cache_indices,
     });
-    if let Some(snapshot) = &ranking_snapshot {
-        input["ranking"] = snapshot.clone();
+    if let Some(s) = &snap {
+        input["ranking"] = s.ranking.clone();
+        if let Some(v) = &s.variances {
+            input["variances"] = v.clone();
+        }
     }
 
     let output: SelectTargetsOutput = lean::invoke("genesis_select_targets", &input, &spec_dir)?;
@@ -83,16 +89,4 @@ fn parse_iso8601_to_epoch(s: &str) -> Result<u64, Box<dyn std::error::Error>> {
     }
     let epoch: u64 = String::from_utf8_lossy(&output.stdout).trim().parse()?;
     Ok(epoch)
-}
-
-fn find_ranking_snapshot(
-    indices: &[serde_json::Value],
-    ranking: &serde_json::Value,
-    epoch: u64,
-) -> Option<serde_json::Value> {
-    let last = indices
-        .iter()
-        .rfind(|idx| idx["epoch"].as_u64().map(|e| e < epoch).unwrap_or(false))?;
-    let commit_hash = last["commitHash"].as_str()?;
-    ranking.get(commit_hash).cloned()
 }

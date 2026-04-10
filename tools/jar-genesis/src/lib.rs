@@ -6,5 +6,6 @@ pub mod lean;
 pub mod queue;
 pub mod replay;
 pub mod review;
+pub mod snapshot;
 pub mod types;
 pub mod workflow;

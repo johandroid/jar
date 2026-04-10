@@ -6,6 +6,7 @@ use crate::github;
 use crate::lean;
 use crate::replay;
 use crate::review;
+use crate::snapshot;
 use crate::types::{MergeReadiness, SelectTargetsOutput};
 
 /// Run the merge workflow for a PR.
@@ -53,16 +54,23 @@ pub fn run(pr: u64, founder_override: bool) -> Result<(), Box<dyn std::error::Er
     // --- Step 3: Compute comparison targets ---
     let ranking_json =
         git::show_file("origin/genesis-state:ranking.json").unwrap_or_else(|_| "{}".to_string());
-    let ranking: serde_json::Value = serde_json::from_str(&ranking_json)?;
-    let ranking_snapshot = find_ranking_snapshot(&cache_indices, &ranking, pr_created_epoch);
+    let ranking_map: serde_json::Value = serde_json::from_str(&ranking_json)?;
+    let scores_json =
+        git::show_file("origin/genesis-state:scores.json").unwrap_or_else(|_| "{}".to_string());
+    let scores_map: serde_json::Value = serde_json::from_str(&scores_json)?;
+
+    let snap = snapshot::find(&cache_indices, &ranking_map, &scores_map, pr_created_epoch)?;
 
     let mut targets_input = serde_json::json!({
         "prId": pr,
         "prCreatedAt": pr_created_epoch,
         "indices": cache_indices,
     });
-    if let Some(snapshot) = &ranking_snapshot {
-        targets_input["ranking"] = snapshot.clone();
+    if let Some(s) = &snap {
+        targets_input["ranking"] = s.ranking.clone();
+        if let Some(v) = &s.variances {
+            targets_input["variances"] = v.clone();
+        }
     }
 
     let targets_output: SelectTargetsOutput =
@@ -122,8 +130,11 @@ pub fn run(pr: u64, founder_override: bool) -> Result<(), Box<dyn std::error::Er
         "commit": commit_json,
         "pastIndices": cache_indices,
     });
-    if let Some(snapshot) = &ranking_snapshot {
-        eval_input["ranking"] = snapshot.clone();
+    if let Some(s) = &snap {
+        eval_input["ranking"] = s.ranking.clone();
+        if let Some(v) = &s.variances {
+            eval_input["variances"] = v.clone();
+        }
     }
 
     let index: serde_json::Value = lean::invoke("genesis_evaluate", &eval_input, &spec_dir)?;
@@ -266,6 +277,15 @@ fn update_cache(
         serde_json::from_str(&existing_ranking_json)?;
     existing_ranking.insert(new_commit_hash.to_string(), new_ranking.clone());
 
+    // Update scores.json (v3 BT output, if present)
+    let existing_scores_json =
+        git::show_file("origin/genesis-state:scores.json").unwrap_or_else(|_| "{}".to_string());
+    let mut existing_scores: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&existing_scores_json)?;
+    if let Some(scores) = ranking_output.get("scores") {
+        existing_scores.insert(new_commit_hash.to_string(), scores.clone());
+    }
+
     // Write to genesis-state branch via worktree
     git::fetch("origin", "genesis-state")?;
     git::git_cmd(&[
@@ -287,6 +307,10 @@ fn update_cache(
         "/tmp/genesis-state/ranking.json",
         serde_json::to_string_pretty(&serde_json::Value::Object(existing_ranking))?,
     )?;
+    std::fs::write(
+        "/tmp/genesis-state/scores.json",
+        serde_json::to_string_pretty(&serde_json::Value::Object(existing_scores))?,
+    )?;
 
     git::git_cmd_in("/tmp/genesis-state", &["config", "user.name", "JAR Bot"])?;
     git::git_cmd_in(
@@ -295,7 +319,7 @@ fn update_cache(
     )?;
     git::git_cmd_in(
         "/tmp/genesis-state",
-        &["add", "genesis.json", "ranking.json"],
+        &["add", "genesis.json", "ranking.json", "scores.json"],
     )?;
     git::git_cmd_in(
         "/tmp/genesis-state",
@@ -388,18 +412,6 @@ fn parse_epoch(iso: &str) -> Result<u64, Box<dyn std::error::Error>> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().parse()?)
 }
 
-fn find_ranking_snapshot(
-    indices: &[serde_json::Value],
-    ranking: &serde_json::Value,
-    epoch: u64,
-) -> Option<serde_json::Value> {
-    let last = indices
-        .iter()
-        .rfind(|idx| idx["epoch"].as_u64().map(|e| e < epoch).unwrap_or(false))?;
-    let commit_hash = last["commitHash"].as_str()?;
-    ranking.get(commit_hash).cloned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,45 +444,6 @@ mod tests {
     fn test_parse_flag_after_blank_line_ignored() {
         let body = "\nSet-Genesis-Author: @alice";
         assert_eq!(parse_flag(body, "Set-Genesis-Author"), None);
-    }
-
-    #[test]
-    fn test_find_ranking_snapshot_empty() {
-        let indices: Vec<serde_json::Value> = vec![];
-        let ranking = serde_json::json!({});
-        assert!(find_ranking_snapshot(&indices, &ranking, 1000).is_none());
-    }
-
-    #[test]
-    fn test_find_ranking_snapshot_all_future() {
-        let indices = vec![serde_json::json!({"commitHash": "abc", "epoch": 2000})];
-        let ranking = serde_json::json!({"abc": ["abc"]});
-        // epoch 1000 < 2000, so nothing is before it
-        assert!(find_ranking_snapshot(&indices, &ranking, 1000).is_none());
-    }
-
-    #[test]
-    fn test_find_ranking_snapshot_picks_last_before_epoch() {
-        let indices = vec![
-            serde_json::json!({"commitHash": "aaa", "epoch": 100}),
-            serde_json::json!({"commitHash": "bbb", "epoch": 200}),
-            serde_json::json!({"commitHash": "ccc", "epoch": 300}),
-        ];
-        let ranking = serde_json::json!({
-            "aaa": ["aaa"],
-            "bbb": ["bbb", "aaa"],
-            "ccc": ["ccc", "bbb", "aaa"],
-        });
-        // epoch 250: last before it is bbb (epoch 200)
-        let snapshot = find_ranking_snapshot(&indices, &ranking, 250).unwrap();
-        assert_eq!(snapshot, serde_json::json!(["bbb", "aaa"]));
-    }
-
-    #[test]
-    fn test_find_ranking_snapshot_missing_key() {
-        let indices = vec![serde_json::json!({"commitHash": "abc", "epoch": 100})];
-        let ranking = serde_json::json!({}); // key not present
-        assert!(find_ranking_snapshot(&indices, &ranking, 200).is_none());
     }
 
     #[test]
