@@ -1056,8 +1056,8 @@ mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::test_helpers::{make_block, temp_store};
     use super::*;
-    use super::test_helpers::{temp_store, make_block};
 
     #[test]
     fn test_metadata_round_trip() {
@@ -1946,8 +1946,8 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
+    use super::test_helpers::{make_block, temp_store};
     use super::*;
-    use super::test_helpers::{temp_store, make_block};
     use proptest::prelude::*;
 
     proptest! {
