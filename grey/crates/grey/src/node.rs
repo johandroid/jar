@@ -1313,19 +1313,29 @@ pub async fn run_node(config: NodeConfig) -> Result<(), Box<dyn std::error::Erro
                     }
                     NetworkEvent::EquivocationReceived { data, source: _ } => {
                         use scale::Decode;
-                        let Ok((countersig, _)) = grey_types::EquivocationCountersig::decode(data.as_slice()) else {
-                            tracing::warn!("failed to decode EquivocationCountersig");
-                            continue;
-                        };
-                        let validator_keys: Vec<_> = state
-                            .current_validators
-                            .iter()
-                            .map(|v| v.ed25519)
-                            .collect();
-                        if let Some(loser) =
-                            grandpa.add_equivocation_countersig(&countersig, &validator_keys)
-                        {
-                            crate::disputes::report_loser(loser, &mut grandpa);
+                        if let Ok((countersig, _)) = grey_types::EquivocationCountersig::decode(data.as_slice()) {
+                            // Countersig path: accumulate toward quorum.
+                            let validator_keys: Vec<_> = state
+                                .current_validators
+                                .iter()
+                                .map(|v| v.ed25519)
+                                .collect();
+                            if let Some(loser) =
+                                grandpa.add_equivocation_countersig(&countersig, &validator_keys)
+                            {
+                                crate::disputes::report_loser(loser, &mut grandpa);
+                            }
+                        } else if let Ok((evidence, _)) = grey_types::EquivocationEvidence::decode(data.as_slice()) {
+                            // Raw evidence relay path: a peer detected an equivocation we
+                            // didn't witness locally. Sign and broadcast our own countersig
+                            // so we contribute to quorum. Do NOT re-broadcast raw evidence.
+                            tracing::warn!(
+                                slot = evidence.slot,
+                                "equivocation evidence received from peer: relaying countersig"
+                            );
+                            broadcast_countersig(evidence, my_secrets, config.validator_index, &net_commands);
+                        } else {
+                            tracing::warn!("failed to decode equivocation message");
                         }
                     }
                     NetworkEvent::PeerIdentified { peer_id, validator_index: vi } => {
