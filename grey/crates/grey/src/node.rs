@@ -1430,6 +1430,28 @@ fn head_hash(state: &State) -> Hash {
         .unwrap_or(Hash::ZERO)
 }
 
+/// Sign equivocation evidence and broadcast only the countersig (relay path).
+///
+/// Used when this validator received raw evidence from a peer — it must not
+/// re-broadcast the raw evidence (that would loop), only add its own countersig.
+fn broadcast_countersig(
+    evidence: grey_types::EquivocationEvidence,
+    secrets: &grey_consensus::genesis::ValidatorSecrets,
+    validator_index: grey_types::ValidatorIndex,
+    net_commands: &tokio::sync::mpsc::Sender<NetworkCommand>,
+) {
+    use scale::Encode;
+    let sig = secrets.ed25519.sign(&evidence.signing_message());
+    let countersig = grey_types::EquivocationCountersig {
+        evidence,
+        validator_index,
+        signature: sig,
+    };
+    let _ = net_commands.try_send(NetworkCommand::BroadcastEquivocation {
+        data: countersig.encode(),
+    });
+}
+
 /// Sign equivocation evidence and broadcast both raw evidence and countersig.
 fn broadcast_equivocation(
     evidence: grey_types::EquivocationEvidence,
@@ -1442,20 +1464,12 @@ fn broadcast_equivocation(
         slot = evidence.slot,
         "equivocation detected: broadcasting evidence and countersig"
     );
-    // Broadcast raw evidence so peers learn about it
+    // Broadcast raw evidence so peers that missed one block can relay a countersig.
     let _ = net_commands.try_send(NetworkCommand::BroadcastEquivocation {
         data: evidence.encode(),
     });
-    // Sign and broadcast our own countersig
-    let sig = secrets.ed25519.sign(&evidence.signing_message());
-    let countersig = grey_types::EquivocationCountersig {
-        evidence,
-        validator_index,
-        signature: sig,
-    };
-    let _ = net_commands.try_send(NetworkCommand::BroadcastEquivocation {
-        data: countersig.encode(),
-    });
+    // Sign and broadcast our own countersig.
+    broadcast_countersig(evidence, secrets, validator_index, net_commands);
 }
 
 fn insert_bounded(set: &mut std::collections::HashSet<Hash>, item: Hash, cap: usize) {
